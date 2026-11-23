@@ -260,6 +260,15 @@ impl Graph {
         write::render(self, format).map(|(_, text)| text)
     }
 
+    /// Render an immutable graph within a limit on the requested carrier's bytes.
+    ///
+    /// # Errors
+    /// Refuses a native rendering failure or a carrier that exceeds the limit.
+    /// Returns no partial text.
+    pub fn to_text_bounded(&self, format: Format, max_bytes: usize) -> Result<String, Error> {
+        write::render_bounded(self, format, max_bytes)
+    }
+
     /// Render canonical bytes through the caller's original scratch and output accounts.
     ///
     /// Native graph storage and graph construction are not admitted by this operation.

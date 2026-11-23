@@ -94,8 +94,8 @@ pub use registered::{
 pub use report::{
     Baseline, BaselineGroup, ConstantRow, DebtChange, DebtGroup, DebtRecord, DebtSite, Index,
     IndexGroup, IndexUnit, JobRow, MAX_DEBT_BYTES, MatchRow, MemberRow, Query, QueryReport,
-    REPORT_FORM, ReferenceConstantRow, ReferenceSource, ReferenceWitness, ReportError, ReportKind,
-    SiteKey, TableRow, upgrade_report_form,
+    REPORT_FORM, ReferenceConstantRow, ReferenceMatchReport, ReferenceSource, ReferenceWitness,
+    ReportError, ReportKind, SiteKey, TableRow, upgrade_report_form,
 };
 pub use report::{
     BenchLink, Ledger, LedgerDistinct, LedgerExtensionGraph, LedgerJob, LedgerPattern,

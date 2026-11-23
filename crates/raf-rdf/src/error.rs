@@ -40,6 +40,11 @@ pub enum Error {
         /// First differing line, comparing exact bytes including newlines.
         line: usize,
     },
+    /// The canonical output exceeds the caller's byte limit.
+    OutputLimit {
+        /// Maximum accepted number of serialized bytes.
+        max_bytes: usize,
+    },
 }
 
 impl fmt::Display for Error {
@@ -72,6 +77,9 @@ impl fmt::Display for Error {
                 f,
                 "report spelling differs from canonical bytes at line {line}"
             ),
+            Self::OutputLimit { max_bytes } => {
+                write!(f, "report exceeds its {max_bytes}-byte output bound")
+            }
         }
     }
 }

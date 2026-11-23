@@ -43,21 +43,23 @@ pub struct Shape {
 impl Shape {
     /// Whether the reader of report kind `report` admits this row. A row
     /// applies to its own kind; a `both` row applies to the baseline and the
-    /// index, and its Unit rows to the job and fingerprint queries. The index
-    /// Unit and reference rows also apply to those queries, and its Job and
-    /// Match rows to the job query.
+    /// index, and its Unit rows to the job, fingerprint and reference
+    /// projections. The index Unit, `ReferenceSource` and `ReferenceWitness` rows
+    /// also apply to those projections, and its Job and Match rows to the job query.
     #[must_use]
     pub fn applies_to(&self, report: &str) -> bool {
+        let projects_units = matches!(
+            report,
+            "job-query" | "fingerprint-query" | "reference-matches"
+        );
         self.report == report
             || (self.report == "both"
                 && (matches!(report, "baseline" | "index")
-                    || (matches!(report, "job-query" | "fingerprint-query")
-                        && self.class == "Unit")))
+                    || (projects_units && self.class == "Unit")))
             || (self.report == "index"
-                && ((self.class == "Unit" && matches!(report, "job-query" | "fingerprint-query"))
-                    || (matches!(self.class, "Job" | "Match") && report == "job-query")
-                    || (matches!(self.class, "ReferenceSource" | "ReferenceWitness")
-                        && matches!(report, "job-query" | "fingerprint-query"))))
+                && ((projects_units
+                    && matches!(self.class, "Unit" | "ReferenceSource" | "ReferenceWitness"))
+                    || (matches!(self.class, "Job" | "Match") && report == "job-query")))
     }
 }
 macro_rules! shapes {
@@ -90,6 +92,13 @@ shapes! {
     ("fingerprint-query","FingerprintQuery","reportForm",1,1,"report version"),
     ("fingerprint-query","FingerprintQuery","symbol",1,1,"string"),
     ("fingerprint-query","FingerprintQuery","member",1,usize::MAX,"unit"),
+    ("reference-matches","ReferenceMatches","normalForm",1,1,"u32"),
+    ("reference-matches","ReferenceMatches","reportForm",1,1,"report version"),
+    ("reference-matches","ReferenceMatches","witness",0,usize::MAX,"reference witness"),
+    ("reference-matches","ReferenceMatches","matchRole",0,usize::MAX,"reference match role"),
+    ("reference-matches","ReferenceMatchRole","jobId",1,1,"string"),
+    ("reference-matches","ReferenceMatchRole","member",1,1,"unit"),
+    ("reference-matches","ReferenceMatchRole","matchClass",1,1,"match class"),
     ("both","BodyGroup","fingerprint",1,1,"body fingerprint"),
     ("both","BodyGroup","member",2,usize::MAX,"unit"),
     ("both","BodyGroup","tokens",1,1,"integer"),

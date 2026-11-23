@@ -30,7 +30,7 @@ pub(crate) fn run(
     let registry = registry(&args.registry)?;
     if (external.is_some() || registry.is_some()) && !accepts_external_sources(&args.command) {
         return Err(Error::Options(
-            "reference options apply only to check, index, job, count, fingerprint and debt, and so do the registry options".into(),
+            "reference options apply only to check, index, reference-matches, job, count, fingerprint and debt, and so do the registry options".into(),
         )
         .into());
     }
@@ -126,14 +126,10 @@ fn run_gate(
             Ok(u8::from(!report.is_clean()))
         }
 
-        Command::Index(target) => {
-            let index = native_index(&gate, registry, target.max_index_bytes)?;
-            let text = match target.format {
-                RdfFormat::Ntriples => index.to_ntriples()?,
-                RdfFormat::Turtle => index.to_turtle()?,
-            };
-            write_report(&gate.root()?, &text, target.out.as_deref(), output)?;
-            Ok(0)
+        Command::Index(target) => index(&gate, registry, target, output),
+        Command::ReferenceMatches(target) => {
+            let report = evaluate(&gate, registry)?.reference_matches()?;
+            write_query(&gate, target, report.graph(), output)
         }
         Command::Job { id, target } => {
             query(&gate, registry, target, raf_census::Query::Job(id), output)
@@ -486,14 +482,16 @@ fn write_findings(
     Ok(u8::from(!findings.is_empty()))
 }
 
-fn native_index(
+fn index(
     gate: &Gate,
     registry: Option<&LockedRegistry>,
-    limit: usize,
-) -> Result<raf_census::Index, crate::error::Error> {
+    target: &QueryTarget,
+    output: &mut dyn Write,
+) -> Result<u8, crate::error::Error> {
     let report = evaluate(gate, registry)?;
     let index = report.census().index(report.jobs())?;
     let serialized = index.to_ntriples()?;
+    let limit = target.max_index_bytes;
     if serialized.len() > limit {
         return Err(Error::Options(format!(
             "native index is {} bytes, exceeding its {limit}-byte output bound",
@@ -501,7 +499,15 @@ fn native_index(
         ))
         .into());
     }
-    Ok(index)
+    let text = match target.format {
+        RdfFormat::Ntriples => serialized,
+        RdfFormat::Turtle => {
+            drop(serialized);
+            index.to_turtle()?
+        }
+    };
+    write_report(&gate.root()?, &text, target.out.as_deref(), output)?;
+    Ok(0)
 }
 
 fn query(
@@ -511,20 +517,26 @@ fn query(
     selector: raf_census::Query<'_>,
     output: &mut dyn Write,
 ) -> Result<u8, crate::error::Error> {
-    let root = gate.root()?;
-    let index = native_index(gate, registry, target.max_index_bytes)?;
-    let result = index.query(selector)?;
-    let text = match target.format {
-        RdfFormat::Ntriples => result.to_ntriples()?,
-        RdfFormat::Turtle => result.to_turtle()?,
-    };
-    write_report(&root, &text, target.out.as_deref(), output)?;
+    let result = evaluate(gate, registry)?.query(selector)?;
+    write_query(gate, target, result.graph(), output)
+}
+
+fn write_query(
+    gate: &Gate,
+    target: &QueryTarget,
+    graph: &raf_rdf::Graph,
+    output: &mut dyn Write,
+) -> Result<u8, crate::error::Error> {
+    let text = graph
+        .to_text_bounded(target.format.native(), target.max_index_bytes)
+        .map_err(ReportError::Ground)
+        .map_err(Error::from)?;
+    write_report(&gate.root()?, &text, target.out.as_deref(), output)?;
     Ok(0)
 }
 
-/// The one evaluation that `check`, `index`, `job`, `count` and `fingerprint`
-/// share: the locked check with the sealed registry dependencies when the
-/// options name any, otherwise the ordinary check.
+/// The same evaluation supplies checks, the complete index and each selected
+/// report, with sealed registry dependencies when the options name any.
 fn evaluate(
     gate: &Gate,
     registry: Option<&LockedRegistry>,
@@ -737,6 +749,7 @@ fn accepts_external_sources(command: &Command) -> bool {
         command,
         Command::Check { .. }
             | Command::Index(_)
+            | Command::ReferenceMatches(_)
             | Command::Job { .. }
             | Command::Count { .. }
             | Command::Fingerprint { .. }

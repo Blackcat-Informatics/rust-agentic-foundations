@@ -7,7 +7,7 @@ subject: cap:census-reference-scan#usage
 inputs:
   - kind: section
     name: cap:census-reference-scan#usage
-    digest: c1faccd71d4f9eb804f57a1eceb44372eeac021ac8fe5832e5486897c5fcc0f7
+    digest: dc8ee73322302574deff927687f34e46d1917fc69c61f85643e946ce45eae0a4
   - kind: symbol
     name: raf_census::Gate::check_registry
     digest: 46da59733d1abf966d99234e719b3b7d230a411e31c1fbfa3d4e658608ad8d88
@@ -28,7 +28,7 @@ inputs:
     digest: 478d6fd7426eb8e7c275229a73a2c648e8f91963fc214cf9b110fefce727734d
   - kind: symbol
     name: raf_census::report::reference
-    digest: 32962a6648baff61a37ed57137c4173a3287eedd29605861bd9c061e72cad75b
+    digest: 7a884a724b241330ebe48e581cc4d20dbbfb0ce5a61fba86dda7406fae513274
   - kind: symbol
     name: raf_source::workspace::locked::reference
     digest: d13e725f040377eb1f7f5836a0e3ac016456b75977850d2bf3783790b7cf55b0

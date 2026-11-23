@@ -349,6 +349,10 @@ nonnegative copies; a fingerprint query links every matching full index unit.
 Query roots also declare normalForm and reportForm. JobQuery has exactly one
 job link and matching jobId; FingerprintQuery has a symbol and one or more
 member links whose units have that symbol. Unrelated nodes refuse.
+The closed ReferenceMatches root links only witnesses with committed Git
+receipts and job roles of their physical endpoints. It retains the native
+Unit, ReferenceWitness and ReferenceSource identities from the full index.
+It is an additional root class within report form 6.
 There are no blank nodes or named graphs. The census vocabulary is
 `https://blackcatinformatics.ca/raf/report/1#` (called `census:` in the shape table).
 Body and shim fingerprint IRIs
@@ -381,6 +385,10 @@ Every class requires exactly one rdf:type. Each carrier admits only the
 subjects, predicates, classes, individuals and datatypes its shape defines. Baseline
 units must be referenced by a group, shared constant or holds property. Every
 reference must resolve, and minted node names must agree with their properties.
+The `reference-matches` carrier also uses the Index shape rows for
+`Unit`, `ReferenceWitness` and `ReferenceSource`, including the Unit rows
+shared with Baseline. Each unit is a witness endpoint, and each source
+describes a committed Git observation.
 A Baseline, Index or DebtRecord states its grouping scope with excludeTestItems,
 written only as true, and one excludeDir for each excluded directory name. A
 complete scope writes neither, so a report or record computed without an
@@ -413,6 +421,13 @@ detectors still see it, and a job copy inside an excluded file still counts.
 | fingerprint-query | `census:FingerprintQuery` | `census:reportForm` | 1..1 | report version |
 | fingerprint-query | `census:FingerprintQuery` | `census:symbol` | 1..1 | string |
 | fingerprint-query | `census:FingerprintQuery` | `census:member` | 1..unbounded | unit |
+| reference-matches | `census:ReferenceMatches` | `census:normalForm` | 1..1 | u32 |
+| reference-matches | `census:ReferenceMatches` | `census:reportForm` | 1..1 | report version |
+| reference-matches | `census:ReferenceMatches` | `census:witness` | 0..unbounded | reference witness |
+| reference-matches | `census:ReferenceMatches` | `census:matchRole` | 0..unbounded | reference match role |
+| reference-matches | `census:ReferenceMatchRole` | `census:jobId` | 1..1 | string |
+| reference-matches | `census:ReferenceMatchRole` | `census:member` | 1..1 | unit |
+| reference-matches | `census:ReferenceMatchRole` | `census:matchClass` | 1..1 | match class |
 | both | `census:BodyGroup` | `census:fingerprint` | 1..1 | body fingerprint |
 | both | `census:BodyGroup` | `census:member` | 2..unbounded | unit |
 | both | `census:BodyGroup` | `census:tokens` | 1..1 | integer |

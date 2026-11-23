@@ -116,9 +116,14 @@ pub fn batch_total(values: &[u64]) -> u64 {
 | Question | Command |
 | --- | --- |
 | Which sources, groups and classifications did the gate see? | `cargo raf-census index` |
+| Which sites match a pinned Git reference? | `cargo raf-census reference-matches --reference-repo ../upstream --reference-commit COMMIT` |
 | Which occurrences and fingerprints belong to a symbol? | `cargo raf-census fingerprint demo::scaled_total` (use your crate and item name) |
 | Which occurrences matched a declared job? | `cargo raf-census job JOB_ID` |
 | How many copies did that job classify? | `cargo raf-census count JOB_ID` |
+
+Use `--max-index-bytes` to cap the selected job, count, fingerprint, or
+pinned match report in its chosen format. The complete index has its own
+N-Triples size check.
 
 The starter ledger declares no job IDs. For policy beyond structural grouping, a job can identify a home symbol and forbidden competitors. A reference scan can compare local code with sources sealed from the Cargo lockfile and cached registry archives. Supply consumer-owned Rust rules and extension validators through the library gate when the policy requires them. The native CLI never launches the consumer to discover registrations. [Rule registration](docs/capabilities/census-rule-api.md) · [Reference scans](docs/capabilities/census-reference-scan.md)
 

@@ -230,6 +230,10 @@ fn validate_properties(
                 }
                 "job" => class_link(graph, value, "Job", referenced)?,
                 "reference source" => class_link(graph, value, "ReferenceSource", referenced)?,
+                "reference witness" => class_link(graph, value, "ReferenceWitness", referenced)?,
+                "reference match role" => {
+                    class_link(graph, value, "ReferenceMatchRole", referenced)?
+                }
                 "reference fingerprint" => {
                     fp(value, nf, GroupKind::Body).or_else(|_| fp(value, nf, GroupKind::Shim))?;
                     true
@@ -300,6 +304,8 @@ pub(super) fn validate(graph: &Graph, report: &str, nf: u32) -> Result<(), E> {
         }
     }
     let mut referenced = BTreeSet::new();
+    let mut used_receipts = BTreeSet::new();
+    let receipt_property = property("referenceSource");
     let mut matches = BTreeMap::new();
     let mut reified = BTreeSet::new();
     let mut copies_by_job: BTreeMap<String, usize> = BTreeMap::new();
@@ -308,12 +314,16 @@ pub(super) fn validate(graph: &Graph, report: &str, nf: u32) -> Result<(), E> {
         validate_properties(graph, &id, &node, report, nf, &mut referenced)?;
         match class {
             "Baseline" | "Index" | "JobQuery" | "CountQuery" | "FingerprintQuery"
+            | "ReferenceMatches"
                 if !id.is_empty() =>
             {
                 return Err(E::Name(id.clone()));
             }
             "Unit" => {
                 member(graph, &id)?;
+                if let Some(receipt) = node.values(&receipt_property).next() {
+                    used_receipts.insert(target(receipt)?);
+                }
                 if node.values(&property("holds")).next().is_some() || report == "index" {
                     referenced.insert(id.clone());
                 }
@@ -370,23 +380,38 @@ pub(super) fn validate(graph: &Graph, report: &str, nf: u32) -> Result<(), E> {
             _ => {}
         }
     }
+    validate_references(graph, report, &referenced, &copies_by_job)?;
+    if matches.keys().cloned().collect::<BTreeSet<_>>() != reified {
+        return Err(E::Inconsistent(
+            "every asserted match requires exactly one named reifier".into(),
+        ));
+    }
+    super::reference::validate(graph, nf, &used_receipts)?;
+    Ok(())
+}
+
+fn validate_references(
+    graph: &Graph,
+    report: &str,
+    referenced: &BTreeSet<String>,
+    copies_by_job: &BTreeMap<String, usize>,
+) -> Result<(), E> {
     for (id, node) in graph.nodes() {
-        if matches!(class(&node)?, "Unit" | "MemberMultiplicity") && !referenced.contains(&id) {
+        let class = class(&node)?;
+        let rooted_reference = report == "reference-matches"
+            && matches!(class, "ReferenceWitness" | "ReferenceMatchRole");
+        if (rooted_reference || matches!(class, "Unit" | "MemberMultiplicity"))
+            && !referenced.contains(&id)
+        {
             return Err(E::Orphan(id));
         }
-        if class(&node)? == "Job" {
+        if class == "Job" {
             let copies = copies_by_job.get(&id).copied().unwrap_or(0);
             if copies != count(&node, "copies")? {
                 return Err(E::Inconsistent(format!("{id}: copies")));
             }
         }
     }
-    if matches.keys().cloned().collect::<BTreeSet<_>>() != reified {
-        return Err(E::Inconsistent(
-            "every asserted match requires exactly one named reifier".into(),
-        ));
-    }
-    super::reference::validate(graph, nf)?;
     Ok(())
 }
 /// Read the grouping scope stated on a root. `excludeTestItems` is stated only

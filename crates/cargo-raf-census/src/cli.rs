@@ -78,6 +78,8 @@ pub(crate) enum Command {
     },
     /// Read the complete index through the native repository gate.
     Index(QueryTarget),
+    /// Report physical matches against committed Git reference sources.
+    ReferenceMatches(QueryTarget),
     /// Inspect every classified physical match of one configured job.
     Job {
         /// Exact configured job identity.
@@ -338,7 +340,7 @@ pub(crate) struct QueryTarget {
     /// Write the complete result here, relative to the caller, instead of stdout.
     #[arg(long)]
     pub(crate) out: Option<PathBuf>,
-    /// Maximum serialized bytes in the complete native index.
+    /// Maximum serialized bytes of the result; a complete index is measured in N-Triples.
     #[arg(
         long,
         default_value_t = raf_census::MAX_CHECK_RESPONSE_BYTES,

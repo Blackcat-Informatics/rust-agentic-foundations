@@ -4570,14 +4570,20 @@ fn self_test_ignores_the_workspace_flag_even_for_a_path_that_does_not_exist() {
     reason = "a failed fixture operation is a test failure at the point of use"
 )]
 fn reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory() {
-    let scratch = fixture();
+    let target = Path::new(env!("CARGO_TARGET_TMPDIR"));
+    let scratch = purrdf_testkit::TempDir::new_in(target).unwrap();
     let root = scratch.path();
+    source_fixture(root);
+    fs::write(root.join(raf_census::LEDGER_FILE), ledger(1)).unwrap();
     let body = "(value:u32)->u32 { let scaled=value*3; let shifted=scaled+7; if shifted>100 { shifted-100 } else { shifted*2 } }";
     let consumer = format!("pub fn copy{body}\n");
     let mut text = fs::read_to_string(root.join("src/lib.rs")).unwrap();
     text.push_str(&consumer);
+    for index in 0..32 {
+        writeln!(text, "pub const VALUE_{index}: u32 = {};", index + 100).unwrap();
+    }
     fs::write(root.join("src/lib.rs"), text).unwrap();
-    let outside = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();
+    let outside = purrdf_testkit::TempDir::new_in(target).unwrap();
     let repository = outside.path().join("upstream");
     let plain = outside.path().join("plain");
     let library = format!("pub fn provided{body}\n");
@@ -4658,7 +4664,88 @@ fn reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory() {
     ]);
     assert!(committed.contains("\"committed-git\""), "{committed}");
     assert!(!committed.contains("\"unpinned-tree\""));
+    bounded_reference_projections(root, repository, &commit, &committed);
     reference_option_refusals(root, repository, &commit, plain);
+}
+
+/// The selected carrier's own byte boundary applies before stdout or a file can receive data.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
+fn bounded_reference_projections(root: &Path, repository: &str, commit: &str, complete: &str) {
+    use raf_census::{Index, Query};
+
+    let index = Index::from_ntriples(complete).unwrap();
+    let matches = index.reference_matches().unwrap();
+    let pinned_text = matches.graph().to_text(Format::NTriples).unwrap();
+    assert!(pinned_text.contains(commit));
+    let query = |selector| {
+        index
+            .query(selector)
+            .unwrap()
+            .graph()
+            .to_text(Format::NTriples)
+            .unwrap()
+    };
+    let cases: [(&[&str], String); 5] = [
+        (&["job", "number"], query(Query::Job("number"))),
+        (&["count", "number"], query(Query::Count("number"))),
+        (
+            &["fingerprint", "demo::copy"],
+            query(Query::Fingerprint("demo::copy")),
+        ),
+        (&["reference-matches"], pinned_text),
+        (
+            &["reference-matches", "--format", "turtle"],
+            matches.graph().to_text(Format::Turtle).unwrap(),
+        ),
+    ];
+    let selected_limit = cases.iter().map(|(_, text)| text.len()).max().unwrap();
+    assert!(complete.len() > selected_limit);
+    let pinned = ["--reference-repo", repository, "--reference-commit", commit];
+    let limit = selected_limit.to_string();
+    let mut words = vec!["index", "--max-index-bytes", &limit];
+    words.extend(pinned);
+    let refused = run(root, &words);
+    assert_eq!(refused.status.code(), Some(1), "{refused:?}");
+    assert_eq!(refused.stdout, [] as [u8; 0]);
+
+    let complete_limit = complete.len() - 1;
+    assert!(index.to_turtle().unwrap().len() <= complete_limit);
+    let complete_limit = complete_limit.to_string();
+    let mut words = vec![
+        "index",
+        "--format",
+        "turtle",
+        "--max-index-bytes",
+        &complete_limit,
+    ];
+    words.extend(pinned);
+    let refused = run(root, &words);
+    assert_eq!(refused.status.code(), Some(1), "{refused:?}");
+    assert_eq!(refused.stdout, [] as [u8; 0]);
+
+    let destination = root.join("oversized.nt");
+    let destination_arg = destination.to_str().unwrap();
+    for (command, expected) in cases {
+        let mut words = command.to_vec();
+        words.extend(pinned);
+        let exact = expected.len().to_string();
+        let shorter = (expected.len() - 1).to_string();
+        let boundary = words.len();
+        words.extend(["--max-index-bytes", &exact]);
+        let result = run(root, &words);
+        assert!(result.status.success(), "{words:?}: {result:?}");
+        assert_eq!(result.stdout, expected.as_bytes(), "{words:?}");
+        words.truncate(boundary);
+        words.extend(["--max-index-bytes", &shorter, "--out", destination_arg]);
+        let refused = run(root, &words);
+        assert_eq!(refused.status.code(), Some(1), "{words:?}: {refused:?}");
+        assert!(String::from_utf8_lossy(&refused.stderr).contains("output bound"));
+        assert_eq!(refused.stdout, [] as [u8; 0]);
+        assert!(!destination.exists());
+    }
 }
 
 /// The refusals of the reference options, each beside the valid uses above.

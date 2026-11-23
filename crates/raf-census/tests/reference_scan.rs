@@ -72,6 +72,10 @@ fn path_references_preserve_all_witnesses_with_one_physical_consumer_count() {
     ] {
         let selected = decoded.query(query).unwrap().to_ntriples().unwrap();
         assert_eq!(
+            report.query(query).unwrap().to_ntriples().unwrap(),
+            selected
+        );
+        assert_eq!(
             QueryReport::from_ntriples(&selected)
                 .unwrap()
                 .to_ntriples()
@@ -1409,7 +1413,16 @@ fn pinned_commit_reports_reference_copies_exactly_as_a_lock_selected_reference()
             "committed-git",
         )
     );
-    assert!(external_report(&ws, ExternalReference::commit(&repository, &head)).is_clean());
+    let clean = external_report(&ws, ExternalReference::commit(&repository, &head));
+    assert!(clean.is_clean());
+    let empty = clean.reference_matches().unwrap();
+    assert_eq!(empty.graph().nodes().count(), 1);
+    let observed = pinned.reference_matches().unwrap();
+    let text = observed.to_ntriples().unwrap();
+    assert!(
+        text.contains(&first) && text.contains("ReferenceWitness") && text.contains("app::copy")
+    );
+    assert!(!text.contains("ReferenceMatchRole"));
 }
 
 /// Each unusable pinned input refuses with a message naming what to fix,

@@ -18,6 +18,9 @@ bindings:
     - raf_source::workspace::locked::reference
     - raf_census::ReferenceSource
     - raf_census::ReferenceWitness
+    - raf_census::ReferenceMatchReport
+    - raf_census::GateReport::reference_matches
+    - raf_census::Index::reference_matches
     - raf_census::ReferenceConstantRow
     - raf_census::ExternalReference
     - raf_census::Gate::external_references
@@ -185,7 +188,7 @@ authenticated archive manifest declares, and a package without one refuses.
 ### The command-line route
 <!-- raf:tested-by cargo_raf_census::test_crate::delivery::registry_reference_ban_fails_check_and_every_command_reads_the_same_sealed_set,cargo_raf_census::test_crate::delivery::registry_options_refuse_by_name_without_a_partial_verdict,cargo_raf_census::test_crate::delivery::a_sealed_registry_selector_is_a_reference_without_a_ledger_entry,cargo_raf_census::test_crate::delivery::a_git_reference_is_refused_by_the_registry_options_beside_a_clean_registry_neighbour,cargo_raf_census::test_crate::delivery::a_git_reference_is_refused_by_job_count_fingerprint_and_debt_beside_a_clean_registry_neighbour -->
 
-`cargo raf-census check`, `index`, `job`, `count`, `fingerprint` and `debt --write` take `--seal-registry`, `--registry-cache` and `--registry-features` and call `Gate::check_registry` and `Gate::write_debt_registry` with a `LockedRegistry` built from them, so the command and the library route are one path. `--seal-registry` calls `LockedRegistry::seal_reference`: the selectors it names and the ledger's `reference` selectors feed one reference selection, so a sealed package is a reference for the ban as well as sealed. `LockedRegistry::seal` alone seals a package for provider proofs without making it a reference. The command line declares `LockedRegistry::require_declared_features`: the caller states the complete feature set of every sealed package, with `PACKAGE=` for none, and a sealed package without a declaration refuses by name. A feature declaration for a package that is not sealed refuses in the library route too. The host runs a checkout of this repository or an installed `cargo-raf-census` binary built from a pinned commit; see [census-cli](census-cli.md) for the options.
+`cargo raf-census check`, `index`, `reference-matches`, `job`, `count`, `fingerprint` and `debt --write` take `--seal-registry`, `--registry-cache` and `--registry-features` and call `Gate::check_registry` and `Gate::write_debt_registry` with a `LockedRegistry` built from them, so the command and the library route are one path. `--seal-registry` calls `LockedRegistry::seal_reference`: the selectors it names and the ledger's `reference` selectors feed one reference selection, so a sealed package is a reference for the ban as well as sealed. `LockedRegistry::seal` alone seals a package for provider proofs without making it a reference. The command line declares `LockedRegistry::require_declared_features`: the caller states the complete feature set of every sealed package, with `PACKAGE=` for none, and a sealed package without a declaration refuses by name. A feature declaration for a package that is not sealed refuses in the library route too. The host runs a checkout of this repository or an installed `cargo-raf-census` binary built from a pinned commit; see [census-cli](census-cli.md) for the options.
 
 ### Declared reference trees
 <!-- raf:tested-by raf_census::test_crate::reference_scan::pinned_commit_reports_reference_copies_exactly_as_a_lock_selected_reference,raf_census::test_crate::reference_scan::pinned_reference_refusals_name_the_failed_input_beside_the_exact_commit,raf_census::test_crate::reference_scan::linked_worktree_and_main_checkout_compare_against_the_same_pinned_tree,raf_census::test_crate::reference_scan::unpinned_directory_finds_the_same_copies_and_labels_every_receipt,cargo_raf_census::test_crate::delivery::reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory,raf_source::test_crate::git_tree::pinned_tree_never_reads_or_size_checks_a_file_the_caller_already_holds -->
@@ -215,8 +218,8 @@ resolve it from, including on an opaque Tree. Each receipt records the
 location exactly as declared.
 A pinned receipt has source kind `git`, the commit as its revision and the
 `committed-git` observation. An unpinned receipt has source kind `path`, no
-revision and the `unpinned-tree` observation, so every index and query from
-that mode marks its source as unpinned. `cargo raf-census` also prints one notice
+revision and the `unpinned-tree` observation. An index or scalar query that
+includes such a receipt marks its source as unpinned. `cargo raf-census` also prints one notice
 on stderr naming the unpinned directory for every evaluating command, so a
 `check` run is marked although its findings are identical to the pinned run.
 Because a debt record cannot carry that mark, an unpinned comparison refuses to
@@ -285,7 +288,8 @@ copies of the units under that home only, so a copy of any other unit of the sam
 reference stays a `REFERENCE-COPY` finding, and an adopted debt record never holds it.
 Choose the unhomed form to forbid every copy, and a homed job to adopt a
 reference module with a recorded allowance. The index, `job`, `count` and
-`fingerprint` evaluate the same inputs as `check`, so they cannot disagree.
+`fingerprint` evaluate the same inputs as `check`, and `reference-matches`
+selects the committed Git witnesses from that evaluation.
 <!-- raf:tested-by raf_census::test_crate::reference_scan::unhomed_reference_copy_is_a_hard_finding,raf_census::test_crate::reference_scan::an_existing_debt_record_does_not_hold_a_reference_copy,raf_census::test_crate::reference_scan::unhomed_reference_bans_shim_and_member_copies_beside_changed_neighbours,raf_census::test_crate::reference_scan::locked_git_reference_copy_is_a_hard_finding,cargo_raf_census::test_crate::delivery::ledger_reference_ban_fails_check_and_refuses_unusable_inputs_without_a_partial_verdict -->
 
 ### Closed native evidence
@@ -308,8 +312,23 @@ Form 6 receipts also admit the `unpinned-tree` observation, only with the `path`
 source kind and no checksum; every existing receipt keeps its bytes and
 identity.
 
+`reference-matches` selects full fingerprint witnesses against committed Git
+references. Each witness carries the physical consumer and reference units,
+their equal fingerprint, and the reference unit's exact source receipt.
+Where an indexed job classifies either physical site, the report retains
+that job's named role. With no matching pinned units, it returns an empty
+report root. The library exposes the same projection from an evaluated
+`GateReport::reference_matches` and a decoded `Index::reference_matches`.
+An index edited to contain duplicate job IDs refuses before projection.
+<!-- raf:tested-by cargo_raf_census::test_crate::delivery::reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory,raf_census::test_crate::reference_scan::pinned_commit_reports_reference_copies_exactly_as_a_lock_selected_reference -->
+
 ## Usage
 <!-- raf:tested-by raf_census::test_crate::reference_scan::explicit_path_roots_require_the_actual_owning_manifest_locator -->
+
+Run `cargo raf-census reference-matches --reference-repo ../upstream
+--reference-commit COMMIT` to export pinned matches without exporting the
+complete native index. Use `--max-index-bytes` to set the selected report's
+byte limit and `--format turtle` to choose the Turtle carrier.
 
 Run `raf_census::example_crate::references` for an owned path dependency and its
 complete native Index and query round trips.
