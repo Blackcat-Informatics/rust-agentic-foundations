@@ -8,6 +8,8 @@ mod error;
 mod ledger;
 pub(crate) use ledger::bounds;
 pub(crate) mod mint;
+mod pinned;
+mod projection;
 mod query;
 mod read;
 pub(crate) mod reference;
@@ -25,6 +27,7 @@ pub use ledger::{
     BenchLink, Ledger, LedgerDistinct, LedgerExtensionGraph, LedgerJob, LedgerPattern,
     LedgerVariant, MAX_LEDGER_BYTES, NamePattern, PatternMatcher, PatternScope, PreferredProvider,
 };
+pub use pinned::ReferenceMatchReport;
 pub use query::{Query, QueryReport};
 pub use reference::{ReferenceConstantRow, ReferenceSource, ReferenceWitness};
 pub use site::{DebtSite, SiteKey};

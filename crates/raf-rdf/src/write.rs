@@ -159,23 +159,32 @@ fn compare_rows<S: Admission + ?Sized, O: Admission + ?Sized>(
 struct Output<'o, 'a, O: Admission + ?Sized> {
     text: String,
     memory: &'o mut Memory<'a, O>,
-    failure: Option<StorageError>,
+    failure: Option<Error>,
+    limit: Option<usize>,
 }
 
 impl<'o, 'a, O: Admission + ?Sized> Output<'o, 'a, O> {
-    fn new(memory: &'o mut Memory<'a, O>) -> Self {
+    fn new(memory: &'o mut Memory<'a, O>, limit: Option<usize>) -> Self {
         Self {
             text: String::new(),
             memory,
             failure: None,
+            limit,
         }
-    }
-    fn status(&self) -> Result<(), StorageError> {
-        self.failure.map_or(Ok(()), Err)
     }
     fn finish(self) -> Result<String, Error> {
         self.status()?;
         Ok(self.text)
+    }
+}
+
+trait Destination: TextOut {
+    fn status(&self) -> Result<(), Error>;
+}
+
+impl<O: Admission + ?Sized> Destination for Output<'_, '_, O> {
+    fn status(&self) -> Result<(), Error> {
+        self.failure.clone().map_or(Ok(()), Err)
     }
 }
 
@@ -203,7 +212,7 @@ impl<O: Admission + ?Sized> TextOut for Output<'_, '_, O> {
             return false;
         }
         if let Err(error) = self.memory.admission_mut().checkpoint(bytes as u64) {
-            self.failure = Some(error);
+            self.failure = Some(error.into());
         }
         !self.failed()
     }
@@ -211,8 +220,14 @@ impl<O: Admission + ?Sized> TextOut for Output<'_, '_, O> {
         if self.failed() {
             return;
         }
+        if let Some(max_bytes) = self.limit
+            && text.len() > max_bytes.saturating_sub(self.text.len())
+        {
+            self.failure = Some(Error::OutputLimit { max_bytes });
+            return;
+        }
         if let Err(error) = self.memory.push_str_with_progress(&mut self.text, text) {
-            self.failure = Some(error);
+            self.failure = Some(error.into());
         }
     }
     fn push(&mut self, character: char) {
@@ -223,18 +238,43 @@ impl<O: Admission + ?Sized> TextOut for Output<'_, '_, O> {
     }
 }
 
-fn owned_iri<O: Admission + ?Sized>(base: &str, text: &str, output: &mut Output<'_, '_, O>) {
+struct DigestOutput(purrdf_hash::blake3::Hasher);
+
+impl fmt::Write for DigestOutput {
+    fn write_str(&mut self, text: &str) -> fmt::Result {
+        self.push_str(text);
+        Ok(())
+    }
+}
+
+impl TextOut for DigestOutput {
+    fn push_str(&mut self, text: &str) {
+        self.0.update(text.as_bytes());
+    }
+
+    fn push(&mut self, character: char) {
+        self.push_str(character.encode_utf8(&mut [0; 4]));
+    }
+}
+
+impl Destination for DigestOutput {
+    fn status(&self) -> Result<(), Error> {
+        Ok(())
+    }
+}
+
+fn owned_iri(base: &str, text: &str, output: &mut impl Destination) {
     output.push('<');
     purrdf_lex::iri_escape::push_escaped(base, output);
     purrdf_lex::iri_escape::push_escaped(text, output);
     output.push('>');
 }
 
-fn object<S: Admission + ?Sized, O: Admission + ?Sized>(
+fn object<S: Admission + ?Sized>(
     value: &TermValue,
     base: Option<&str>,
     spelling: Spelling,
-    output: &mut Output<'_, '_, O>,
+    output: &mut impl Destination,
     scratch: &mut Memory<'_, S>,
 ) -> Result<(), Error> {
     let result = if base.is_some() || spelling == Spelling::PurRdf4 {
@@ -266,7 +306,8 @@ fn object<S: Admission + ?Sized, O: Admission + ?Sized>(
                         );
                         output.status()
                     }
-                    _ => purrdf_core::write_term_value_with_memory(leaf, output, memory),
+                    _ => purrdf_core::write_term_value_with_memory(leaf, output, memory)
+                        .map_err(Error::from),
                 },
                 |output, text, _| {
                     output.push_str(text);
@@ -275,10 +316,11 @@ fn object<S: Admission + ?Sized, O: Admission + ?Sized>(
                 scratch,
             )
             .map_err(|error| match error {
-                OwnedTermFoldError::Visitor(cause) | OwnedTermFoldError::Storage(cause) => cause,
+                OwnedTermFoldError::Visitor(cause) => cause,
+                OwnedTermFoldError::Storage(cause) => cause.into(),
             })
     } else {
-        purrdf_core::write_term_value_with_memory(value, output, scratch)
+        purrdf_core::write_term_value_with_memory(value, output, scratch).map_err(Error::from)
     };
     // The destination may have failed before native scratch cleanup did.
     output.status()?;
@@ -286,11 +328,11 @@ fn object<S: Admission + ?Sized, O: Admission + ?Sized>(
     Ok(())
 }
 
-fn body<S: Admission + ?Sized, O: Admission + ?Sized>(
+fn body<S: Admission + ?Sized>(
     selection: &Selection<'_>,
     base: Option<&str>,
     spelling: Spelling,
-    output: &mut Output<'_, '_, O>,
+    output: &mut impl Destination,
     scratch: &mut Memory<'_, S>,
 ) -> Result<(), Error> {
     for row in &selection.rows {
@@ -323,8 +365,9 @@ fn normalized<S: Admission + ?Sized, O: Admission + ?Sized>(
     spelling: Spelling,
     scratch: &mut Memory<'_, S>,
     output: &mut Memory<'_, O>,
+    limit: Option<usize>,
 ) -> Result<String, Error> {
-    let mut destination = Output::new(output);
+    let mut destination = Output::new(output, limit);
     destination.push_str(VERSION);
     destination.status()?;
     body(selection, None, spelling, &mut destination, scratch)?;
@@ -340,11 +383,19 @@ fn identity<S: Admission + ?Sized>(
         memory.admission_mut().checkpoint(extent.len() as u64)?;
         hasher.update(extent);
     }
+    digest_iri(&hasher, memory)
+}
+
+fn digest_iri<S: Admission + ?Sized>(
+    hasher: &purrdf_hash::blake3::Hasher,
+    memory: &mut Memory<'_, S>,
+) -> Result<String, Error> {
     memory.admission_mut().checkpoint(1)?;
+    let digest = hasher.finalize();
     Ok(memory.format_with_progress(&format_args!(
         "{}{}",
         vocab::BASE,
-        purrdf_hash::hex::Lower(hasher.finalize().as_bytes())
+        purrdf_hash::hex::Lower(digest.as_bytes())
     ))?)
 }
 
@@ -354,8 +405,18 @@ fn selected<S: Admission + ?Sized, O: Admission + ?Sized>(
     spelling: Spelling,
     scratch: &mut Memory<'_, S>,
     output: &mut Memory<'_, O>,
+    limit: Option<usize>,
 ) -> Result<(String, String), Error> {
-    let mut normalized = normalized(selection, spelling, scratch, output)?;
+    if let (Format::NTriples, Some(max_bytes)) = (format, limit) {
+        let mut digest = DigestOutput(purrdf_hash::blake3::Hasher::new());
+        digest.push_str(VERSION);
+        body(selection, None, spelling, &mut digest, scratch)?;
+        let base = digest_iri(&digest.0, scratch)?;
+        let mut destination = Output::new(output, Some(max_bytes));
+        body(selection, Some(&base), spelling, &mut destination, scratch)?;
+        return Ok((base, destination.finish()?));
+    }
+    let mut normalized = normalized(selection, spelling, scratch, output, limit)?;
     let base = identity(&normalized, scratch)?;
     let canonical = match format {
         Format::Turtle => {
@@ -364,6 +425,11 @@ fn selected<S: Admission + ?Sized, O: Admission + ?Sized>(
                 .len()
                 .checked_add(directive.len())
                 .ok_or(StorageError::SizeOverflow)?;
+            if let Some(max_bytes) = limit
+                && required > max_bytes
+            {
+                return Err(Error::OutputLimit { max_bytes });
+            }
             if required > normalized.capacity() {
                 output.admission_mut().checkpoint(normalized.len() as u64)?;
             }
@@ -375,7 +441,7 @@ fn selected<S: Admission + ?Sized, O: Admission + ?Sized>(
         }
         Format::NTriples => {
             output.release_string(normalized)?;
-            let mut destination = Output::new(output);
+            let mut destination = Output::new(output, None);
             body(selection, Some(&base), spelling, &mut destination, scratch)?;
             destination.finish()?
         }
@@ -389,7 +455,7 @@ pub(crate) fn render_with_memory<S: Admission + ?Sized, O: Admission + ?Sized>(
     scratch: &mut Memory<'_, S>,
     output: &mut Memory<'_, O>,
 ) -> Result<(String, String), Error> {
-    render_admitted(graph, format, Spelling::Current, scratch, output)
+    render_admitted(graph, format, Spelling::Current, scratch, output, None)
 }
 
 fn render_admitted<S: Admission + ?Sized, O: Admission + ?Sized>(
@@ -398,11 +464,12 @@ fn render_admitted<S: Admission + ?Sized, O: Admission + ?Sized>(
     spelling: Spelling,
     scratch: &mut Memory<'_, S>,
     output: &mut Memory<'_, O>,
+    limit: Option<usize>,
 ) -> Result<(String, String), Error> {
     scratch.try_scope(|scratch| {
         output.try_scope(|output| {
             let selection = Selection::new(graph, scratch, output)?;
-            let result = selected(&selection, format, spelling, scratch, output);
+            let result = selected(&selection, format, spelling, scratch, output, limit);
             match result {
                 Err(error) => {
                     // Destroy failed owners without polling more work or
@@ -460,7 +527,25 @@ pub(crate) fn render_spelling(
         spelling,
         &mut Memory::new(&mut working),
         &mut Memory::new(&mut destination),
+        None,
     )
+}
+
+pub(crate) fn render_bounded(
+    graph: &Graph,
+    format: Format,
+    max_bytes: usize,
+) -> Result<String, Error> {
+    let (mut scratch, mut output) = (Resident, Resident);
+    render_admitted(
+        graph.view(),
+        format,
+        Spelling::Current,
+        &mut Memory::new(&mut scratch),
+        &mut Memory::new(&mut output),
+        Some(max_bytes),
+    )
+    .map(|(_, text)| text)
 }
 
 pub(crate) fn base(graph: &Graph) -> Result<String, Error> {

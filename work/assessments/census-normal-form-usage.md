@@ -7,7 +7,7 @@ subject: cap:census-normal-form#usage
 inputs:
   - kind: section
     name: cap:census-normal-form#usage
-    digest: b7cad5341d3435dae9a568de17c646406d408e8fa81b81d095f093b981e1c562
+    digest: f2d0303a4dfebe16213b50fdb581d49181cc15d324ccb01fac1ede85025184f5
   - kind: symbol
     name: raf_census::Baseline::from_ntriples
     digest: 3d3d3fb2dfab3d7633af1135ed8520921e9ca26b02095d00e6267964ae215b69
@@ -54,6 +54,9 @@ inputs:
     name: raf_census::Index::from_turtle
     digest: d26fb68d344ad127097329df7fcaeaceb27896175587079918485e9952b49de3
   - kind: symbol
+    name: raf_census::Index::query
+    digest: b1dd848a3d8f1971703f4a3293d1340b4cd485559c709bd3eff955a7430bf55a
+  - kind: symbol
     name: raf_census::Index::to_ntriples
     digest: 125bb5af1f05b3a5e79788d13c636f9420d03a7dc1dd31f6676704b6da5bbd4e
   - kind: symbol
@@ -68,6 +71,9 @@ inputs:
   - kind: symbol
     name: raf_census::Normalizer::explain
     digest: 83ed59bbc24715c894fdc18cb99720df8d9118b7efdae49cc10fc3f389492873
+  - kind: symbol
+    name: raf_census::QueryReport
+    digest: a2f7db3e07879642749849850b46349849898b5a13278db923824bcb7561e556
   - kind: symbol
     name: raf_census::QueryReport::from_ntriples
     digest: 62d6ff368e24b7380913fc8c817bacabc7e9cb27823f3731552f49bc8c51a3b4

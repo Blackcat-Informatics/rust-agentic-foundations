@@ -6,8 +6,9 @@
 use purrdf_lex::allocation::{Memory, OrderedTable, Resident};
 use raf_rdf::{Builder, Format, Graph, TermValue};
 
-use super::{Index, IndexUnit, JobRow, ReportError as E, mint, shape, write};
-use crate::{Error, MatchClass};
+use super::projection::{Evidence, JobRef, Sites, site_id};
+use super::{Index, ReportError as E, mint, reference, shape, write};
+use crate::{Error, GateReport};
 
 /// A selector over the complete index, without another policy evaluation.
 #[derive(Clone, Copy, Debug)]
@@ -73,14 +74,15 @@ impl QueryReport {
     }
 
     fn read(text: &str, format: Format) -> Result<Self, Error> {
-        check_size(text)?;
+        check_size(text, "query")?;
         Self::from_graph(Graph::from_text(text, format).map_err(E::Ground)?)
     }
 
     fn render(&self, format: Format) -> Result<String, Error> {
-        let text = self.graph.to_text(format).map_err(E::Ground)?;
-        check_size(&text)?;
-        Ok(text)
+        Ok(self
+            .graph
+            .to_text_bounded(format, crate::MAX_INDEX_BYTES)
+            .map_err(E::Ground)?)
     }
 }
 
@@ -94,57 +96,65 @@ impl Index {
     /// Returns typed unknown selectors, native allocation failures and invalid
     /// selected records; it never substitutes empty policy or recomputes hashes.
     pub fn query(&self, query: Query<'_>) -> Result<QueryReport, Error> {
-        let mut graph = Builder::new();
-        match query {
-            Query::Job(id) | Query::Count(id) => {
-                let job = select_job(self, id)?;
-                let units = selected_units(self, job)?;
-                let is_job = matches!(query, Query::Job(_));
-                write::root(
-                    &mut graph,
-                    if is_job { "JobQuery" } else { "CountQuery" },
-                    self.normal_form,
-                )?;
-                write::text(&mut graph, "", "jobId", id)?;
-                if is_job {
-                    let mut selected = Vec::new();
-                    for (site, unit) in units.ordered() {
-                        let unit = unit.ok_or_else(|| {
-                            E::Dangling(mint::unit(site.0, site.1, site.2, site.3))
-                        })?;
-                        write::index_unit(&mut graph, unit, self.normal_form)?;
-                        selected.push(unit);
-                    }
-                    super::reference::project(self, &mut graph, &selected)?;
-                    let job = write::job(&mut graph, job)?;
-                    write::put(&mut graph, "", "job", TermValue::iri(job))?;
-                } else {
-                    write::num(&mut graph, "", "copies", job.copies)?;
-                }
-            }
-            Query::Fingerprint(symbol) => {
-                write::root(&mut graph, "FingerprintQuery", self.normal_form)?;
-                write::text(&mut graph, "", "symbol", symbol)?;
-                let mut found = false;
-                let mut selected = Vec::new();
-                for unit in self.units.iter().filter(|unit| unit.symbol == symbol) {
-                    let id = write::index_unit(&mut graph, unit, self.normal_form)?;
-                    write::put(&mut graph, "", "member", TermValue::iri(id))?;
-                    found = true;
-                    selected.push(unit);
-                }
-                if !found {
-                    return Err(E::UnknownSymbol(symbol.into()).into());
-                }
-                super::reference::project(self, &mut graph, &selected)?;
-            }
-        }
-        QueryReport::from_graph(graph.finish().map_err(E::Ground)?)
+        project(&self.into(), self.jobs.iter().map(JobRef::from), query)
     }
 }
 
-fn select_job<'a>(index: &'a Index, id: &str) -> Result<&'a JobRow, E> {
-    let mut jobs = index.jobs.iter().filter(|job| job.id == id);
+impl GateReport {
+    /// Select native evidence from this evaluation without building an index.
+    ///
+    /// # Errors
+    /// Refuses unknown selectors, inconsistent evidence and storage failures.
+    pub fn query(&self, query: Query<'_>) -> Result<QueryReport, Error> {
+        project(
+            &self.census().into(),
+            self.jobs().iter().map(JobRef::from),
+            query,
+        )
+    }
+}
+
+fn project<'a>(
+    evidence: &Evidence<'a>,
+    jobs: impl Iterator<Item = JobRef<'a>>,
+    query: Query<'_>,
+) -> Result<QueryReport, Error> {
+    let mut graph = Builder::new();
+    let nf = evidence.normal_form;
+    match query {
+        Query::Job(id) | Query::Count(id) => {
+            let job = select_job(jobs, id)?;
+            let selected = job.selected(evidence)?;
+            let is_job = matches!(query, Query::Job(_));
+            write::root(
+                &mut graph,
+                if is_job { "JobQuery" } else { "CountQuery" },
+                nf,
+            )?;
+            write::text(&mut graph, "", "jobId", id)?;
+            if is_job {
+                reference::project(evidence, &mut graph, &selected)?;
+                let job = write::job(&mut graph, &job)?;
+                write::put(&mut graph, "", "job", TermValue::iri(job))?;
+            } else {
+                write::num(&mut graph, "", "copies", job.copies)?;
+            }
+        }
+        Query::Fingerprint(symbol) => {
+            write::root(&mut graph, "FingerprintQuery", nf)?;
+            write::text(&mut graph, "", "symbol", symbol)?;
+            let selected = select_symbol(evidence, symbol)?;
+            reference::project(evidence, &mut graph, &selected)?;
+            for (site, _) in selected.ordered() {
+                write::put(&mut graph, "", "member", TermValue::iri(site_id(*site)))?;
+            }
+        }
+    }
+    QueryReport::from_graph(graph.finish().map_err(E::Ground)?)
+}
+
+fn select_job<'a>(jobs: impl Iterator<Item = JobRef<'a>>, id: &str) -> Result<JobRef<'a>, E> {
+    let mut jobs = jobs.filter(|job| job.id == id);
     let job = jobs.next().ok_or_else(|| E::UnknownJob(id.into()))?;
     if jobs.next().is_some() {
         return Err(E::DuplicateJob(id.into()));
@@ -152,64 +162,31 @@ fn select_job<'a>(index: &'a Index, id: &str) -> Result<&'a JobRow, E> {
     Ok(job)
 }
 
-type Site<'a> = (&'a str, &'a str, usize, usize);
-type Units<'a> = OrderedTable<Site<'a>, Option<&'a IndexUnit>>;
-
-fn selected_units<'a>(index: &'a Index, job: &'a JobRow) -> Result<Units<'a>, Error> {
-    let mut units = Units::default();
+fn select_symbol<'a>(evidence: &Evidence<'a>, symbol: &str) -> Result<Sites<'a>, E> {
+    let mut units = Sites::default();
     let mut resident = Resident;
     let mut memory = Memory::new(&mut resident);
-    for row in &job.matches {
-        let key = (
-            row.symbol.as_str(),
-            row.file.as_str(),
-            row.line,
-            row.start_byte,
-        );
-        if units
-            .insert(key, None, &mut memory)
-            .map_err(|source| Error::QueryStorage { source })?
-            .is_some()
+    for unit in evidence.units() {
+        let site = unit.site();
+        if site.0 == symbol
+            && units
+                .insert(site, Some(unit), &mut memory)
+                .map_err(E::Storage)?
+                .is_some()
         {
-            return Err(E::Repeated(mint::unit(key.0, key.1, key.2, key.3)).into());
+            return Err(E::Repeated(site_id(site)));
         }
     }
-    if !units.is_empty() {
-        for unit in &index.units {
-            let key = (
-                unit.symbol.as_str(),
-                unit.file.as_str(),
-                unit.line,
-                unit.start_byte,
-            );
-            if let Some(selected) = units.get_mut_by(|known| key.cmp(known))
-                && selected.replace(unit).is_some()
-            {
-                return Err(E::Repeated(mint::unit(key.0, key.1, key.2, key.3)).into());
-            }
-        }
-        for (site, selected) in units.iter() {
-            if selected.is_none() {
-                return Err(E::Dangling(mint::unit(site.0, site.1, site.2, site.3)).into());
-            }
-        }
-    }
-    if job.copies
-        != job
-            .matches
-            .iter()
-            .filter(|row| row.class == MatchClass::Copy)
-            .count()
-    {
-        return Err(E::Inconsistent(format!("job {}: copies", job.id)).into());
+    if units.is_empty() {
+        return Err(E::UnknownSymbol(symbol.into()));
     }
     Ok(units)
 }
 
-fn check_size(text: &str) -> Result<(), E> {
+pub(super) fn check_size(text: &str, description: &str) -> Result<(), E> {
     if text.len() > crate::MAX_INDEX_BYTES {
         return Err(E::Value(format!(
-            "query is {} bytes; maximum is {}",
+            "{description} is {} bytes; maximum is {}",
             text.len(),
             crate::MAX_INDEX_BYTES
         )));

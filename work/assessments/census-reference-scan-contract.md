@@ -7,7 +7,7 @@ subject: cap:census-reference-scan#contract
 inputs:
   - kind: section
     name: cap:census-reference-scan#contract
-    digest: '0b9a9120176d1f887b019ce48bcb24cecf058ed205f3bdd1320068204c9a0971'
+    digest: 29e5bb4a78ceac51249a0df85fc84af7be58bb25f4cb81d70b24edb43dd55c85
   - kind: symbol
     name: raf_census::ExternalReference
     digest: dff9ba21af812a6448881bf2fda85215d82d533591e85489c9f8e454bc9ba7ce
@@ -24,6 +24,12 @@ inputs:
     name: raf_census::Gate::write_debt_registry
     digest: a67a600e75b34406abd13d2f301f0ece26184142f81585d446ea7d9996d44671
   - kind: symbol
+    name: raf_census::GateReport::reference_matches
+    digest: 6579a818276d968cf0797cd0c96dd6b3a9bb8da898936df6740f8c92a991c2e6
+  - kind: symbol
+    name: raf_census::Index::reference_matches
+    digest: a9d6694be5f095829ff9966f614bea37b8a204cec2a3b04c16122eb87173d926
+  - kind: symbol
     name: raf_census::LockedRegistry
     digest: f50014664e55ffdfd954c1ab91db21e18c7ed61f0d875dd7b1e8d0c1327e5b8e
   - kind: symbol
@@ -37,7 +43,7 @@ inputs:
     digest: 478d6fd7426eb8e7c275229a73a2c648e8f91963fc214cf9b110fefce727734d
   - kind: symbol
     name: raf_census::report::reference
-    digest: 32962a6648baff61a37ed57137c4173a3287eedd29605861bd9c061e72cad75b
+    digest: a8b1fb80e9f1b2c98f6535ab9c99fb7541ba20b3f4ca4f4915e76156242fed41
   - kind: symbol
     name: raf_source::PinnedGitTree
     digest: 3a9d76397494b37297a9f0e1c973cc8a7a1421636e4bf290901c060972d80038

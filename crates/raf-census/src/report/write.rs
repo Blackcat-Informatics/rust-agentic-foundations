@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
 //! Domain assertions inserted directly into the shared native RDF builder.
+use super::projection::{JobRef, Site, UnitRef, member_site, site_id};
 use super::{Baseline, Index, MemberRow, ReportError as E, mint, shape, vocab};
 use crate::{Error, Fingerprint, GroupKind, MatchClass};
 use raf_rdf::{Builder, Graph, TermBox, TermValue as Term, Triple};
@@ -42,14 +43,15 @@ pub(super) fn fingerprint(value: &Fingerprint, nf: u32) -> Result<Term, E> {
         purrdf_hash::hex::Lower(hex)
     )))
 }
-fn unit(graph: &mut Builder, row: &MemberRow) -> Result<String, E> {
-    let id = mint::unit(&row.symbol, &row.file, row.line, row.start_byte);
+fn unit(graph: &mut Builder, site: Site<'_>) -> Result<String, E> {
+    let id = site_id(site);
+    let (symbol, file, line, start_byte) = site;
     let assertions = [
         ("type", shape::iri("Unit")),
-        ("symbol", Term::simple_literal(&row.symbol)),
-        ("file", Term::simple_literal(&row.file)),
-        ("line", shape::integer(row.line as u128)),
-        ("startByte", shape::integer(row.start_byte as u128)),
+        ("symbol", Term::simple_literal(symbol)),
+        ("file", Term::simple_literal(file)),
+        ("line", shape::integer(line as u128)),
+        ("startByte", shape::integer(start_byte as u128)),
     ];
     if graph
         .contains(triple(&id, "type", shape::iri("Unit")))
@@ -84,7 +86,7 @@ fn group(
     put(graph, &id, "fingerprint", fingerprint(fp, nf)?)?;
     num(graph, &id, "tokens", tokens)?;
     for member in members {
-        let member = unit(graph, member)?;
+        let member = unit(graph, member_site(member))?;
         put(graph, &id, "member", Term::iri(member))?;
     }
     Ok(())
@@ -134,20 +136,12 @@ pub(super) fn baseline_graph(report: &Baseline) -> Result<Graph, E> {
         put(&mut graph, &id, "value", shape::integer(c.value))?;
         num(&mut graph, &id, "packageCount", c.packages)?;
         for m in &c.members {
-            let member = unit(&mut graph, m)?;
+            let member = unit(&mut graph, member_site(m))?;
             put(&mut graph, &id, "member", Term::iri(member))?;
         }
     }
     for t in &report.hex_tables {
-        let id = unit(
-            &mut graph,
-            &MemberRow {
-                symbol: t.symbol.clone(),
-                file: t.file.clone(),
-                line: t.line,
-                start_byte: t.start_byte,
-            },
-        )?;
+        let id = unit(&mut graph, (&t.symbol, &t.file, t.line, t.start_byte))?;
         put(
             &mut graph,
             &id,
@@ -162,7 +156,7 @@ pub(super) fn index_graph(report: &Index) -> Result<Graph, E> {
     root(&mut graph, "Index", report.normal_form)?;
     scope(&mut graph, &report.scope)?;
     for u in &report.units {
-        index_unit(&mut graph, u, report.normal_form)?;
+        index_unit(&mut graph, UnitRef::Indexed(u), report.normal_form)?;
     }
     for source in &report.reference_sources {
         super::reference::source(&mut graph, source)?;
@@ -207,7 +201,7 @@ pub(super) fn index_graph(report: &Index) -> Result<Graph, E> {
         )?;
     }
     for j in &report.jobs {
-        job(&mut graph, j)?;
+        job(&mut graph, &JobRef::from(j))?;
     }
     graph.finish().map_err(E::Ground)
 }
@@ -218,52 +212,56 @@ pub(super) fn has_unit(graph: &Builder, id: &str) -> Result<bool, E> {
         .map_err(E::Ground)
 }
 
-pub(super) fn index_unit(graph: &mut Builder, u: &super::IndexUnit, nf: u32) -> Result<String, E> {
-    let row = MemberRow {
-        symbol: u.symbol.clone(),
-        file: u.file.clone(),
-        line: u.line,
-        start_byte: u.start_byte,
-    };
-    let id = mint::unit(&row.symbol, &row.file, row.line, row.start_byte);
+pub(super) fn index_unit(graph: &mut Builder, u: UnitRef<'_>, nf: u32) -> Result<String, E> {
+    let site = u.site();
+    let id = site_id(site);
     if has_unit(graph, &id)? {
         return Err(E::Repeated(id));
     }
-    unit(graph, &row)?;
-    text(graph, &id, "package", &u.package)?;
-    if let Some(source) = &u.reference_source {
+    unit(graph, site)?;
+    let (package, shipping, tokens, body, shim) = u.fields();
+    text(graph, &id, "package", package)?;
+    if let Some(source) = u.source() {
         put(graph, &id, "referenceSource", Term::iri(source))?;
     }
-    num(graph, &id, "tokens", u.tokens)?;
-    put(graph, &id, "shipping", Term::boolean(u.shipping))?;
-    if let Some(fp) = &u.body {
+    num(graph, &id, "tokens", tokens)?;
+    put(graph, &id, "shipping", Term::boolean(shipping))?;
+    if let Some(fp) = body {
         put(graph, &id, "body", fingerprint(fp, nf)?)?;
     }
-    if let Some(fp) = &u.shim {
+    if let Some(fp) = shim {
         put(graph, &id, "shim", fingerprint(fp, nf)?)?;
     }
     Ok(id)
 }
 
-pub(super) fn job(graph: &mut Builder, j: &super::JobRow) -> Result<String, E> {
-    let id = mint::job(&j.id);
+pub(super) fn match_class(class: MatchClass) -> Term {
+    shape::iri(match class {
+        MatchClass::Home => "Home",
+        MatchClass::Variant => "Variant",
+        MatchClass::Copy => "Copy",
+    })
+}
+
+pub(super) fn job(graph: &mut Builder, j: &JobRef<'_>) -> Result<String, E> {
+    let id = mint::job(j.id);
     if graph
         .contains(triple(&id, "type", shape::iri("Job")))
         .map_err(E::Ground)?
     {
-        return Err(E::DuplicateJob(j.id.clone()));
+        return Err(E::DuplicateJob(j.id.to_owned()));
     }
     class(graph, &id, "Job")?;
-    text(graph, &id, "jobId", &j.id)?;
-    text(graph, &id, "homeSymbol", &j.home)?;
+    text(graph, &id, "jobId", j.id)?;
+    text(graph, &id, "homeSymbol", j.home)?;
     num(graph, &id, "copies", j.copies)?;
-    for m in &j.matches {
-        let unit = mint::unit(&m.symbol, &m.file, m.line, m.start_byte);
+    for (site, role) in j.matches() {
+        let unit = site_id(site);
         if !has_unit(graph, &unit)? {
             return Err(E::Dangling(unit));
         }
         put(graph, &id, "match", Term::iri(&unit))?;
-        let name = mint::reifier(&j.id, &unit);
+        let name = mint::reifier(j.id, &unit);
         class(graph, &name, "Match")?;
         put(
             graph,
@@ -275,16 +273,7 @@ pub(super) fn job(graph: &mut Builder, j: &super::JobRow) -> Result<String, E> {
                 o: TermBox::new(Term::iri(&unit)),
             },
         )?;
-        put(
-            graph,
-            &name,
-            "matchClass",
-            shape::iri(match m.class {
-                MatchClass::Home => "Home",
-                MatchClass::Variant => "Variant",
-                MatchClass::Copy => "Copy",
-            }),
-        )?;
+        put(graph, &name, "matchClass", match_class(role))?;
     }
     Ok(id)
 }

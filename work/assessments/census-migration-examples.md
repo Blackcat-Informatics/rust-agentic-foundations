@@ -13,10 +13,10 @@ inputs:
     digest: 9ad00c1e9220634d4a2b8f4bb1f4d6ac8a000b2a47e0bba5f0d8078638a1fc2e
   - kind: symbol
     name: cargo_raf_census::cli
-    digest: 926e36ecae3b090d9ee9c087235415236204b44d5cb03413538f96ac241eda60
+    digest: 0f4a28cfb4fcdc315aa04c88f7bda98f601a4a05c1e5775d5775a1c05bdeb378
   - kind: symbol
     name: cargo_raf_census::command
-    digest: 5d36b0ea2e7e9efabb1bad723bfe6c23c03ccd97232b18bc32a12f6213adaab6
+    digest: 315e3a3e88ade60ad39f6b6a814f226a4cdc7ad8ebb406144b30c3f0dd67e554
   - kind: symbol
     name: raf_census::ForeignField
     digest: ebd6fd21ce8d57aa961b445fc5759723901623cfa75ea3b47d088a33eb223e79
