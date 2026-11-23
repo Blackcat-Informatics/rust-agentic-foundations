@@ -298,10 +298,10 @@ inputs:
     digest: d32212bf2dbceb833674238e2981a565fd9680856a8baf97a6e0bd134ace7284
   - kind: symbol
     name: raf_census::QueryReport::to_ntriples
-    digest: 7650575e18a9782c6c59e75a8658a019198797c783de6f92fe00ae7f3501e6d2
+    digest: d020b7111ff02036ddb6d758bcbbfdc06cee8093efa7407cfb351c151691dafb
   - kind: symbol
     name: raf_census::QueryReport::to_turtle
-    digest: 436d7975f5fa081d44b48b3c3f0e9b5e7c3e3ef4cbf7afc0e148233cb0a6d90f
+    digest: 5b84dc25ed623b2ec1f53bbb7f79388de48633e9c3a3d058b41abf989c5c644e
   - kind: symbol
     name: raf_census::REPORT_FORM
     digest: 3d4550bf18f22ee0b333da7bf06f6bfaf229e85052bf0f823dad96600811d87f
@@ -397,7 +397,7 @@ inputs:
     digest: 024665fb57e1d0347781572f35b5b8c7bdc9d60cf9080a46f41d5551ec771327
   - kind: symbol
     name: raf_census::report
-    digest: cd811bb9c549769f2855a41e81d638b3bd9af674aa3e36c5ccf58af858f3604a
+    digest: 26288a1eec8b0f31ed3ee57ce7e30f2b9c14ff032e986ee51fe180f289b22ad3
   - kind: symbol
     name: raf_census::report::vocab
     digest: 75c2750b4cd0b4466aad114a4c2837ab18e063568b8363983d608622a83b47ee

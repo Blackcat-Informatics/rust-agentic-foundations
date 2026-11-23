@@ -7,6 +7,12 @@ use super::{Baseline, Index, MemberRow, ReportError as E, mint, shape, vocab};
 use crate::{Error, Fingerprint, GroupKind, MatchClass};
 use raf_rdf::{Builder, Graph, TermBox, TermValue as Term, Triple};
 
+pub(super) fn selected_report(graph: &Graph, format: raf_rdf::Format) -> Result<String, Error> {
+    Ok(graph
+        .to_text_bounded(format, crate::MAX_INDEX_BYTES)
+        .map_err(E::Ground)?)
+}
+
 fn triple(id: &str, key: &str, object: Term) -> Triple {
     Triple {
         subject: Term::iri(id),

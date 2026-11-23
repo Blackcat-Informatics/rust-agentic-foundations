@@ -304,6 +304,8 @@ pub(super) fn validate(graph: &Graph, report: &str, nf: u32) -> Result<(), E> {
         }
     }
     let mut referenced = BTreeSet::new();
+    let mut used_receipts = BTreeSet::new();
+    let receipt_property = property("referenceSource");
     let mut matches = BTreeMap::new();
     let mut reified = BTreeSet::new();
     let mut copies_by_job: BTreeMap<String, usize> = BTreeMap::new();
@@ -319,6 +321,9 @@ pub(super) fn validate(graph: &Graph, report: &str, nf: u32) -> Result<(), E> {
             }
             "Unit" => {
                 member(graph, &id)?;
+                if let Some(receipt) = node.values(&receipt_property).next() {
+                    used_receipts.insert(target(receipt)?);
+                }
                 if node.values(&property("holds")).next().is_some() || report == "index" {
                     referenced.insert(id.clone());
                 }
@@ -381,7 +386,7 @@ pub(super) fn validate(graph: &Graph, report: &str, nf: u32) -> Result<(), E> {
             "every asserted match requires exactly one named reifier".into(),
         ));
     }
-    super::reference::validate(graph, nf)?;
+    super::reference::validate(graph, nf, &used_receipts)?;
     Ok(())
 }
 

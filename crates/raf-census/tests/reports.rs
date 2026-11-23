@@ -236,6 +236,12 @@ fn pinned_reference_report() -> String {
     );
     assert!(!text.contains("helper::api::first"));
 
+    let mut orphan = index;
+    let mut unused = orphan.reference_sources.first().unwrap().clone();
+    unused.package = "unused-source".into();
+    orphan.reference_sources.push(unused);
+    refused(orphan.to_ntriples(), "orphan");
+
     let turtle = projection.to_turtle().unwrap();
     let unrooted = rewrite(&turtle, |triple| {
         (triple.predicate != property("witness")).then_some(triple)
@@ -244,17 +250,18 @@ fn pinned_reference_report() -> String {
         raf_census::ReferenceMatchReport::from_turtle(&unrooted),
         "orphan",
     );
-    reference_copy_role_is_refused(decoded);
+    reference_roles_require_valid_jobs(decoded);
     text
 }
 
 /// A pinned endpoint can be a job home. Giving that same physical role
-/// a Copy classification violates the reference boundary.
+/// a Copy classification violates the reference boundary. Two job declarations
+/// with one ID are ambiguous even when their roles refer to different units.
 #[expect(
     clippy::unwrap_used,
     reason = "a failed fixture operation is a test failure at the point of use"
 )]
-fn reference_copy_role_is_refused(mut index: Index) {
+fn reference_roles_require_valid_jobs(mut index: Index) {
     let reference = index
         .reference_witnesses
         .iter()
@@ -296,6 +303,11 @@ fn reference_copy_role_is_refused(mut index: Index) {
         raf_census::ReferenceMatchReport::from_turtle(&invalid),
         "reference unit cannot be a job COPY",
     );
+    index.jobs.last_mut().unwrap().id = "arithmetic".into();
+    assert!(matches!(
+        index.reference_matches(),
+        Err(Error::Report(ReportError::DuplicateJob(id))) if id == "arithmetic"
+    ));
 }
 
 /// The job and fingerprint queries of the reference index, which carry its

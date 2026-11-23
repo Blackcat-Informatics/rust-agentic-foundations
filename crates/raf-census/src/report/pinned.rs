@@ -5,6 +5,7 @@
 
 use purrdf_lex::allocation::{Memory, OrderedTable, Resident};
 use raf_rdf::{Builder, Format, Graph, Node, TermValue};
+use std::collections::BTreeSet;
 
 use super::projection::{Evidence, JobRef, Sites, UnitRef, member_site, required_unit, site_id};
 use super::{Index, ReferenceSource, ReportError as E, mint, query, reference, shape, write};
@@ -33,7 +34,7 @@ impl ReferenceMatchReport {
     /// # Errors
     /// Refuses serialization or output exceeding the ceiling.
     pub fn to_ntriples(&self) -> Result<String, Error> {
-        self.render(Format::NTriples)
+        write::selected_report(&self.graph, Format::NTriples)
     }
 
     /// Render canonical Turtle 1.2 with the same snapshot identity.
@@ -41,7 +42,7 @@ impl ReferenceMatchReport {
     /// # Errors
     /// Refuses serialization or output exceeding the ceiling.
     pub fn to_turtle(&self) -> Result<String, Error> {
-        self.render(Format::Turtle)
+        write::selected_report(&self.graph, Format::Turtle)
     }
 
     /// Read a canonical N-Triples 1.2 match report.
@@ -63,13 +64,6 @@ impl ReferenceMatchReport {
     fn read(text: &str, format: Format) -> Result<Self, Error> {
         query::check_size(text, "reference matches report")?;
         Self::from_graph(Graph::from_text(text, format).map_err(E::Ground)?)
-    }
-
-    fn render(&self, format: Format) -> Result<String, Error> {
-        Ok(self
-            .graph
-            .to_text_bounded(format, crate::MAX_INDEX_BYTES)
-            .map_err(E::Ground)?)
     }
 
     fn from_graph(graph: Graph) -> Result<Self, Error> {
@@ -98,6 +92,12 @@ impl Index {
     /// # Errors
     /// Refuses inconsistent evidence and storage failures.
     pub fn reference_matches(&self) -> Result<ReferenceMatchReport, Error> {
+        let mut ids = BTreeSet::new();
+        for job in &self.jobs {
+            if !ids.insert(job.id.as_str()) {
+                return Err(E::DuplicateJob(job.id.clone()).into());
+            }
+        }
         project(&self.into(), self.jobs.iter().map(JobRef::from))
     }
 }

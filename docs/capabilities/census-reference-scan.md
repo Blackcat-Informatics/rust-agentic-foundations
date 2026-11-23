@@ -319,6 +319,7 @@ Where an indexed job classifies either physical site, the report retains
 that job's named role. With no matching pinned units, it returns an empty
 report root. The library exposes the same projection from an evaluated
 `GateReport::reference_matches` and a decoded `Index::reference_matches`.
+An index edited to contain duplicate job IDs refuses before projection.
 <!-- raf:tested-by cargo_raf_census::test_crate::delivery::reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory,raf_census::test_crate::reference_scan::pinned_commit_reports_reference_copies_exactly_as_a_lock_selected_reference -->
 
 ## Usage

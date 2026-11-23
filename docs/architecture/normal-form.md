@@ -385,6 +385,10 @@ Every class requires exactly one rdf:type. Each carrier admits only the
 subjects, predicates, classes, individuals and datatypes its shape defines. Baseline
 units must be referenced by a group, shared constant or holds property. Every
 reference must resolve, and minted node names must agree with their properties.
+The `reference-matches` carrier also uses the Index shape rows for
+`Unit`, `ReferenceWitness` and `ReferenceSource`, including the Unit rows
+shared with Baseline. Each unit is a witness endpoint, and each source
+describes a committed Git observation.
 A Baseline, Index or DebtRecord states its grouping scope with excludeTestItems,
 written only as true, and one excludeDir for each excluded directory name. A
 complete scope writes neither, so a report or record computed without an

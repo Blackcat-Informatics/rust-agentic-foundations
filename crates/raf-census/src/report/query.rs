@@ -39,7 +39,7 @@ impl QueryReport {
     /// # Errors
     /// Returns native serialization and size refusals without partial output.
     pub fn to_ntriples(&self) -> Result<String, Error> {
-        self.render(Format::NTriples)
+        write::selected_report(&self.graph, Format::NTriples)
     }
 
     /// Render canonical Turtle 1.2 with the same snapshot identity.
@@ -47,7 +47,7 @@ impl QueryReport {
     /// # Errors
     /// Returns native serialization and size refusals without partial output.
     pub fn to_turtle(&self) -> Result<String, Error> {
-        self.render(Format::Turtle)
+        write::selected_report(&self.graph, Format::Turtle)
     }
 
     /// Read exactly a canonical, closed N-Triples query result.
@@ -76,13 +76,6 @@ impl QueryReport {
     fn read(text: &str, format: Format) -> Result<Self, Error> {
         check_size(text, "query")?;
         Self::from_graph(Graph::from_text(text, format).map_err(E::Ground)?)
-    }
-
-    fn render(&self, format: Format) -> Result<String, Error> {
-        Ok(self
-            .graph
-            .to_text_bounded(format, crate::MAX_INDEX_BYTES)
-            .map_err(E::Ground)?)
     }
 }
 

@@ -8,6 +8,7 @@ use super::{MemberRow, ReportError as E, mint, shape, write};
 use crate::{Fingerprint, GroupKind};
 use purrdf_lex::allocation::{Memory, OrderedTable, Resident};
 use raf_rdf::{Builder, Graph, TermValue as Term};
+use std::collections::BTreeSet;
 
 /// Manifest-verified dependency identity, with its precise observation boundary.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -313,7 +314,7 @@ fn validate_constant(graph: &Graph, id: &str, node: &raf_rdf::Node<'_>) -> Resul
     Ok(())
 }
 
-pub(super) fn validate(graph: &Graph, nf: u32) -> Result<(), E> {
+pub(super) fn validate(graph: &Graph, nf: u32, used_receipts: &BTreeSet<&str>) -> Result<(), E> {
     for (id, node) in graph.nodes() {
         match shape::class(&node)? {
             "Unit" => validate_unit(graph, &node)?,
@@ -321,10 +322,7 @@ pub(super) fn validate(graph: &Graph, nf: u32) -> Result<(), E> {
                 if read_source(&node)?.identity()? != id {
                     return Err(E::Name(id));
                 }
-                if !graph.nodes().any(|(_, unit)| {
-                    unit.values(&shape::property("referenceSource"))
-                        .any(|value| value.iri() == Some(id.as_str()))
-                }) {
+                if !used_receipts.contains(id.as_str()) {
                     return Err(E::Orphan(id));
                 }
             }

@@ -37,7 +37,7 @@ inputs:
     digest: 6579a818276d968cf0797cd0c96dd6b3a9bb8da898936df6740f8c92a991c2e6
   - kind: symbol
     name: raf_census::Index::reference_matches
-    digest: a9d6694be5f095829ff9966f614bea37b8a204cec2a3b04c16122eb87173d926
+    digest: cb3006e0d8d897422f5c20977fc98970f35b7f89011655150c516906034eedf3
   - kind: symbol
     name: raf_census::LockedRegistry
     digest: f50014664e55ffdfd954c1ab91db21e18c7ed61f0d875dd7b1e8d0c1327e5b8e
@@ -70,7 +70,7 @@ inputs:
     digest: 483f06fca67b8b2097bceb2e803b7b4a641099ab26cf185f68878384634d610d
   - kind: symbol
     name: raf_census::report::reference
-    digest: a8b1fb80e9f1b2c98f6535ab9c99fb7541ba20b3f4ca4f4915e76156242fed41
+    digest: 7a884a724b241330ebe48e581cc4d20dbbfb0ce5a61fba86dda7406fae513274
   - kind: symbol
     name: raf_source::PinnedGitTree
     digest: 3a9d76397494b37297a9f0e1c973cc8a7a1421636e4bf290901c060972d80038

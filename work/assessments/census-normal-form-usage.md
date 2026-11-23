@@ -82,10 +82,10 @@ inputs:
     digest: eef447e64ada6b22d7a0338014f472a9010409908ec4d5a59891071a9063357f
   - kind: symbol
     name: raf_census::QueryReport::to_ntriples
-    digest: 7650575e18a9782c6c59e75a8658a019198797c783de6f92fe00ae7f3501e6d2
+    digest: d020b7111ff02036ddb6d758bcbbfdc06cee8093efa7407cfb351c151691dafb
   - kind: symbol
     name: raf_census::QueryReport::to_turtle
-    digest: 436d7975f5fa081d44b48b3c3f0e9b5e7c3e3ef4cbf7afc0e148233cb0a6d90f
+    digest: 5b84dc25ed623b2ec1f53bbb7f79388de48633e9c3a3d058b41abf989c5c644e
   - kind: symbol
     name: raf_census::Tower::literal_values
     digest: 57c46dbf4fbb532ecce55ec553c05e0acfbaf8872d8e42286c84d39b7375d8e8
