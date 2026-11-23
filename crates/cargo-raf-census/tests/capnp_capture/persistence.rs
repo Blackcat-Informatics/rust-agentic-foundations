@@ -38,6 +38,10 @@ pub struct Ambiguous;
 pub struct Ambiguous;
 ";
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 pub(super) fn repository() -> TempDir {
     let scratch = TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
     let root = scratch.path();
@@ -70,6 +74,10 @@ pub(super) fn policy(rows: &[(&str, &str, &str, &str)]) -> Builder {
     graph
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 pub(super) fn commit(root: &Path, descriptor: &[u8], policy: Builder) -> String {
     fs::write(root.join("schema.bin"), descriptor).unwrap();
     fs::write(
@@ -80,6 +88,10 @@ pub(super) fn commit(root: &Path, descriptor: &[u8], policy: Builder) -> String 
     git_repo::commit_all(root)
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 pub(super) fn check(root: &Path, base: &str, current: &str) -> Output {
     command(root, base, current).output().unwrap()
 }
@@ -110,6 +122,10 @@ fn assert_clean(output: &Output) {
 
 /// Only retained schema closures count. The committed Rust symbol can move.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_persistence_compares_retained_committed_layouts() {
     let scratch = repository();
     let root = scratch.path();
@@ -198,6 +214,10 @@ fn capnp_persistence_ignores_rpc_endpoint_layouts() {
 
 /// Stable rows protect prior roots even when a second row selects them.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_persistence_protects_declaration_continuity_after_first_adoption() {
     let scratch = repository();
     let root = scratch.path();
@@ -256,6 +276,10 @@ fn capnp_persistence_protects_declaration_continuity_after_first_adoption() {
 
 /// Invalid new bindings and roots refuse before providing a partial verdict.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_persistence_refuses_invalid_bindings_and_policy_rows() {
     let scratch = repository();
     let root = scratch.path();
@@ -331,6 +355,10 @@ fn capnp_persistence_refuses_invalid_bindings_and_policy_rows() {
 
 /// First adoption validates the new root's layout despite having no retained roots.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_persistence_validates_current_only_layouts() {
     let scratch = repository();
     let root = scratch.path();

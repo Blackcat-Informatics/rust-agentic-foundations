@@ -13,6 +13,11 @@ use raf_source::Workspace;
 use raf_fixtures::workspace_input;
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn every_load_workspace_seed_loads_with_items_through_the_fuzz_input_code() {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fuzz/corpus/load-workspace");
     let mut seeds: Vec<_> = fs::read_dir(&dir)
@@ -36,6 +41,10 @@ fn every_load_workspace_seed_loads_with_items_through_the_fuzz_input_code() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_self_check_the_fuzz_target_runs_first_passes_beside_an_input_that_is_not_a_tree() {
     workspace_input::self_check();
     let tree =

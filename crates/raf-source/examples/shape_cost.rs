@@ -34,6 +34,11 @@ use std::process::ExitCode;
 
 use raf_source::{MemoryTree, Workspace};
 
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_in_result,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn run(args: &[String]) -> Result<String, String> {
     let names: Vec<&str> = shapes::ALL.iter().map(|shape| shape.name).collect();
     let usage = format!("usage: shape_cost <{}> <n>", names.join("|"));
@@ -64,6 +69,11 @@ fn run(args: &[String]) -> Result<String, String> {
     Ok(out)
 }
 
+#[expect(
+    clippy::print_stderr,
+    clippy::print_stdout,
+    reason = "the executable reports its results through its output and status"
+)]
 fn main() -> ExitCode {
     let mut args: Vec<String> = std::env::args().skip(1).collect();
     if args.is_empty() {

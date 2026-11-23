@@ -487,8 +487,11 @@ fn pointer_default(pointer: any_pointer::Reader<'_>) -> Result<DefaultValue, Err
             "pointer default exceeds the admitted capability-free word bound",
         ));
     }
-    let words = u32::try_from(size.word_count + 1)
-        .map_err(|_| layout("pointer default size exceeds the canonical segment bound"))?;
+    let words = u32::try_from(size.word_count + 1).map_err(|cause| {
+        layout(format!(
+            "pointer default size exceeds the canonical segment bound: {cause}"
+        ))
+    })?;
     let mut canonical = Builder::new(HeapAllocator::new().first_segment_words(words));
     canonical.set_root_canonical(pointer)?;
     Ok(DefaultValue::Pointer(Some(

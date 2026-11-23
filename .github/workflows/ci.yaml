@@ -17,6 +17,7 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_NET_OFFLINE: 'false'
 
 jobs:
   packages:
@@ -123,9 +124,7 @@ jobs:
           toolchain: nightly # keep in sync with rust-toolchain.toml
           components: rustfmt
       - name: Format
-        run: cargo fmt --all --check
-      - name: Format the fuzz harness
-        run: cargo fmt --check --manifest-path fuzz/Cargo.toml
+        run: make fmt
 
   clippy:
     needs: packages
@@ -170,14 +169,11 @@ jobs:
         with:
           toolchain: nightly # keep in sync with rust-toolchain.toml
           components: ${{ contains(matrix.args, 'self_census') && 'clippy' || '' }}
-      # The root package's self-census seals the locked PurRDF registry sources
-      # from the registry cache, and a package-scoped test run stores only that
-      # package's closure. Fetch both lock files completely first.
-      - name: Fetch the complete locked set for the self-census gate
-        if: matrix.package == 'rust-agentic-foundations' && contains(matrix.args, 'self_census')
+      - name: Prepare exact registry archives for Census
+        if: matrix.package == 'raf-census' || (matrix.package == 'rust-agentic-foundations' && contains(matrix.args, 'self_census'))
         run: |
-          cargo fetch --locked
-          cargo fetch --locked --manifest-path fuzz/Cargo.toml
+          archives=$(make --no-print-directory registry-archives)
+          echo "RAF_GATE_REGISTRY_CACHE=$archives" >> "$GITHUB_ENV"
       - name: Capture the production compiler verdict for the Census gate
         if: matrix.package == 'rust-agentic-foundations' && contains(matrix.args, 'self_census')
         run: |
@@ -258,7 +254,7 @@ jobs:
           toolchain: nightly # keep in sync with rust-toolchain.toml
           components: clippy
       - name: Fuzz harness Clippy
-        run: cargo clippy --manifest-path fuzz/Cargo.toml --locked -- -D warnings
+        run: cargo clippy --manifest-path fuzz/Cargo.toml --all-targets --locked -- -D warnings
 
   fuzz:
     needs: [packages, fuzz_checks, msrv, deny]

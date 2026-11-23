@@ -53,8 +53,10 @@ use raf_workplan::{Finding, Gate, GateError, LinkContext, Opened, Workplan, auth
 use rust_agentic_foundations::gate_files as support;
 use support::{decode_text, gate_root, read_regular, read_tracked, tracked_paths};
 
-/// Tracked text by path, partitioned into Markdown and diagram sidecars.
-type Repo = BTreeMap<PathBuf, String>;
+#[path = "../checks/documents.rs"]
+mod documents;
+
+use documents::{Checkout, INDEX, Repo, in_document_directory, violation};
 
 /// The capability inventory.
 ///
@@ -363,21 +365,18 @@ const INVENTORY: Inventory = Inventory {
 // Paths
 // ---------------------------------------------------------------------------
 
-fn violation(path: &Path, message: impl std::fmt::Display) -> String {
-    format!("{}: {message}", path.display())
-}
-
 /// The path as the `/`-separated text `raf-okf` takes.
 ///
 /// # Panics
 ///
 /// Panics when the path is not UTF-8; the index listing already refuses such
 /// a path.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn name(path: &Path) -> &str {
-    match path.to_str() {
-        Some(text) => text,
-        None => panic!("path {} is not UTF-8", path.display()),
-    }
+    documents::path_name(path).unwrap_or_else(|error| panic!("{error}"))
 }
 
 /// The path as a tree path.
@@ -385,18 +384,12 @@ fn name(path: &Path) -> &str {
 /// # Panics
 ///
 /// Panics when the path is not a relative path of the tree.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn rel(path: &Path) -> RelPath {
-    match RelPath::new(name(path)) {
-        Ok(rel) => rel,
-        Err(error) => panic!(
-            "tracked path {} is not a tree path: {error}",
-            path.display()
-        ),
-    }
-}
-
-fn is_markdown(path: &Path) -> bool {
-    path.extension().is_some_and(|e| e == "md")
+    documents::tree_path(path).unwrap_or_else(|error| panic!("{error}"))
 }
 
 /// The OKF type a document must declare because of where it lives.
@@ -404,13 +397,6 @@ fn expected_type(path: &Path) -> Option<DocType> {
     DocType::ALL
         .into_iter()
         .find(|doc_type| path.parent() == Some(Path::new(doc_type.directory())))
-}
-
-/// Whether the path is in, or below, the directory of a document type.
-fn in_document_directory(path: &Path) -> bool {
-    DocType::ALL
-        .into_iter()
-        .any(|doc_type| path.starts_with(doc_type.directory()))
 }
 
 // ---------------------------------------------------------------------------
@@ -647,36 +633,16 @@ fn check_inventory(
 // Repository policy over tracked paths
 // ---------------------------------------------------------------------------
 
-/// A tracked symlink is a violation: a link to it is refused by the model, and
-/// the repository keeps none.
-fn symlink_violations(symlinks: &[PathBuf]) -> Vec<String> {
-    symlinks
-        .iter()
-        .map(|path| violation(path, "a tracked symlink is not allowed"))
-        .collect()
-}
-
-/// The document directories hold Markdown only: another file there would sit
-/// unread beside the documents.
-fn layout_violations(paths: &[PathBuf]) -> Vec<String> {
-    paths
-        .iter()
-        .filter(|path| in_document_directory(path) && !is_markdown(path))
-        .map(|path| {
-            violation(
-                path,
-                "only Markdown documents belong in a document directory",
-            )
-        })
-        .collect()
-}
-
 /// Every tracked path whose git mode is a symlink (`120000`), relative and sorted.
 ///
 /// # Panics
 ///
 /// Panics when `git` cannot run, exits unsuccessfully or lists an entry that
 /// is not `<mode> <object> <stage>\t<path>` in UTF-8.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn tracked_symlinks() -> Vec<PathBuf> {
     let output = std::process::Command::new("git")
         .arg("-C")
@@ -710,97 +676,25 @@ fn tracked_symlinks() -> Vec<PathBuf> {
     paths
 }
 
-/// Whether the Markdown file is a page of the repository's own documentation:
-/// at the top level or below `docs/` or `work/`. Other Markdown, such as the
-/// document fixtures of a crate's tests, may declare any type.
-fn is_documentation(path: &Path) -> bool {
-    let mut components = path.components();
-    let first = components.next();
-    let top_level = components.next().is_none();
-    top_level || first.is_some_and(|c| c.as_os_str() == "docs" || c.as_os_str() == "work")
-}
-
-/// Frontmatter belongs to the documents of the document directories.
-/// Documentation outside them is plain Markdown to the model, so a page there
-/// that opens with a frontmatter block, whatever its `type` (or none), would
-/// never be validated: it is refused here instead. A page that declares a
-/// document type is told where that type lives.
-fn outside_violations(markdown: &Repo) -> Vec<String> {
-    markdown
-        .iter()
-        .filter(|(path, _)| is_documentation(path) && !in_document_directory(path))
-        .filter_map(|(path, text)| {
-            let document = Document::parse(text).ok()?;
-            let message = match document.doc_type() {
-                Some(declared) => format!(
-                    "`type`: {} {} document belongs directly in {}",
-                    declared.article(),
-                    declared.name(),
-                    declared.directory()
-                ),
-                None => format!(
-                    "frontmatter belongs only in the documents of {}; this page is outside them",
-                    DocType::ALL.map(DocType::directory).join(", ")
-                ),
-            };
-            Some(violation(path, message))
-        })
-        .collect()
-}
-
 // ---------------------------------------------------------------------------
 // The model over the tracked files
 // ---------------------------------------------------------------------------
 
-/// The tracked files of a checkout: every tracked path, the tracked symlinks
-/// among them, and the text of tracked Markdown and native diagram sidecars.
-struct Checkout {
-    paths: Vec<PathBuf>,
-    symlinks: Vec<PathBuf>,
-    markdown: Repo,
-    diagram_assets: Repo,
-}
-
 /// Read the checkout from the git index, with the files read under `root`.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn load_checkout(root: &Path) -> Checkout {
-    let symlinks = tracked_symlinks();
-    let paths = tracked_paths();
-    let markdown = paths
-        .iter()
-        .filter(|path| is_markdown(path) && !symlinks.contains(path))
-        .map(|path| {
-            let bytes = read_tracked(root, path);
-            match decode_text(&bytes) {
-                Some(text) => (path.clone(), text.to_string()),
-                None => panic!("{} is not UTF-8 text", path.display()),
-            }
-        })
-        .collect();
-    let diagram_assets = paths
-        .iter()
-        .filter(|path| path.starts_with("docs/diagrams") && !symlinks.contains(path))
-        .filter(|path| {
-            matches!(
-                path.extension().and_then(|extension| extension.to_str()),
-                Some("json" | "svg" | "ttl" | "trig" | "txt")
-            )
-        })
-        .map(|path| {
-            let text = String::from_utf8(read_tracked(root, path)).unwrap_or_else(|error| {
-                panic!("{} is not UTF-8 diagram data: {error}", path.display())
-            });
-            (path.clone(), text)
-        })
-        .collect();
-    Checkout {
-        paths,
-        symlinks,
-        markdown,
-        diagram_assets,
-    }
+    documents::load_checkout(root, tracked_paths(), tracked_symlinks())
+        .unwrap_or_else(|error| panic!("{error}"))
 }
 
 /// Open the selected repository once for both source-backed document checks.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn repository_gate() -> &'static Opened {
     static OPENED: OnceLock<Result<Opened, GateError>> = OnceLock::new();
     OPENED
@@ -823,25 +717,33 @@ struct Verdict {
 /// Judge a checkout: `Workplan::check` over the document directories, with
 /// links judged against the tracked paths and symlinks, and `plain::check`
 /// over the tracked Markdown outside them.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn with_plan<T>(
     checkout: &Checkout,
     source: &Workspace,
     body: impl FnOnce(&Workplan<'_>, &LinkContext<'_>) -> T,
 ) -> T {
-    let tree = MemoryTree::try_from_iter(
-        checkout
-            .markdown
-            .iter()
-            .chain(&checkout.diagram_assets)
-            .map(|(path, text)| (name(path), text.as_str())),
-    )
-    .unwrap_or_else(|error| {
-        panic!("the tracked document and diagram text does not form a tree: {error}");
-    });
-    let context = LinkContext::new(&tree, checkout.paths.iter().map(|path| rel(path)))
-        .with_symlinks(checkout.symlinks.iter().map(|path| rel(path)));
-    let plan = Workplan::load_with(&tree, source, &context);
-    body(&plan, &context)
+    documents::with_links(checkout, |tree, context| {
+        let plan = Workplan::load_with(tree, source, context);
+        body(&plan, context)
+    })
+    .unwrap_or_else(|error| panic!("{error}"))
+}
+
+/// The staged document gate checks the tracked text and links without building a source index.
+#[test]
+fn repository_static_documents() -> Result<(), Box<dyn Error>> {
+    let checkout = load_checkout(&gate_root());
+    let findings = documents::static_findings(&checkout)?;
+    assert!(
+        findings.is_empty(),
+        "static document findings:\n{}",
+        report(&findings)
+    );
+    Ok(())
 }
 
 fn judge(checkout: &Checkout, source: &Workspace) -> Verdict {
@@ -896,9 +798,7 @@ fn checkout_violations(
     inventory: &Inventory,
 ) -> Vec<String> {
     let mut out: Vec<String> = verdict.findings.iter().map(ToString::to_string).collect();
-    out.extend(symlink_violations(&checkout.symlinks));
-    out.extend(layout_violations(&checkout.paths));
-    out.extend(outside_violations(&checkout.markdown));
+    out.extend(documents::checkout_findings(checkout));
     out.extend(check_inventory(&checkout.markdown, documents, inventory));
     out
 }
@@ -925,6 +825,10 @@ fn ntriples(dataset: &purrdf_core::RdfDataset) -> Result<Vec<u8>, Box<dyn Error>
     Ok(output.bytes)
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn check_authoring_roundtrip(
     plan: &Workplan<'_>,
     checkout: &Checkout,
@@ -1103,6 +1007,10 @@ fn check_repository_bindings(
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input()
 -> Result<(), Box<dyn Error>> {
     let mut files = files();
@@ -1205,6 +1113,10 @@ fn repository_authoring_checks_declared_occurrences_and_refuses_incomplete_input
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn repository_authoring_preserves_authored_claims_and_refuses_extra_statement_layers()
 -> Result<(), Box<dyn Error>> {
     const STATEMENT: &str = "Recorded café text.  \n";
@@ -1256,6 +1168,10 @@ fn repository_authoring_preserves_authored_claims_and_refuses_extra_statement_la
     assert_repository_claim_refusals(&dataset)
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn assert_repository_claim_projection(
     dataset: &purrdf_core::RdfDataset,
     selected: &purrdf_core::RdfDataset,
@@ -1332,6 +1248,10 @@ fn assert_repository_claim_projection(
     Ok(())
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn assert_repository_claim_refusals(
     dataset: &purrdf_core::RdfDataset,
 ) -> Result<(), Box<dyn Error>> {
@@ -1430,15 +1350,17 @@ fn assert_record_input_assertions(
     for (path, document) in records {
         let typed = Profile
             .validate(document, path)
-            .expect("valid record fixture");
+            .map_err(|findings| format!("{path}: invalid record fixture: {findings:?}"))?;
         let inputs = match &typed {
             RafDocument::Evidence(record) => &record.inputs,
             RafDocument::Assessment(record) => &record.inputs,
             RafDocument::Review(record) => &record.inputs,
-            _ => panic!("expected an input-bearing record"),
+            _ => return Err(format!("{path}: expected an input-bearing record").into()),
         };
         let owner = document.dataset_iri()?;
-        let local = owner.strip_prefix(raf_okf::DOCUMENT_IRI_BASE).unwrap();
+        let local = owner
+            .strip_prefix(raf_okf::DOCUMENT_IRI_BASE)
+            .ok_or_else(|| format!("{path}: unexpected document owner {owner}"))?;
         let record =
             format!("https://blackcatinformatics.ca/raf/workplan/repository/1/document/{local}");
         for (ordinal, input) in inputs.iter().enumerate() {
@@ -1483,6 +1405,10 @@ fn assert_record_input_assertions(
     assert_record_input_refusals(rows, vocab)
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn assert_record_input_refusals(
     rows: Vec<purrdf_core::RdfQuad>,
     vocab: &str,
@@ -1528,6 +1454,10 @@ fn assert_record_input_refusals(
     Ok(())
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn assert_dependency_target_refusal(
     dataset: &purrdf_core::RdfDataset,
     vocab: &str,
@@ -1551,6 +1481,10 @@ fn assert_dependency_target_refusal(
     Ok(())
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn assert_evidence_relationships(
     dataset: &purrdf_core::RdfDataset,
     vocab: &str,
@@ -1630,6 +1564,10 @@ fn assert_evidence_relationships(
     Ok(())
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn assert_index_refusals(
     dataset: &purrdf_core::RdfDataset,
     vocab: &str,
@@ -1687,6 +1625,10 @@ fn assert_index_refusals(
     Ok(())
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn authoring_refusal(rows: &[purrdf_core::RdfQuad]) -> Result<authoring::Error, Box<dyn Error>> {
     let mut builder = purrdf_core::RdfDatasetBuilder::new();
     for row in rows {
@@ -1705,6 +1647,10 @@ mod checkouts {
     use raf_source::MemoryTree;
 
     /// A one-package source workspace for the checkouts to bind to.
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     pub(super) fn source() -> Workspace {
         let tree = MemoryTree::from([
             (
@@ -1855,6 +1801,10 @@ mod checkouts {
     }
 
     /// The files with `from` replaced by `to` in `path`.
+    #[expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )]
     pub(super) fn mutated(path: &str, from: &str, to: &str) -> Vec<(&'static str, String)> {
         let mut files = files();
         let (_, text) = files
@@ -1940,11 +1890,18 @@ fn the_checker_judges_markdown_outside_the_document_directories() {
 }
 
 #[test]
-fn the_checker_judges_links_against_the_tracked_paths_and_symlinks() {
+fn the_checker_judges_links_against_the_tracked_paths_and_symlinks() -> Result<(), String> {
     let linked = mutated(README, "# Readme\n", "# Readme\n\n![x](docs/alias.svg)\n");
+    let static_findings = |symlinks: &[&str], paths: &[&str]| {
+        documents::static_findings(&checkouts::checkout(&linked, symlinks, paths))
+    };
     // Tracked as a regular file: the link resolves.
     assert_eq!(
         found(&linked, &[], &["docs/alias.svg"]),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        static_findings(&[], &["docs/alias.svg"])?,
         Vec::<String>::new()
     );
     // Tracked as a symlink: a link must not lead to it. The symlink itself is
@@ -1956,6 +1913,9 @@ fn the_checker_judges_links_against_the_tracked_paths_and_symlinks() {
         "{as_symlink:#?}"
     );
     assert_eq!(as_symlink.len(), 2, "{as_symlink:#?}");
+    let static_symlink = static_findings(&["docs/alias.svg"], &[])?;
+    assert_eq!(about(&static_symlink, README, "link-symlink"), 1);
+    assert_eq!(static_symlink.len(), 2, "{static_symlink:#?}");
     // Not tracked at all: broken, whatever is on disk.
     let untracked = found(&linked, &[], &[]);
     assert_eq!(
@@ -1964,6 +1924,10 @@ fn the_checker_judges_links_against_the_tracked_paths_and_symlinks() {
         "{untracked:#?}"
     );
     assert_eq!(untracked.len(), 1, "{untracked:#?}");
+    let static_untracked = static_findings(&[], &[])?;
+    assert_eq!(about(&static_untracked, README, "link-broken"), 1);
+    assert_eq!(static_untracked.len(), 1, "{static_untracked:#?}");
+    Ok(())
 }
 
 #[test]
@@ -2003,6 +1967,10 @@ fn rejects_non_markdown_file_in_a_document_directory() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn rejects_a_typed_document_outside_the_document_directories() {
     let page = |frontmatter: &str| format!("---\n{frontmatter}\n---\n\n# Page\n");
     let typed = |doc_type: &str| page(&format!("type: {doc_type}\nname: x"));
@@ -2078,7 +2046,6 @@ fn rejects_a_typed_document_outside_the_document_directories() {
 const OVERVIEW_PAGE: &str = "docs/architecture/overview.md";
 const ALPHA: &str = "docs/capabilities/alpha.md";
 const BETA: &str = "docs/capabilities/beta.md";
-const INDEX: &str = "docs/capabilities/index.md";
 
 const FIXTURE_INVENTORY: Inventory = Inventory {
     capabilities: &[
@@ -2190,6 +2157,10 @@ fn inventory_accepts_a_matching_tree() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn inventory_table_has_the_documented_shape() {
     let slugs: BTreeSet<&str> = INVENTORY.capabilities.iter().map(|(s, _)| *s).collect();
     assert_eq!(
@@ -2402,6 +2373,10 @@ fn inventory_rejects_missing_architecture_and_index_documents() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn inventory_rejects_a_state_change() {
     let mut repo = inventory_repo();
     let alpha = repo.get_mut(Path::new(ALPHA)).expect("fixture alpha");
@@ -2414,6 +2389,10 @@ fn inventory_rejects_a_state_change() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn inventory_rejects_an_id_change() {
     let mut repo = inventory_repo();
     let overview = repo
@@ -2442,6 +2421,10 @@ fn inventory_rejects_a_document_the_table_does_not_list() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn inventory_rejects_a_missing_or_unlisted_record() {
     for (path, _, _) in FIXTURE_RECORDS {
         let mut repo = inventory_repo();
@@ -2509,6 +2492,10 @@ struct Scratch(purrdf_testkit::TempDir);
 
 #[cfg(unix)]
 impl Scratch {
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     fn new() -> Self {
         Self(
             purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR"))
@@ -2526,6 +2513,10 @@ impl Scratch {
 /// refused rather than followed, and a regular file is read.
 #[cfg(unix)]
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn refuses_non_regular_files_instead_of_reading_them() {
     let scratch = Scratch::new();
     let dir = scratch.0.path().to_path_buf();
@@ -2557,6 +2548,10 @@ fn refuses_non_regular_files_instead_of_reading_them() {
 
 #[cfg(unix)]
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn refuses_a_file_swapped_in_after_inspection() {
     let scratch = Scratch::new();
     let dir = scratch.0.path();
@@ -2682,6 +2677,10 @@ fn doctest_problems(document: &str, library: &str) -> Result<Vec<String>, String
     Ok(problems)
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn tracked_text(root: &Path, path: &str) -> String {
     let bytes = read_tracked(root, Path::new(path));
     match decode_text(&bytes) {

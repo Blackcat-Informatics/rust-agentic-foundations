@@ -15,6 +15,10 @@ use std::path::Path;
 use embedded::{COPY_SOURCE, NEIGHBOUR_SOURCE, Pair, Side};
 
 /// Start of the copied statements in the source; they begin the verified region.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn copied_start(source: &str, marker: &str) -> usize {
     source
         .find(marker)
@@ -31,6 +35,10 @@ fn helper_and_larger(pair: &Pair) -> (&Side, &Side) {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn copied_helper_pairs_with_larger_at_its_verified_spans() {
     let pairs = embedded::witnesses(Path::new(env!("CARGO_TARGET_TMPDIR")), COPY_SOURCE)
         .expect("the production run analyzes the copy");
@@ -66,6 +74,10 @@ fn copied_helper_pairs_with_larger_at_its_verified_spans() {
 /// the helper and `larger`. A false pair here would mean the matcher accepts
 /// different arithmetic.
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_neighbouring_operator_change_yields_no_witness() {
     let pairs = embedded::witnesses(Path::new(env!("CARGO_TARGET_TMPDIR")), NEIGHBOUR_SOURCE)
         .expect("the production run analyzes the neighbour");

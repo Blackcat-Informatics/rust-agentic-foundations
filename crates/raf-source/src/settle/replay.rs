@@ -6,6 +6,13 @@
 use super::*;
 use crate::{LoadOptions, MemoryTree, Namespace, Workspace};
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn load(source: &str) -> Workspace {
     let tree: MemoryTree = [
         (
@@ -19,6 +26,13 @@ fn load(source: &str) -> Workspace {
     Workspace::load(&tree, &["."]).expect("source loads")
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn fixed(ws: &Workspace) -> bool {
     // This private proof runs during settling, before query accounting is
     // enabled. Recreate that phase on an owned copy of the loaded index.
@@ -30,6 +44,13 @@ fn fixed(ws: &Workspace) -> bool {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn genuine_paths_are_fixed_but_glob_prefixes_and_named_shadows_require_replay() {
     let genuine = load(
         "pub mod source { pub mod inner { pub struct X; } } pub mod prefix { pub mod inner { pub struct X; } } pub use crate::prefix::inner::*;",
@@ -68,6 +89,13 @@ fn genuine_paths_are_fixed_but_glob_prefixes_and_named_shadows_require_replay() 
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn path_visibility_and_unmatched_or_open_resident_targets_keep_replay() {
     let ws = load(
         "pub mod source { pub struct X; } pub mod outer { pub(in crate::outer) use crate::source::*; }",

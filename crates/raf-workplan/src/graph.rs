@@ -1946,6 +1946,10 @@ fn marks(body: &Body, section: CapabilitySection, path: &str) -> bool {
 /// kept. Code spans are read per paragraph as [`code_spans`] reads them: a run
 /// of backticks opens a span that the next run of the same length in the
 /// paragraph closes. A `<!--` that no `-->` closes runs to the end.
+#[expect(
+    clippy::string_slice,
+    reason = "each boundary comes from an ASCII delimiter, a character step or the end of the same text"
+)]
 fn without_comments(text: &str) -> String {
     let bytes = text.as_bytes();
     let run = |from: usize| bytes[from..].iter().take_while(|b| **b == b'`').count();
@@ -2071,6 +2075,10 @@ pub(crate) fn code_span_paths(text: &str) -> BTreeSet<String> {
 }
 
 /// The whole paths of one code span (see [`code_span_paths`]).
+#[expect(
+    clippy::string_slice,
+    reason = "both endpoints come from char_indices over this span or its byte length"
+)]
 fn paths_in_span(span: &str, found: &mut BTreeSet<String>) {
     let ident = |c: char| c.is_alphanumeric() || c == '_';
     let chars: Vec<(usize, char)> = span.char_indices().collect();
@@ -2130,6 +2138,10 @@ fn names_in_code_span(text: &str, path: &str) -> bool {
 
 /// The contents of the code spans of one paragraph: a run of backticks opens
 /// a span that the next run of the same length closes.
+#[expect(
+    clippy::string_slice,
+    reason = "the content starts after an ASCII backtick run and ends at the next matching run"
+)]
 fn code_spans(paragraph: &str) -> Vec<&str> {
     add(Work::ParagraphBytes, paragraph.len());
     let bytes = paragraph.as_bytes();
@@ -2167,6 +2179,10 @@ fn code_spans(paragraph: &str) -> Vec<&str> {
     spans
 }
 
+#[expect(
+    clippy::string_slice,
+    reason = "match_indices yields a complete UTF-8 match of path in this same span"
+)]
 fn names(span: &str, path: &str) -> bool {
     let ident = |c: char| c.is_alphanumeric() || c == '_';
     span.match_indices(path).any(|(at, _)| {
@@ -2254,6 +2270,13 @@ mod tests {
     /// two and three units; the work of the third adds no more than the
     /// second did.
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn a_section_of_many_blocks_is_read_in_work_linear_in_its_blocks() {
         const UNIT: usize = 5_000;
         let read = |units: usize| {
@@ -2283,6 +2306,13 @@ mod tests {
     }
 
     /// The text of a capability with the Purpose `purpose`.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn capability(id: &str, purpose: &str) -> String {
         let mut sections = String::new();
         for name in [
@@ -2328,6 +2358,13 @@ mod tests {
     /// What loading `capabilities` capabilities with `claims` claims each,
     /// every claim naming `slugs` records that exist or not, costs the claim
     /// judgment, and the findings it gives.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn judge_claims(
         capabilities: usize,
         claims: usize,

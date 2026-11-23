@@ -85,6 +85,11 @@ pub(crate) fn bounds(baseline: &[u64; 4], candidate: &[u64; 4], growth: u128) ->
     failures
 }
 
+#[expect(
+    clippy::print_stderr,
+    clippy::print_stdout,
+    reason = "the executable reports its results through its output and status"
+)]
 fn run(args: &[String]) -> Result<(), String> {
     let [baseline, candidate, directory] = args else {
         return Err(
@@ -125,6 +130,10 @@ fn run(args: &[String]) -> Result<(), String> {
     }
 }
 
+#[expect(
+    clippy::print_stderr,
+    reason = "this executable reports diagnostics on the caller's standard error"
+)]
 fn main() -> ExitCode {
     let args: Vec<_> = std::env::args().skip(1).collect();
     let outcome = if args.is_empty() {
@@ -141,6 +150,10 @@ fn main() -> ExitCode {
     }
 }
 
+#[expect(
+    clippy::print_stdout,
+    reason = "this executable writes its results to the caller's standard output"
+)]
 fn sample() -> Result<(), String> {
     let count = counter(
         "1200,,instructions:u,9,100.00,,\n",

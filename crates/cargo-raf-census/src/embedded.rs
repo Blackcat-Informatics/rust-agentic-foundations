@@ -25,7 +25,10 @@ pub(crate) fn run(
         source,
     })?;
     let previous = if matches!(command, EmbeddedCommand::Check) {
-        let path = RelPath::new(DEBT_FILE).expect("literal embedded debt path");
+        let path = RelPath::new(DEBT_FILE).map_err(|source| raf_census::Error::Io {
+            file: DEBT_FILE.into(),
+            source: std::io::Error::new(std::io::ErrorKind::InvalidInput, source),
+        })?;
         Some(
             tree.read(&path, raf_census::MAX_DEBT_BYTES as u64)
                 .map_err(|source| raf_census::Error::Tree {
@@ -49,21 +52,24 @@ pub(crate) fn run(
         })?;
     }
     match command {
-        EmbeddedCommand::Report { format, out } => {
-            analysis.report(|result| match result {
+        EmbeddedCommand::Report { format, out } => analysis.report(|result| match result {
+            Err(cause) => refused(&cause, diagnostics),
+            Ok(evidence) => evidence.to_text(format.native(), |result| match result {
                 Err(cause) => refused(&cause, diagnostics),
-                Ok(evidence) => evidence.to_text(format.native(), |result| match result {
-                    Err(cause) => refused(&cause, diagnostics),
-                    Ok(text) => {
-                        crate::command::write_report(root, text.as_str(), out.as_deref(), output)?;
-                        Ok(0)
-                    }
-                }),
-            })
-        }
+                Ok(text) => {
+                    crate::command::write_report(root, text.as_str(), out.as_deref(), output)?;
+                    Ok(0)
+                }
+            }),
+        }),
         EmbeddedCommand::Check => {
+            let previous = previous.as_deref().ok_or_else(|| {
+                raf_census::Error::Options(format!(
+                    "embedded check requires the debt record {DEBT_FILE}"
+                ))
+            })?;
             analysis.import_debt(
-                previous.as_deref().expect("check read its required debt"),
+                previous,
                 raf_rdf::Format::Turtle,
                 |outcome| match outcome {
                     Err(cause) => refused(&cause, diagnostics),

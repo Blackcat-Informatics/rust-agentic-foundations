@@ -482,23 +482,14 @@ impl<'a> Ranked<'a, '_> {
             if held_order == Some(Ordering::Less) || defs_order == Some(Ordering::Less) {
                 return Err(self.incomplete_names());
             }
-            // A matching peek remains present until this iterator's next call.
-            let held = (held_order == Some(Ordering::Equal)).then(|| {
-                cursor
-                    .held
-                    .next()
-                    .expect("matching frozen held row")
-                    .1
-                    .as_ref()
-            });
-            let defs = (defs_order == Some(Ordering::Equal)).then(|| {
-                &cursor
-                    .defs
-                    .next()
-                    .expect("matching frozen scope row")
-                    .1
-                    .defs
-            });
+            let held = cursor
+                .held
+                .next_if(|_| held_order == Some(Ordering::Equal))
+                .map(|(_, row)| row.as_ref());
+            let defs = cursor
+                .defs
+                .next_if(|_| defs_order == Some(Ordering::Equal))
+                .map(|(_, row)| &row.defs);
             for (at, bottom) in inputs.bottom.iter_mut().enumerate() {
                 *bottom &= held.is_none_or(|spaces| spaces[at].is_empty())
                     && defs.is_none_or(|spaces| spaces[at].is_empty());

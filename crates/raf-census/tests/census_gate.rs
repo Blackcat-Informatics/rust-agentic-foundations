@@ -35,6 +35,10 @@ use raf_source::MemoryTree;
 const SOURCE: &str = "/// The one implementation.\npub fn home() -> u32 { 7 }\npub use home as alias;\npub fn copy() -> u32 { 7 + 1 }\n";
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn locked_gate_uses_complete_ledger_roots_and_the_same_debt_path() {
     use raf_source::{LoadOptions, LockedCatalog, LockedManifest, RelPath};
 
@@ -89,6 +93,10 @@ fn locked_gate_uses_complete_ledger_roots_and_the_same_debt_path() {
     assert!(missing.to_string().contains("association"), "{missing}");
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn put(graph: &mut Builder, node: &str, key: &str, object: Term) {
     graph
         .insert(Triple {
@@ -193,6 +201,10 @@ fn declared_pattern(matcher: Option<&str>, referenced: bool) -> Builder {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation() {
     let graph = job(true).finish().unwrap();
     let mut old = Builder::from_graph(&graph);
@@ -276,6 +288,10 @@ fn ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpret
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours() {
     ledger_vocabulary_matches_validated_graphs();
     for (builder, node) in [
@@ -374,6 +390,10 @@ fn pattern_fixture_selector(matcher: &str) -> &'static str {
     }
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn ledger_vocabulary_matches_validated_graphs() {
     let mut builders = vec![
         variant("src/lib.rs"),
@@ -478,6 +498,11 @@ fn ledger_vocabulary_settings() -> Builder {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence() {
     for matcher in [
         "call",
@@ -571,6 +596,10 @@ fn ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_prese
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_gate() {
     for missing in [None, Some("package"), Some("entryPoint"), Some("consumer")] {
         let mut graph = job(true);
@@ -695,6 +724,11 @@ fn configured_provider_operations(
     )
 }
 
+#[expect(
+    clippy::unwrap_in_result,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn configured_provider_layout(
     source: &str,
     selector: &str,
@@ -798,6 +832,10 @@ fn configured_provider_layout(
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn configured_provider_detects_unlisted_competitors_in_the_adapter_package() {
     for (helper, copies) in [
         ("pub fn other()->u32 { renamed::encode(0) }", 0),
@@ -830,6 +868,11 @@ fn configured_provider_detects_unlisted_competitors_in_the_adapter_package() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn configured_provider_checks_actual_returned_definitions_and_refuses_dummy_or_shadowed_calls() {
     for source in [
         "pub fn run(value:u32)->u32 { renamed::api::encode(value) }",
@@ -889,6 +932,10 @@ fn configured_provider_checks_actual_returned_definitions_and_refuses_dummy_or_s
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn configured_provider_homes_exempt_only_proved_consumers_and_apis() {
     let native = "pub mod api {pub fn encode(value:u32)->u32{value+1}} pub use api::encode;";
     let source = "pub mod helpers {pub fn run(value:u32)->u32{renamed::encode(value)} pub fn other(){let _=b\"0123456789abcdef\";}} pub use helpers::run;";
@@ -924,6 +971,10 @@ fn configured_provider_homes_exempt_only_proved_consumers_and_apis() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn configured_provider_checks_every_context_of_a_shared_consumer_body() {
     let native = "pub mod api {pub fn encode(value:u32)->u32{value+1}} pub use api::encode;";
     for (other, accepted) in [
@@ -952,6 +1003,10 @@ fn configured_provider_checks_every_context_of_a_shared_consumer_body() {
     }
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn provider_home_identity_policy() -> String {
     let mut policy = provider_policy("provider.*", "native::api::encode");
     for (node, key, value) in [
@@ -985,6 +1040,11 @@ fn provider_home_identity_policy() -> String {
     policy.finish().unwrap().to_text(Format::Turtle).unwrap()
 }
 
+#[expect(
+    clippy::unwrap_in_result,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn provider_home_identity_fixture(same: bool) -> Result<raf_census::GateReport, raf_census::Error> {
     use raf_source::{
         DeclaredCfg, DeclaredConfiguration, LoadOptions, LockedCatalog, LockedEdge, LockedManifest,
@@ -1077,6 +1137,10 @@ fn provider_home_identity_fixture(same: bool) -> Result<raf_census::GateReport, 
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn configured_provider_api_home_requires_one_identity_across_consumers() {
     let report = provider_home_identity_fixture(true).unwrap();
     assert!(report.is_clean(), "{report:?}");
@@ -1090,6 +1154,10 @@ fn configured_provider_api_home_requires_one_identity_across_consumers() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn configured_provider_audits_library_attributes_and_generic_computation() {
     let source = "pub fn run(value:u32)->u32 { renamed::encode(value) }";
     for attribute in ["", "#[inline]", "#[cfg_attr(any(),)]"] {
@@ -1152,6 +1220,10 @@ fn configured_provider_audits_library_attributes_and_generic_computation() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn configured_provider_audits_inherited_inline_and_file_module_attributes() {
     let source = "pub fn run(value:u32)->u32 {renamed::api::encode(value)}";
     for module in [
@@ -1193,6 +1265,11 @@ fn configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation
     configured_provider_state_transitions();
 }
 
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn configured_provider_state_transitions() {
     let implementation = "pub mod api {pub fn encode(value:u32)->u32{value+1}} pub struct State(u32); impl State {pub fn new()->Self{Self(0)} pub fn update(&mut self,value:u32){self.0=value;} pub fn finish(&self)->u32{self.0}}";
     let apis = [
@@ -1296,6 +1373,10 @@ fn configured_provider_state_transitions() {
     configured_provider_hidden_reference_receipts(implementation, apis);
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn configured_provider_hidden_reference_receipts(implementation: &str, apis: &[&str]) {
     for source in [
         "pub fn run(state:&mut renamed::State,value:u32)->u32{let result=renamed::State::finish(&state);let unused=renamed::State::update(state,value);result}",
@@ -1342,6 +1423,11 @@ fn configured_provider_hidden_reference_receipts(implementation: &str, apis: &[&
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn configured_provider_audits_selected_nominal_headers_before_method_proof() {
     let source = "pub fn run(value:u32)->u32{let mut state=renamed::State::new();renamed::State::update(&mut state,value);renamed::State::finish(&state)}";
     let apis = [
@@ -1394,6 +1480,11 @@ fn configured_provider_audits_selected_nominal_headers_before_method_proof() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn configured_provider_audits_declared_and_actual_call_alias_headers() {
     let apis = [
         "provider::State::new",
@@ -1469,6 +1560,11 @@ fn configured_provider_audits_declared_and_actual_call_alias_headers() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn configured_provider_revisits_ancestors_of_aliases_discovered_before_their_headers() {
     let apis = [
         "provider::State::new",
@@ -1512,6 +1608,10 @@ fn configured_provider_revisits_ancestors_of_aliases_discovered_before_their_hea
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn configured_provider_missing_paths_keep_the_original_typed_source_failure() {
     use std::error::Error as _;
 
@@ -1537,6 +1637,10 @@ fn configured_provider_missing_paths_keep_the_original_typed_source_failure() {
     );
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn tree(source: &str, graph: Builder, copies: usize) -> MemoryTree {
     let ledger = graph.finish().unwrap().to_text(Format::Turtle).unwrap();
     let mut files = vec![
@@ -1559,6 +1663,10 @@ fn lexical_pattern_tree(source: &str, matcher: &str, expression: &str) -> Memory
     tree(source, lexical_pattern_graph(matcher, expression), 0)
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn lexical_pattern_graph(matcher: &str, expression: &str) -> Builder {
     let mut graph = declared_pattern(Some(matcher), true);
     for (node, key, value) in [
@@ -1593,6 +1701,10 @@ fn lexical_pattern_graph(matcher: &str, expression: &str) -> Builder {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn path_pattern_kinds_execute_with_positive_and_negative_syntax_neighbours() {
     for (kind, expression, home, positive, negative) in [
         (
@@ -1648,6 +1760,10 @@ fn path_pattern_kinds_execute_with_positive_and_negative_syntax_neighbours() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn call_patterns_follow_written_imports_and_respect_parameters_locals_and_closures() {
     for (other, copies) in [
         ("pub fn other(){release(2);}", 1),
@@ -1692,6 +1808,10 @@ fn call_patterns_follow_written_imports_and_respect_parameters_locals_and_closur
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn type_patterns_follow_aliases_without_capturing_generic_or_module_shadows() {
     for (other, copies) in [
         ("pub fn other(_:Lock<u32>){}", 1),
@@ -1739,6 +1859,10 @@ fn type_patterns_follow_aliases_without_capturing_generic_or_module_shadows() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn indexed_type_patterns_follow_written_aliases_at_their_uses() {
     let home = "
 pub mod home {
@@ -2068,6 +2192,10 @@ pub fn outside() {
 ";
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn written_receiver_methods_keep_declaration_identity_and_runtime_shadowing() {
     use std::collections::BTreeSet;
 
@@ -2108,6 +2236,10 @@ fn written_receiver_methods_keep_declaration_identity_and_runtime_shadowing() {
     }
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn mixed_policy_keeps_type_path_findings(source: &str) -> raf_census::GateReport {
     let graph = lexical_pattern_graph("typePath", "demo::home::Banned")
         .finish()
@@ -2170,6 +2302,10 @@ fn mixed_policy_keeps_type_path_findings(source: &str) -> raf_census::GateReport
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn written_receiver_method_scope_keeps_the_matching_reach_of_a_shared_file() {
     // A non-shipping reach cannot contribute its receiver proof to a
     // shipping reach, and two proofs still count one physical location.
@@ -2248,6 +2384,10 @@ pub mod shipping {{
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn written_receiver_alias_keeps_a_native_refusal_at_the_first_matching_method() {
     // Moving a receiver never reports its deferred Source refusal. The
     // first matching method on the new binding reports the original cause.
@@ -2298,6 +2438,10 @@ pub fn outside(value: home::Conditional) {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn written_receiver_method_selector_refuses_non_nominal_and_malformed_paths() {
     // The ledger needs a specific indexed nominal receiver before it can
     // select the method. Written receiver aliases are proved at their uses.
@@ -2334,6 +2478,10 @@ fn written_receiver_method_selector_refuses_non_nominal_and_malformed_paths() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn written_type_alias_hits_share_physical_sites_and_respect_shipping_scope() {
     let mut ledger = lexical_pattern_graph("typePath", "demo::home::Banned");
     put(&mut ledger, "#pattern", "shippingOnly", Term::boolean(true));
@@ -2394,6 +2542,11 @@ macro_rules! observe { ($e:expr) => {} }
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn macro_type_hits_use_the_scope_of_the_reach_that_resolves_the_type() {
     // One invocation can resolve differently under distinct targets or under
     // distinct modules in a single target. A proof must use its own reach.
@@ -2476,6 +2629,10 @@ use demo::home::{test} as Choice;
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn workspace_call_patterns_follow_cross_crate_reexports_through_actual_source_sites() {
     selected_reference_patterns_follow_actual_exports();
     let graph = lexical_pattern_graph("call", "demo::work")
@@ -2506,6 +2663,10 @@ fn workspace_call_patterns_follow_cross_crate_reexports_through_actual_source_si
     }
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn selected_reference_patterns_follow_actual_exports() {
     let imported = "mod facade {pub use renamed::exported as alias;} use facade::alias as through;";
     for (matcher, imports, body, matched) in [
@@ -2551,6 +2712,11 @@ fn selected_reference_patterns_follow_actual_exports() {
     selected_reference_alias_admission();
 }
 
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn selected_reference_alias_admission() {
     for visibility in ["", "pub "] {
         for name in ["provided", "missing"] {
@@ -2592,6 +2758,10 @@ fn selected_reference_alias_admission() {
     );
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn selected_reference_pattern_tree(
     matcher: &str,
     expression: &str,
@@ -2612,6 +2782,10 @@ fn selected_reference_pattern_tree(
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn macro_name_patterns_follow_aliases_but_not_a_differently_named_local_macro() {
     for (other, copies) in [
         ("pub fn other(){say!(\"copy\");}", 1),
@@ -2650,6 +2824,10 @@ fn macro_name_patterns_follow_aliases_but_not_a_differently_named_local_macro() 
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn block_import_patterns_use_the_import_binding_instead_of_a_shadowed_module_function() {
     for (pattern, home, copies) in [
         ("demo::drop_it", "drop_it();", 0),
@@ -2677,6 +2855,10 @@ fn block_import_patterns_use_the_import_binding_instead_of_a_shadowed_module_fun
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn constant_pattern_identifiers_keep_their_actual_reference_in_match_arms() {
     for (arm, copies) in [
         ("BANNED => {let _=BANNED;}, _=>{}", 1),
@@ -2704,6 +2886,10 @@ fn constant_pattern_identifiers_keep_their_actual_reference_in_match_arms() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn call_patterns_observe_macro_repetition_and_statement_arguments_with_clean_neighbours() {
     for (body, copies) in [
         ("let _=vec![std::mem::drop(1); 2];", 1),
@@ -2733,6 +2919,10 @@ fn call_patterns_observe_macro_repetition_and_statement_arguments_with_clean_nei
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn general_path_patterns_include_grouped_renamed_imports_in_their_actual_module_scope() {
     for (import, copies) in [
         ("use std::mem::{self, drop as outside};", 1),
@@ -2760,6 +2950,10 @@ fn general_path_patterns_include_grouped_renamed_imports_in_their_actual_module_
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn call_patterns_include_qualified_trait_and_inherent_paths_without_receiver_guessing() {
     for (target, home, other, copies) in [
         (
@@ -2804,6 +2998,10 @@ fn call_patterns_include_qualified_trait_and_inherent_paths_without_receiver_gue
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn namespace_dependencies_refuse_cycles_beside_bounded_transitive_chains() {
     let source = "pub fn home(){std::mem::drop(0);} pub use home as alias; pub fn other(){use b as a; use a as b; a(1);}";
     let error = fixture_gate(".")
@@ -2831,6 +3029,10 @@ fn namespace_dependencies_refuse_cycles_beside_bounded_transitive_chains() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn import_targets_keep_their_declaration_frame() {
     for (body, copies) in [
         (
@@ -2868,6 +3070,10 @@ fn import_targets_keep_their_declaration_frame() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn transitive_block_imports_classify_their_expanded_namespace() {
     for (prefix, copies) in [("std::mem", 1), ("crate::y", 0)] {
         let source = format!(
@@ -2892,6 +3098,10 @@ fn transitive_block_imports_classify_their_expanded_namespace() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn qualified_pattern_heads_use_types_beside_value_and_macro_bindings() {
     for (kind, target, home, declarations, other, copies) in [
         (
@@ -2981,6 +3191,10 @@ fn qualified_pattern_heads_use_types_beside_value_and_macro_bindings() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn qualified_dependency_heads_ignore_value_imports_and_keep_type_imports() {
     for (other, copies) in [
         ("use crate::local_fn as renamed; renamed::encode(1);", 1),
@@ -3013,6 +3227,10 @@ fn qualified_dependency_heads_ignore_value_imports_and_keep_type_imports() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn same_head_imports_keep_distinct_type_and_value_bindings() {
     for (target, home) in [
         (
@@ -3038,6 +3256,10 @@ fn same_head_imports_keep_distinct_type_and_value_bindings() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn competing_import_namespaces_refuse_beside_distinct_namespace_imports() {
     for (first, refused) in [("pub fn chosen(){}", true), ("pub mod chosen{}", false)] {
         let source = format!(
@@ -3059,6 +3281,10 @@ fn competing_import_namespaces_refuse_beside_distinct_namespace_imports() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn anonymous_qualified_receivers_refuse_beside_supported_named_receivers() {
     for (call, refused) in [("<[u8]>::len(&[])", true), ("<Named>::len()", false)] {
         let source = format!(
@@ -3079,6 +3305,10 @@ fn anonymous_qualified_receivers_refuse_beside_supported_named_receivers() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn mixed_constant_binding_reaches_refuse_beside_consistent_constant_reaches() {
     let graph = lexical_pattern_graph("call", "std::mem::drop")
         .finish()
@@ -3120,6 +3350,10 @@ fn mixed_constant_binding_reaches_refuse_beside_consistent_constant_reaches() {
     unit_variant_reaches_are_classified_as_path_patterns();
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn unit_variant_reaches_are_classified_as_path_patterns() {
     for (variant, refused) in [("Ready", false), ("Replaced", true)] {
         let enum_source = format!(
@@ -3156,6 +3390,10 @@ fn unit_variant_reaches_are_classified_as_path_patterns() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn lexical_pattern_variants_require_the_actual_item_when_a_whole_file_span_ties_its_root() {
     for (symbol, copies) in [("consumer", 1), ("consumer::Banned", 0)] {
         let mut graph = lexical_pattern_graph("literalRegex", "^blocked$");
@@ -3210,6 +3448,10 @@ fn lexical_pattern_variants_require_the_actual_item_when_a_whole_file_span_ties_
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn lexical_patterns_match_one_token_or_group_but_never_an_unbalanced_run() {
     for (body, copies) in [
         ("consume(2);", 1),
@@ -3248,6 +3490,10 @@ fn lexical_patterns_match_one_token_or_group_but_never_an_unbalanced_run() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn lexical_patterns_reuse_local_normalization_and_keep_parameter_context() {
     let source = "/// Home.\npub fn home() { let original = 1; let _ = original; }\npub use home as alias;\npub fn copy() { let renamed = 2; let _ = renamed; }\n";
     let report = fixture_gate(".")
@@ -3272,6 +3518,10 @@ fn lexical_patterns_reuse_local_normalization_and_keep_parameter_context() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn lexical_pattern_module_homes_own_source_subjects_without_sanctioning_the_file_root() {
     let source = "/// Home.\npub mod home { #[doc=\"blocked\"] pub struct Approved; }\npub use home as alias;\n#[doc=\"blocked\"] pub struct Copy;\n";
     let report = fixture_gate(".")
@@ -3290,6 +3540,10 @@ fn lexical_pattern_module_homes_own_source_subjects_without_sanctioning_the_file
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn lexical_pattern_module_homes_include_macros_exported_from_their_actual_source_scope() {
     for (other, copies) in [("blocked", 1), ("allowed", 0)] {
         let source = format!(
@@ -3310,6 +3564,10 @@ fn lexical_pattern_module_homes_include_macros_exported_from_their_actual_source
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn many_constant_sites_keep_indexed_matching_within_the_default_grant() {
     struct Source<'a>(&'a str);
     impl std::fmt::Display for Source<'_> {
@@ -3354,6 +3612,10 @@ fn many_constant_sites_keep_indexed_matching_within_the_default_grant() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn literal_patterns_exclude_doc_comments_but_keep_written_doc_attributes() {
     for (documentation, copies) in [
         ("/// blocked\npub fn other(){}", 0),
@@ -3385,6 +3647,10 @@ fn literal_patterns_exclude_doc_comments_but_keep_written_doc_attributes() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn lexical_patterns_match_decoded_strings_in_macros_and_attributes_but_not_bytes() {
     for (body, copies) in [
         ("let _ = r#\"blocked\"#;", 1),
@@ -3426,6 +3692,10 @@ fn lexical_patterns_match_decoded_strings_in_macros_and_attributes_but_not_bytes
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn lexical_patterns_do_not_mistake_a_file_root_for_its_first_written_unit() {
     let source = "pub fn home()->&'static str {\"blocked\"}\npub use home as alias;\nmacro_rules! check { ($value:expr)=>{} }\ncheck!(\"blocked\");\n";
     let report = fixture_gate(".")
@@ -3441,6 +3711,10 @@ fn lexical_patterns_do_not_mistake_a_file_root_for_its_first_written_unit() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn token_patterns_include_file_level_macro_arguments_without_renaming_item_names() {
     let source = "pub fn home() { check!(1); }\npub use home as alias;\nmacro_rules! check { ($value:expr)=>{} }\ncheck!({2 + 3});\n";
     let report = fixture_gate(".")
@@ -3456,6 +3730,10 @@ fn token_patterns_include_file_level_macro_arguments_without_renaming_item_names
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn token_patterns_normalize_body_local_declarations_without_renaming_module_items() {
     let source = "pub fn home(){fn local(){}}\npub use home as alias;\npub fn copy(){fn renamed(){}}\npub fn banned(){}\n";
     let report = fixture_gate(".")
@@ -3477,6 +3755,11 @@ fn token_patterns_normalize_body_local_declarations_without_renaming_module_item
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn lexical_patterns_share_an_explicit_native_budget_and_release_only_their_own_spans() {
     let retained: syn::File = syn::parse_str("fn retained() {}").unwrap();
     let source = "/// Home.\npub fn home() { consume(1); }\npub use home as alias;\nfn consume<T>(value:T)->T { value }\n";
@@ -3505,6 +3788,10 @@ fn lexical_patterns_share_an_explicit_native_budget_and_release_only_their_own_s
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn aliases_resolve_and_a_unit_selected_by_two_forbidden_fields_counts_once() {
     let mut ledger = job(false);
     put(
@@ -3529,6 +3816,10 @@ fn aliases_resolve_and_a_unit_selected_by_two_forbidden_fields_counts_once() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn enforced_copies_and_unenforced_zero_counts_fail_with_clean_neighbours() {
     let report = fixture_gate(".")
         .check_tree(&tree(SOURCE, job(true), 0))
@@ -3558,6 +3849,10 @@ fn enforced_copies_and_unenforced_zero_counts_fail_with_clean_neighbours() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn stale_members_fingerprints_and_variants_are_findings_beside_a_clean_policy() {
     let source = "/// Implementation.\npub fn home()->u32 { 7 }\npub use home as alias;";
     let mut missing_entry = job(true);
@@ -3603,6 +3898,10 @@ fn stale_members_fingerprints_and_variants_are_findings_beside_a_clean_policy() 
     );
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn detector_ledger(id: &str) -> Builder {
     let mut graph = job(true);
     assert!(
@@ -3632,6 +3931,10 @@ fn detector_fixture(graph: Builder, home: &str, consumer: &str) -> MemoryTree {
 }
 
 /// The detector workspace with extra files, such as a consumer test target.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn detector_fixture_with(
     graph: Builder,
     home: &str,
@@ -3664,6 +3967,10 @@ fn detector_fixture_with(
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn default_hasher_detector_uses_visible_std_paths_and_lexical_aliases() {
     for source in detector_fixtures::HASHER_POSITIVE {
         let report = fixture_gate(".")
@@ -3694,6 +4001,10 @@ fn default_hasher_detector_uses_visible_std_paths_and_lexical_aliases() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn byte_layout_detectors_execute_with_shipping_and_home_package_boundaries() {
     required_rdf_rules_have_no_home_or_test_exemption();
     required_rdf_macro_paths_follow_lexical_context();
@@ -3729,6 +4040,10 @@ fn byte_layout_detectors_execute_with_shipping_and_home_package_boundaries() {
     }
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn required_rdf_macro_paths_follow_lexical_context() {
     for (imports, body, forbidden) in [
         ("", "fn load(value: serde_json::Value){}", true),
@@ -3786,6 +4101,10 @@ fn required_rdf_macro_paths_follow_lexical_context() {
     }
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn required_rdf_rules_have_no_home_or_test_exemption() {
     let home = "/// Home.\npub fn home() {}";
     for (id, positive, negative) in detector_fixtures::RDF
@@ -3844,6 +4163,10 @@ fn required_rdf_rules_have_no_home_or_test_exemption() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn layout_findings_require_related_operands_and_rendered_prefix_order() {
     let cases = [
         ("align-up-mask", "fn copy(n:usize)->usize {n&!7}", false),
@@ -3943,6 +4266,10 @@ fn layout_findings_require_related_operands_and_rendered_prefix_order() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn fact_detectors_reuse_collected_values_and_keep_their_target_scope() {
     for (id, positive, negative, tests_apply) in detector_fixtures::FACTS {
         let home = "/// Home.\npub fn home() {}";
@@ -3984,6 +4311,10 @@ fn fact_detectors_reuse_collected_values_and_keep_their_target_scope() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn hex_detectors_apply_to_their_declared_targets_and_actual_format_fields() {
     for (id, positive, negative, tests_apply) in detector_fixtures::HEX {
         let home = "/// Home.\npub fn home() {}";
@@ -4068,6 +4399,10 @@ fn hex_detectors_apply_to_their_declared_targets_and_actual_format_fields() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn contextual_literal_detectors_use_only_their_jobs_home_evidence() {
     for (id, home, positives, negatives) in detector_fixtures::CONTEXTUAL {
         let mut sources = Vec::new();
@@ -4174,6 +4509,10 @@ fn structure_ledger(id: &str, entries: &[&str]) -> Builder {
 }
 
 /// The copies a structure detector finds in a consumer when the job declares `entries`.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn structure_copies(id: &str, home: &str, entries: &[&str], consumer: &str) -> usize {
     let report = fixture_gate(".")
         .check_tree(&detector_fixture(
@@ -4205,6 +4544,10 @@ fn structure_copies(id: &str, home: &str, entries: &[&str], consumer: &str) -> u
 /// A structure detector judges a function against the entry points its own job
 /// declares, never a fixed type name, and reads shipping code only.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn structure_detectors_judge_calls_against_the_jobs_declared_entry_points() {
     for (id, home, entries, positives, negatives) in detector_fixtures::STRUCTURE {
         for positive in positives {
@@ -4293,6 +4636,10 @@ fn structure_detectors_judge_calls_against_the_jobs_declared_entry_points() {
 }
 
 /// The copies a `foreign-host-import` job finds in a detector workspace.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn host_copies(home: &str, consumer: &str, extra: &[(&str, &str)]) -> usize {
     let tree = detector_fixture_with(
         detector_ledger("foreign-host-import"),
@@ -4304,6 +4651,10 @@ fn host_copies(home: &str, consumer: &str, extra: &[(&str, &str)]) -> usize {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn foreign_host_import_reports_only_repeats_of_the_homes_host_function() {
     const HOME: &str = "/// Home.\npub mod home {#[wasm_bindgen(module = \"clock\")] extern \"C\" {pub fn now() -> f64;}}";
     const SAME: &str = "#[wasm_bindgen(module = \"clock\")] extern \"C\" {fn now() -> f64;}";
@@ -4400,6 +4751,10 @@ const HOST_LINKED: &str =
 
 /// Each case is a home, a source the detector refuses, the text of its refusal, and a
 /// neighbouring source with the one fault corrected, which it accepts.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn refused_beside_neighbour(cases: &[(&str, &str, &str, &str)]) {
     for &(home, refused, expected, accepted) in cases {
         let tree = detector_fixture(detector_ledger("foreign-host-import"), home, refused);
@@ -4629,6 +4984,10 @@ fn foreign_host_import_names_a_class_by_its_js_class_or_constructed_type() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope() {
     for home in [
         "/// Home.\npub mod home {pub const NS:&str=concat!(\"urn:\",\"demo:\");}",
@@ -4742,6 +5101,10 @@ impl Rule for RootOwnerRule {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn registered_rule_hits_cannot_claim_the_root_as_a_first_unit_owner() {
     let source = "pub fn home(){}\npub use home as alias;\nfn copy(){}";
     let error = fixture_gate(".")
@@ -4757,6 +5120,10 @@ fn registered_rule_hits_cannot_claim_the_root_as_a_first_unit_owner() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt() {
     let ledger = || {
         let mut graph = job(false);
@@ -4834,6 +5201,10 @@ fn variant_for(file: &str, symbol: &str, detector: &str) -> Builder {
 /// A structure variant has to match in its job's context, including when the
 /// ledger names the detector only in the variant.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn structure_variants_require_the_job_scoped_detector() {
     let (_, home, ..) = detector_fixtures::STRUCTURE[1];
     for (iteration, matches) in [("", false), ("while n>0 {n-=1;}", true)] {
@@ -4851,6 +5222,10 @@ fn structure_variants_require_the_job_scoped_detector() {
     }
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn shared_tree(graph: Builder) -> MemoryTree {
     [
         ("Cargo.toml", "[package]\nname='demo'\nversion='0.1.0'\nedition='2021'\n".into()),
@@ -4861,6 +5236,10 @@ fn shared_tree(graph: Builder) -> MemoryTree {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn a_home_reached_through_two_modules_uses_one_physical_owner() {
     let report = fixture_gate(".")
         .check_tree(&shared_tree(job(true)))
@@ -4876,6 +5255,10 @@ fn a_home_reached_through_two_modules_uses_one_physical_owner() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn reexported_module_homes_own_their_units_and_actual_home_package() {
     let source = "/// Implementation module.\npub mod implementation {pub fn home()->u32 {7}}\npub use implementation as alias;\npub fn copy()->u32 {7+1}";
     let report = fixture_gate(".")
@@ -4918,6 +5301,10 @@ impl Rule for SharedCopyRule {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn rules_and_variants_share_physical_ownership_without_widening_file_sanctions() {
     for (file, clean) in [("src/shared.rs", true), ("src/other.rs", false)] {
         let report = fixture_gate(".")
@@ -4930,6 +5317,10 @@ fn rules_and_variants_share_physical_ownership_without_widening_file_sanctions()
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn a_variant_must_match_its_declared_file_and_documented_anchor() {
     let wrong = fixture_gate(".")
         .rules(rules())
@@ -4980,6 +5371,11 @@ impl LedgerExtension for Owner {
 // validator reads the data through the public membership-restricted view.
 struct Nested;
 impl LedgerExtension for Nested {
+    #[expect(
+        clippy::unwrap_in_result,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )]
     fn validate(
         &self,
         _: &str,
@@ -5055,6 +5451,10 @@ impl LedgerExtension for Nested {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn extensions_require_one_real_validator_without_loosening_core_fields() {
     let ledger = |owner: &str| {
         let mut graph = job(true);
@@ -5119,6 +5519,10 @@ fn extensions_require_one_real_validator_without_loosening_core_fields() {
     assert!(gate().check_tree(&tree(source, unknown, 0)).is_err());
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn nested_extension_validation(ledger: &impl Fn(&str) -> Builder, source: &str) {
     let nested = |value: &str| {
         let mut graph = ledger("demo");
@@ -5213,6 +5617,10 @@ fn nested_extension_validation(ledger: &impl Fn(&str) -> Builder, source: &str) 
     extension_shared_ownership_refusals(&graph);
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn extension_core_capture_refusals(graph: &raf_rdf::Graph) {
     // A core/root edge is never an ownership edge, including either owned
     // position of an RDF 1.2 triple term.
@@ -5247,6 +5655,10 @@ fn extension_core_capture_refusals(graph: &raf_rdf::Graph) {
     }
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn extension_shared_ownership_refusals(graph: &raf_rdf::Graph) {
     // Reserve the second root first; neither root nor descendant ownership
     // depends on the order in which the jobs are traversed.
@@ -5311,6 +5723,10 @@ fn extension_shared_ownership_refusals(graph: &raf_rdf::Graph) {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn distinct_sanctions_an_exact_set_and_a_new_clone_breaks_it() {
     let ledger = || {
         let mut graph = base();
@@ -5447,6 +5863,10 @@ fn cfg_ledger(count: usize) -> Builder {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn cfg_alternatives_retain_debt_multiplicity_and_require_an_explicit_exact_sanction() {
     let source = "/// Unix.\n#[cfg(unix)] pub fn f(a:u32)->u32 { a+a+a+a }\n/// Windows.\n#[cfg(windows)] pub fn f(b:u32)->u32 { b+b+b+b }";
     let gate = fixture_gate(".");
@@ -5474,6 +5894,10 @@ fn cfg_alternatives_retain_debt_multiplicity_and_require_an_explicit_exact_sanct
     );
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn migration_ledger(fingerprints: &[Fingerprint], normal_form: u32) -> String {
     let mut graph = job(true);
     let version = |normal_form: u32| Triple {
@@ -5500,6 +5924,10 @@ fn migration_ledger(fingerprints: &[Fingerprint], normal_form: u32) -> String {
     graph.finish().unwrap().to_text(Format::Turtle).unwrap()
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn migration_source() -> (MemoryTree, Census) {
     let tree = tree(SOURCE, job(true), 0);
     let census = Census::load(
@@ -5530,6 +5958,10 @@ fn migrated(
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn index_migration_splits_changed_members_and_preserves_nonhash_assertions() {
     let (tree, census) = migration_source();
     let old = Fingerprint::body(&[9; 32]);
@@ -5577,6 +6009,10 @@ fn index_migration_splits_changed_members_and_preserves_nonhash_assertions() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn index_migration_keeps_a_new_hash_that_equals_another_old_row() {
     let (tree, census) = migration_source();
     let zero = Fingerprint::body(&[0; 32]);
@@ -5622,6 +6058,10 @@ fn index_migration_keeps_a_new_hash_that_equals_another_old_row() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn index_migration_retains_unmapped_rows_with_reasons_and_comments() {
     let (tree, census) = migration_source();
     let old = Fingerprint::body(&[9; 32]);
@@ -5678,6 +6118,10 @@ fn index_migration_retains_unmapped_rows_with_reasons_and_comments() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn index_migration_refuses_current_versions_wrong_reports_and_mismatched_versions() {
     let (tree, census) = migration_source();
     let old = migration_ledger(&[], NORMAL_FORM - 1);
@@ -5699,6 +6143,10 @@ fn index_migration_refuses_current_versions_wrong_reports_and_mismatched_version
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn index_migration_maps_every_cfg_shim_site_of_a_shared_symbol() {
     let source = "#[cfg(unix)] pub fn home(x:u32,y:u32)->u32 { helper(x,y) }\n#[cfg(windows)] pub fn home(x:u32,y:u32)->u32 { helper(y,x) }\npub use home as alias;\nfn helper(x:u32,y:u32)->u32 { x+y }";
     let tree = tree(source, job(true), 0);
@@ -5737,6 +6185,10 @@ fn index_migration_maps_every_cfg_shim_site_of_a_shared_symbol() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn index_migration_refuses_oversized_split_output_beside_a_same_size_mapping() {
     let (tree, census) = migration_source();
     let old = Fingerprint::body(&[9; 32]);
@@ -5826,6 +6278,10 @@ fn sanctioned_scope_ledger(settings: &[(&str, Term)]) -> Builder {
 /// not growth, and a sanction over a group the scope removes is stale. Only a
 /// true flag and plain directory names are accepted.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record() {
     let source = "#[cfg(test)]\nmod tests {\n/// One.\npub fn f(a:u32)->u32 { a+a+a+a }\n/// Two.\npub fn g(b:u32)->u32 { b+b+b+b }\n}";
     let gate = fixture_gate(".");
@@ -5928,6 +6384,10 @@ fn ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record() {
 /// in its own package is not reported, and without the requirement the
 /// verdict is unchanged.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn module_paths_outside_their_package_are_required_findings_beside_contained_ones() {
     use raf_source::{LoadOptions, LockedCatalog, LockedManifest, RelPath};
 

@@ -67,6 +67,10 @@ struct Repo {
 }
 
 impl Repo {
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     fn new(tag: &str) -> Self {
         let scratch = Scratch::new(tag);
         let root = scratch.path().join("work");
@@ -112,6 +116,10 @@ impl Repo {
 
     /// Add everything and commit with `message`, authored at `author` and
     /// committed at `committer`, as a rebase or an amend leaves a commit.
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     fn commit_dated(&self, message: &str, author: &str, committer: &str) -> String {
         self.git(&["add", "-A"]);
         let output = git_command(&self.root)
@@ -138,6 +146,10 @@ impl Repo {
     }
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn runner_in(dir: &Path) -> Repository {
     Repository::open(dir).expect("native repository")
 }
@@ -155,6 +167,10 @@ struct Story {
 
 /// The document starts in `docs/drafts`, is moved to its home, `second` and
 /// then `first` change, `gone` is deleted, and the document is edited.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn story() -> Story {
     let mut repo = Repo::new("history");
     repo.put("Cargo.toml", MANIFEST);
@@ -229,6 +245,10 @@ fn symbol(path: &str) -> Source {
 
 #[cfg(unix)]
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_fixture_commit_obeys_an_installed_hook_and_the_successful_neighbor() {
     use std::os::unix::fs::PermissionsExt as _;
 
@@ -274,6 +294,11 @@ fn a_fixture_commit_obeys_an_installed_hook_and_the_successful_neighbor() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_capability_history_holds_its_document_through_a_move_and_its_bound_code() {
     let _lock = serial();
     let story = story();
@@ -394,6 +419,11 @@ fn a_capability_history_holds_its_document_through_a_move_and_its_bound_code() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn removed_binding_lookup_tracks_substring_counts_instead_of_semantic_removal() {
     let _lock = serial();
     let mut repo = Repo::new("history-removal-substrings");
@@ -465,6 +495,10 @@ fn removed_binding_lookup_tracks_substring_counts_instead_of_semantic_removal() 
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn symbol_history_follows_a_file_rename_but_stops_at_a_move_between_files() {
     let _lock = serial();
     let mut repo = Repo::new("history-symbol-moves");
@@ -501,6 +535,11 @@ fn symbol_history_follows_a_file_rename_but_stops_at_a_move_between_files() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn each_kind_of_id_has_the_history_of_its_file() {
     let _lock = serial();
     let story = story();
@@ -539,6 +578,10 @@ fn each_kind_of_id_has_the_history_of_its_file() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_nested_workspace_keeps_git_path_bases_beside_diff_relative() {
     let _lock = serial();
     let mut repo = Repo::new("history-nested-paths");
@@ -600,6 +643,10 @@ fn a_nested_workspace_keeps_git_path_bases_beside_diff_relative() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn since_limits_the_logs_and_not_the_removal_lookup() {
     let _lock = serial();
     let story = story();
@@ -619,6 +666,10 @@ fn since_limits_the_logs_and_not_the_removal_lookup() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_subject_with_unit_separators_and_a_hash_is_reported_whole() {
     let _lock = serial();
     let mut story = story();
@@ -644,6 +695,12 @@ fn a_subject_with_unit_separators_and_a_hash_is_reported_whole() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    clippy::string_slice,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn the_table_preserves_typed_entries_sources_and_removed_bindings_in_order() {
     let _lock = serial();
     let story = story();
@@ -684,6 +741,11 @@ fn the_table_preserves_typed_entries_sources_and_removed_bindings_in_order() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn missing_partial_clone_objects_refuse_without_writes_and_a_complete_clone_succeeds() {
     let _lock = serial();
     let story = story();
@@ -738,6 +800,10 @@ fn missing_partial_clone_objects_refuse_without_writes_and_a_complete_clone_succ
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_shallow_clone_is_refused_with_the_missing_history_named_and_a_full_clone_is_not() {
     let _lock = serial();
     let story = story();
@@ -773,6 +839,11 @@ fn a_shallow_clone_is_refused_with_the_missing_history_named_and_a_full_clone_is
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_root_commit_that_changed_the_identifier_has_no_parent() {
     let _lock = serial();
     let mut repo = Repo::new("history-root");
@@ -814,6 +885,10 @@ fn a_root_commit_that_changed_the_identifier_has_no_parent() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_merge_whose_resolution_changed_the_document_is_in_its_history_and_a_clean_one_is_not() {
     let _lock = serial();
     let mut repo = Repo::new("history-merge");
@@ -878,6 +953,10 @@ fn a_merge_whose_resolution_changed_the_document_is_in_its_history_and_a_clean_o
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn since_counts_from_the_start_of_the_day_in_utc() {
     let _lock = serial();
     let repo = Repo::new("history-since");
@@ -940,6 +1019,10 @@ fn modules(tag: &str, bindings: &str) -> Repo {
 }
 
 /// Replace `from` with `to` in the file `path` of `repo`.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn edit(repo: &Repo, path: &str, from: &str, to: &str) {
     let text = fs::read_to_string(repo.root.join(path)).expect("the file");
     assert!(text.contains(from), "{path}: {from}");
@@ -947,6 +1030,10 @@ fn edit(repo: &Repo, path: &str, from: &str, to: &str) {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_module_binding_lists_the_commits_of_its_files_and_not_of_a_sibling() {
     let _lock = serial();
     let mut repo = modules("history-modules", "[demo::outer, demo::inline, demo]");
@@ -1041,6 +1128,11 @@ fn a_module_binding_lists_the_commits_of_its_files_and_not_of_a_sibling() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_module_file_that_is_not_committed_names_the_binding_and_the_file_until_it_is() {
     let _lock = serial();
     let mut repo = modules("history-module-uncommitted", "[demo::outer, demo::sibling]");
@@ -1075,6 +1167,10 @@ fn a_module_file_that_is_not_committed_names_the_binding_and_the_file_until_it_i
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn since_selects_by_the_author_date_and_not_by_the_committer_date() {
     let _lock = serial();
     let repo = Repo::new("history-author-date");
@@ -1130,6 +1226,10 @@ fn since_selects_by_the_author_date_and_not_by_the_committer_date() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn unknown_and_unloaded_ids_refuse_without_changing_the_repository() {
     let _lock = serial();
     let mut repo = Repo::new("history-invalid-id");
@@ -1185,6 +1285,10 @@ fn unknown_and_unloaded_ids_refuse_without_changing_the_repository() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn ambiguous_bindings_refuse_and_a_single_symbol_has_native_history() {
     let _lock = serial();
     let mut repo = Repo::new("history-ambiguous");
@@ -1222,6 +1326,10 @@ fn ambiguous_bindings_refuse_and_a_single_symbol_has_native_history() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_span_beyond_the_committed_file_names_the_binding_until_committed() {
     let _lock = serial();
     let mut repo = Repo::new("history-committed-span");
@@ -1258,6 +1366,10 @@ fn a_span_beyond_the_committed_file_names_the_binding_until_committed() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn oversized_native_commits_refuse_and_the_exact_object_bound_is_read() {
     const BOUND: usize = 16 * 1024 * 1024;
 

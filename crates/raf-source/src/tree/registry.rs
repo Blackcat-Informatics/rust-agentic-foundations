@@ -29,6 +29,17 @@ pub struct RegistryArchiveTree<'a> {
     meter: SealedMeter<'a>,
 }
 
+impl std::fmt::Debug for RegistryArchiveTree<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RegistryArchiveTree")
+            .field("package", &self.package.name())
+            .field("version", &self.package.version())
+            .field("source", &self.source)
+            .field("record_count", &self.image.records.len())
+            .finish_non_exhaustive()
+    }
+}
+
 struct Image {
     records: Vec<Record>,
     retained: usize,
@@ -221,6 +232,10 @@ fn image(
                 relative
             };
             meter.items(crate::cost::shared_text(relative.len()), &path, None)?;
+            #[expect(
+                clippy::map_err_ignore,
+                reason = "unsupported archive paths use the registry inventory refusal without echoing untrusted entry names"
+            )]
             let checked =
                 RelPath::new(relative).map_err(|_| refused("invalid registry entry path"))?;
             if checked.as_str() != relative
@@ -262,8 +277,10 @@ fn image(
         // A different load inherits only the image, after all archive-opening
         // scratch covered by this constructor's meter has been released.
         let retained = retained.saturating_add(owner);
-        let image = Shared::try_new(Image { records, retained })
-            .map_err(|_| storage(StorageError::AllocationFailed))?;
+        let Ok(image) = Shared::try_new(Image { records, retained }) else {
+            // The failure returns the unallocated image rather than a separate cause.
+            return Err(storage(StorageError::AllocationFailed));
+        };
         Ok(image)
     })();
     result.map_err(|error| recover(error, &mut admission))
@@ -288,13 +305,13 @@ fn push_with_ancestors<S: purrdf_lex::allocation::Admission + ?Sized>(
                 && relative.as_bytes()[parent.len()] == b'/'
         })
         .map(str::len);
-    let mut end = relative.len();
-    while let Some(separator) = relative[..end].rfind('/') {
-        if recorded.is_some_and(|recorded| separator <= recorded) {
+    let mut prefix = relative;
+    while let Some((parent, _)) = prefix.rsplit_once('/') {
+        if recorded.is_some_and(|recorded| parent.len() <= recorded) {
             break;
         }
-        push_record(records, &relative[..separator], None, memory)?;
-        end = separator;
+        push_record(records, parent, None, memory)?;
+        prefix = parent;
     }
     push_record(records, relative, bytes, memory)
 }
@@ -400,6 +417,10 @@ impl Tree for RegistryArchiveTree<'_> {
         self.meter
             .work(bytes.len().saturating_add(1), path, None)
             .map_err(|error| tree_failure(path, error))?;
+        #[expect(
+            clippy::map_err_ignore,
+            reason = "the public NotUtf8 refusal names the file and does not retain archive contents"
+        )]
         let text = std::str::from_utf8(bytes).map_err(|_| TreeError::NotUtf8 {
             path: path.to_string(),
         })?;

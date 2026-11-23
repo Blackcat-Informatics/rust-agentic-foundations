@@ -20,6 +20,11 @@ fn lib(edition: &str, text: &str) -> Result<Workspace, LoadError> {
     load(&manifest(edition, ""), &[("src/lib.rs", text)])
 }
 
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn key_of(ws: &Workspace, path: &str) -> TraitKey {
     let resolution = ws
         .resolve_in(path, Namespace::Value)
@@ -33,6 +38,10 @@ fn key_of(ws: &Workspace, path: &str) -> TraitKey {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn cfg_alternatives_of_one_defining_trait_keep_one_target_identity() {
     for declarations in [
         "#[cfg(unix)] pub trait Tr { fn marker(&self); }\n#[cfg(windows)] pub trait Tr { fn marker(&self); }\n",
@@ -55,6 +64,10 @@ fn cfg_alternatives_of_one_defining_trait_keep_one_target_identity() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn nontrait_type_hits_supply_no_trait_evidence_beside_a_real_trait_alias() {
     for (declarations, is_trait) in [
         ("pub struct Tr;\n", false),
@@ -83,6 +96,11 @@ fn nontrait_type_hits_supply_no_trait_evidence_beside_a_real_trait_alias() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn each_prelude_trait_loads_in_the_edition_that_has_it_and_is_refused_in_the_one_before() {
     // (name, first edition, canonical path)
     let cases = [
@@ -120,6 +138,10 @@ fn each_prelude_trait_loads_in_the_edition_that_has_it_and_is_refused_in_the_one
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_inherited_edition_comes_from_the_workspace_and_a_missing_one_is_a_manifest_error() {
     let root = "[workspace]\nmembers = [\"member\"]\n\n[workspace.package]\nedition = \"2021\"\n";
     let member = "[package]\nname = \"member\"\nedition.workspace = true\n";
@@ -173,6 +195,10 @@ fn an_inherited_edition_comes_from_the_workspace_and_a_missing_one_is_a_manifest
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_trait_through_one_dependency_glob_is_keyed_under_that_glob() {
     let ws = lib(
         "2021",
@@ -196,6 +222,11 @@ fn a_trait_through_one_dependency_glob_is_keyed_under_that_glob() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn several_dependency_globs_leave_the_trait_unresolved_and_the_members_are_still_found() {
     let ws = lib(
         "2021",
@@ -225,6 +256,10 @@ fn several_dependency_globs_leave_the_trait_unresolved_and_the_members_are_still
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_head_that_is_not_a_known_crate_is_an_error_and_a_declared_dependency_loads() {
     let error = lib(
         "2021",
@@ -278,6 +313,10 @@ fn dependency_tables_are_honoured_by_target_kind_and_renames_use_the_name_in_cod
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_path_through_a_local_re_export_of_a_dependency_has_one_key_with_the_direct_spelling() {
     let m = manifest("2021", "\n[dependencies]\nserde = \"1\"\n");
     let text = "pub struct L;\n\
@@ -295,6 +334,10 @@ fn a_path_through_a_local_re_export_of_a_dependency_has_one_key_with_the_direct_
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn local_traits_still_key_under_their_definition_beside_dependency_ones() {
     let ws = lib(
         "2021",
@@ -312,6 +355,10 @@ fn local_traits_still_key_under_their_definition_beside_dependency_ones() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_edition_that_is_not_a_year_is_a_manifest_error_naming_the_key() {
     let error = lib("next", "pub fn f() {}\n").expect_err("not a year");
     assert!(
@@ -326,6 +373,10 @@ fn an_edition_that_is_not_a_year_is_a_manifest_error_naming_the_key() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_glob_of_something_that_is_no_crate_or_module_is_an_error_beside_a_declared_one() {
     let text = "use bogus::*;\npub struct L;\nimpl Thing for Vec<L> { fn m(&self) {} }\n";
     let error = lib("2021", text).expect_err("the glob names no crate");
@@ -347,6 +398,10 @@ fn a_glob_of_something_that_is_no_crate_or_module_is_an_error_beside_a_declared_
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_same_trait_through_a_glob_and_through_a_named_import_can_have_two_keys() {
     let m = manifest("2021", "\n[dependencies]\nserde = \"1\"\n");
     let glob = "use serde::*;\npub struct L;\nimpl Serialize for Vec<L> { fn m(&self) {} }\n";
@@ -365,6 +420,10 @@ fn the_same_trait_through_a_glob_and_through_a_named_import_can_have_two_keys() 
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_explicit_import_of_a_dependency_trait_shadows_a_glob_of_a_local_one() {
     // rustc reads `Serialize` through the explicit import, not the glob,
     // though the index cannot see the dependency's trait.
@@ -409,6 +468,10 @@ fn inherited(root: &str, extra: &[(&str, &str)]) -> MemoryTree {
 const WORKSPACE_2021: &str = "[workspace]\nmembers = [\"crates/*\"]\nresolver = \"3\"\n\n[workspace.package]\nedition = \"2021\"\n";
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_workspace_manifest_is_found_above_the_roots_and_adds_no_package() {
     let ws = Workspace::load(&inherited(WORKSPACE_2021, &[]), &["crates"])
         .expect("the edition is inherited");
@@ -434,6 +497,10 @@ fn the_workspace_manifest_is_found_above_the_roots_and_adds_no_package() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn without_a_workspace_above_or_an_edition_in_it_the_inheritance_is_a_manifest_error() {
     for (label, root) in [
         (
@@ -468,6 +535,10 @@ fn without_a_workspace_above_or_an_edition_in_it_the_inheritance_is_a_manifest_e
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_nearest_ancestor_with_a_workspace_table_decides_and_others_are_skipped() {
     // A package manifest between the member and the workspace is skipped.
     let skipped = [(
@@ -497,6 +568,10 @@ fn the_nearest_ancestor_with_a_workspace_table_decides_and_others_are_skipped() 
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_malformed_ancestor_manifest_is_an_error_and_a_missing_one_is_not() {
     let error =
         Workspace::load(&inherited("[workspace\n", &[]), &["crates"]).expect_err("malformed");
@@ -510,6 +585,10 @@ fn a_malformed_ancestor_manifest_is_an_error_and_a_missing_one_is_not() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_ancestor_manifest_over_the_size_cap_is_a_typed_error() {
     let padded = format!("{WORKSPACE_2021}# {}\n", "x".repeat(300));
     let tree = inherited(&padded, &[]);
@@ -526,6 +605,10 @@ fn an_ancestor_manifest_over_the_size_cap_is_a_typed_error() {
     assert!(Workspace::load_with(&tree, &["crates"], &options).is_ok());
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn not_a_member(root: &str) -> LoadError {
     Workspace::load(&inherited(root, &[]), &["crates"]).expect_err("not a member")
 }
@@ -591,6 +674,10 @@ fn the_workspace_root_package_inherits_without_being_listed() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_pattern_outside_the_supported_syntax_is_a_manifest_error_naming_the_list() {
     for (list, pattern) in [
         ("members", "crates/**"),
@@ -642,6 +729,10 @@ fn implied(root_extra: &str, helper: &str, files: &[(&str, &str)]) -> MemoryTree
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_package_that_is_only_a_path_dependency_of_the_root_package_is_a_member() {
     let ws = Workspace::load(&implied("", HELPER, &[]), &["crates"])
         .expect("an implied member inherits");
@@ -674,6 +765,10 @@ fn a_package_that_is_only_a_path_dependency_of_the_root_package_is_a_member() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn path_dependencies_of_members_are_members_transitively_in_every_dependency_table() {
     for table in [
         "dependencies",
@@ -699,6 +794,10 @@ fn path_dependencies_of_members_are_members_transitively_in_every_dependency_tab
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_path_dependency_outside_the_workspace_directory_or_excluded_is_not_a_member() {
     // Outside: the package below another workspace is not a member of that one.
     let outer = "[workspace]\nmembers = []\n\n[workspace.package]\nedition = \"2021\"\n";
@@ -735,6 +834,10 @@ fn a_path_dependency_outside_the_workspace_directory_or_excluded_is_not_a_member
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_path_dependency_inside_the_workspace_with_no_manifest_is_an_error_naming_the_key() {
     let tree = implied("gone = { path = \"crates/gone\" }\n", HELPER, &[]);
     let error = Workspace::load(&tree, &["crates"]).expect_err("no manifest");
@@ -784,6 +887,10 @@ fn listed(members: &str, files: &[(&str, &str)]) -> MemoryTree {
 // load; without that bound a matcher that backtracked without limit would make
 // it wait, not fail.
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_star_heavy_member_pattern_that_matches_no_directory_leaves_the_member_alone() {
     let pattern = format!("crates/{}b", "*a".repeat(24));
     let name = "a".repeat(40);
@@ -797,6 +904,10 @@ fn a_star_heavy_member_pattern_that_matches_no_directory_leaves_the_member_alone
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_path_dependency_with_an_unusable_path_is_an_error_beside_one_that_is_outside_the_tree() {
     for bad in ["crates\\\\x", "C:x"] {
         let extra = format!("gone = {{ path = \"{bad}\" }}\n");
@@ -821,6 +932,10 @@ fn a_path_dependency_with_an_unusable_path_is_an_error_beside_one_that_is_outsid
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_literal_member_without_a_manifest_is_an_error_and_a_glob_skips_such_a_directory() {
     let docs = [("crates/docs/readme.txt", "text")];
     for literal in ["crates/nope", "crates/docs"] {
@@ -840,6 +955,10 @@ fn a_literal_member_without_a_manifest_is_an_error_and_a_glob_skips_such_a_direc
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_workspace_dependency_whose_path_is_not_a_string_is_an_error_naming_the_key() {
     let root = |path: &str| {
         format!(
@@ -869,6 +988,10 @@ fn a_workspace_dependency_whose_path_is_not_a_string_is_an_error_naming_the_key(
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_empty_pattern_segment_is_a_pattern_error_beside_a_plain_pattern() {
     for pattern in ["crates//member", "crates/member//", "//", "/crates/member"] {
         let tree = listed(&format!("\"{pattern}\""), &[]);
@@ -893,6 +1016,10 @@ fn an_empty_pattern_segment_is_a_pattern_error_beside_a_plain_pattern() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_excluded_literal_member_is_ignored_and_not_required_to_exist() {
     let root = |exclude: &str| {
         format!(
@@ -923,6 +1050,11 @@ fn an_excluded_literal_member_is_ignored_and_not_required_to_exist() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_macro_call_in_a_trait_body_is_skipped() {
     let text = "macro_rules! decl { () => { fn generated(&self); } }\n\
                 pub trait T {\n    decl!();\n    fn written(&self);\n}\n\
@@ -951,6 +1083,10 @@ fn a_macro_call_in_a_trait_body_is_skipped() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_dependency_package_that_is_not_a_string_is_an_error_naming_the_key() {
     for (extra, key) in [
         (
@@ -1000,6 +1136,10 @@ fn a_dependency_package_that_is_not_a_string_is_an_error_naming_the_key() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_inherited_dependency_the_workspace_cannot_give_is_an_error_naming_the_key() {
     let member = "[package]\nname = \"m\"\nedition = \"2021\"\n\n[dependencies]\nhelper = { workspace = true }\n";
     let cases: [(&str, Option<&str>, &str); 3] = [
@@ -1059,6 +1199,11 @@ fn with_serde(edition: &str, text: &str) -> Result<Workspace, LoadError> {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_trait_through_a_single_segment_import_of_a_crate_is_keyed_at_the_crate() {
     let display = "pub struct Foo;\nimpl std::fmt::Display for &Foo { fn fmt(&self) {} }\n";
     for edition in ["2018", "2021", "2024"] {
@@ -1120,6 +1265,10 @@ fn a_trait_through_a_single_segment_import_of_a_crate_is_keyed_at_the_crate() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_glob_through_a_re_exported_crate_is_keyed_under_the_crate() {
     let ws = with_serde(
         "2021",
@@ -1134,6 +1283,11 @@ fn a_glob_through_a_re_exported_crate_is_keyed_under_the_crate() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_use_path_of_edition_2015_is_followed_from_the_crate_root() {
     // A module's `use serde;` is the root's `extern crate serde;`.
     let ws = with_serde(
@@ -1188,6 +1342,11 @@ fn a_use_path_of_edition_2015_is_followed_from_the_crate_root() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_trait_through_an_ambiguous_use_head_keys_every_reading() {
     let ws = with_serde(
         "2021",
@@ -1214,6 +1373,10 @@ fn a_trait_through_an_ambiguous_use_head_keys_every_reading() {
 
 /// The key of the one member of a trait impl on `self_type`, which a local
 /// trait's own declaration hides from `resolve`.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn impl_key(ws: &Workspace, self_type: &str) -> TraitKey {
     let keys: Vec<TraitKey> = ws
         .items()
@@ -1228,6 +1391,11 @@ fn impl_key(ws: &Workspace, self_type: &str) -> TraitKey {
 
 /// Load `text` as the library of `demo` on a thread of 2 MiB, the stack of a
 /// test thread.
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_in_result,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn load_on_a_small_stack(text: String) -> Result<Workspace, LoadError> {
     std::thread::Builder::new()
         .stack_size(2 << 20)
@@ -1238,6 +1406,11 @@ fn load_on_a_small_stack(text: String) -> Result<Workspace, LoadError> {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn twenty_thousand_chained_local_aliases_load_on_a_two_mib_thread() {
     use std::fmt::Write as _;
     let mut text =
@@ -1255,6 +1428,11 @@ fn twenty_thousand_chained_local_aliases_load_on_a_two_mib_thread() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_trait_found_through_twenty_thousand_chained_globs_is_keyed_on_a_two_mib_thread() {
     use std::fmt::Write as _;
     let mut text = String::from("pub mod m0 { pub use std::fmt::Display; }\n");
@@ -1270,6 +1448,11 @@ fn a_trait_found_through_twenty_thousand_chained_globs_is_keyed_on_a_two_mib_thr
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn an_import_met_again_through_a_glob_adds_nothing_and_a_pure_cycle_is_refused() {
     // `inner` globs its parent, whose `Serialize` is the import being
     // followed; the other glob of `inner` gives the trait, as rustc has it.
@@ -1298,6 +1481,11 @@ fn an_import_met_again_through_a_glob_adds_nothing_and_a_pure_cycle_is_refused()
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_trait_through_a_head_a_glob_brings_in_from_another_crate_keys_both() {
     let ws = with_serde(
         "2021",
@@ -1321,6 +1509,11 @@ fn a_trait_through_a_head_a_glob_brings_in_from_another_crate_keys_both() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_use_path_of_edition_2015_names_a_dependency_only_through_extern_crate() {
     let impl_text =
         "use serde::Serialize;\npub struct L;\nimpl Serialize for Vec<L> { fn m(&self) {} }\n";
@@ -1365,6 +1558,10 @@ fn a_use_path_of_edition_2015_names_a_dependency_only_through_extern_crate() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_trait_name_that_two_globs_bind_keys_each_trait() {
     let ws = lib(
         "2021",
@@ -1382,6 +1579,11 @@ fn a_trait_name_that_two_globs_bind_keys_each_trait() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn the_completion_audit_shape_of_a_crate_alias_and_twenty_thousand_imports_loads_on_a_two_mib_thread()
  {
     use std::fmt::Write as _;
@@ -1399,6 +1601,10 @@ fn the_completion_audit_shape_of_a_crate_alias_and_twenty_thousand_imports_loads
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_trait_that_several_unknown_globs_could_give_is_refused_naming_one_glob_in_every_order() {
     let blocks = [
         "use sh::*;",
@@ -1443,6 +1649,11 @@ fn every_order(blocks: &[&str]) -> Vec<Vec<String>> {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_trait_through_a_glob_the_importer_cannot_access_is_keyed_at_its_definition_in_every_order() {
     // `a` imports `b::B`, a function, and globs `c`, whose trait `B` its
     // impl names. `b`'s glob of `a` is private to `b`, so `a`'s import reads

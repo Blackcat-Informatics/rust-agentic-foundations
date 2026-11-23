@@ -6,10 +6,18 @@
 
 use raf_okf::{Body, Document, ErrorKind, Location, ParseError, Profile, Rule};
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn body(text: &str) -> Body {
     Body::parse(text).unwrap_or_else(|error| panic!("{error} in {text:?}"))
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn refused(text: &str) -> ParseError {
     match Body::parse(text) {
         Ok(_) => panic!("expected a refusal for {text:?}"),
@@ -18,6 +26,10 @@ fn refused(text: &str) -> ParseError {
 }
 
 /// The paths and the statement text of each tested-by marker of `text`.
+#[expect(
+    clippy::expect_used,
+    reason = "every marker in the fixture must have a valid statement span"
+)]
 fn markers(text: &str) -> Vec<(Vec<String>, String)> {
     body(text)
         .tested_by()
@@ -25,7 +37,9 @@ fn markers(text: &str) -> Vec<(Vec<String>, String)> {
         .map(|marker| {
             (
                 marker.paths().to_vec(),
-                text[marker.statement().bytes.clone()].to_string(),
+                text.get(marker.statement().bytes.clone())
+                    .expect("valid statement span")
+                    .to_owned(),
             )
         })
         .collect()
@@ -50,13 +64,13 @@ fn a_tested_by_marker_names_its_tests_and_maps_the_paragraph_above_it() {
     assert_eq!(marker.line(), 7);
     assert_eq!(marker.marker().lines, 7..8);
     assert_eq!(
-        &text[marker.marker().bytes.clone()],
-        "<!-- raf:tested-by demo::test_crate::it::chunks,demo::run -->\n"
+        text.get(marker.marker().bytes.clone()),
+        Some("<!-- raf:tested-by demo::test_crate::it::chunks,demo::run -->\n")
     );
     assert_eq!(marker.statement().lines, 5..7);
     assert_eq!(
-        &text[marker.statement().bytes.clone()],
-        "The parser accepts input\nin chunks.\n"
+        text.get(marker.statement().bytes.clone()),
+        Some("The parser accepts input\nin chunks.\n")
     );
     assert_eq!(marker.section(), Some("contract"));
     // The marker is a comment: no prose line and no claim.
@@ -227,6 +241,10 @@ fn capability(contract: &str) -> String {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_tested_by_marker_belongs_in_a_capability_document() {
     let text = format!(
         "---\ntype: Architecture\nid: arch:overview\ntitle: Overview\n\

@@ -27,6 +27,10 @@ use raf_source::{LoadOptions, MemoryTree, ParallelOptions, Workspace};
 #[global_allocator]
 static ALLOCATOR: CountingAllocator = CountingAllocator;
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn fixture() -> MemoryTree {
     let mut files = vec![(
         "Cargo.toml".to_owned(),
@@ -45,6 +49,10 @@ fn fixture() -> MemoryTree {
     files.into_iter().collect()
 }
 
+#[expect(
+    clippy::print_stdout,
+    reason = "this executable writes its results to the caller's standard output"
+)]
 fn measure(mode: &str) -> Result<(), String> {
     if !matches!(mode, "serial" | "parallel") {
         return Err("work mode must be serial or parallel".to_owned());
@@ -93,6 +101,10 @@ fn answer(output: &str) -> Result<&str, String> {
     Ok(answer)
 }
 
+#[expect(
+    clippy::print_stdout,
+    reason = "this executable writes its results to the caller's standard output"
+)]
 fn collect(directory: &Path) -> Result<(), String> {
     std::fs::create_dir(directory).map_err(|error| format!("{}: {error}", directory.display()))?;
     let executable = std::env::current_exe().map_err(|error| error.to_string())?;
@@ -120,6 +132,10 @@ fn collect(directory: &Path) -> Result<(), String> {
     Ok(())
 }
 
+#[expect(
+    clippy::print_stderr,
+    reason = "this executable reports diagnostics on the caller's standard error"
+)]
 fn main() -> ExitCode {
     let args: Vec<_> = std::env::args().skip(1).collect();
     let result = match args.as_slice() {

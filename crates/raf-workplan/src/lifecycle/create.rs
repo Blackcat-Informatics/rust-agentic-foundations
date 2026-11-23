@@ -726,11 +726,12 @@ fn publish(
 /// The path of the record of `slug`, a kebab-case slug. A name the tree
 /// refuses (a reserved device name on Windows) is a bad slug.
 fn record_path(slug: &str) -> Result<RelPath, NewChangeError> {
-    RelPath::new(&format!("{}/{slug}.md", DocType::Change.directory())).map_err(|_| {
-        NewChangeError::BadSlug {
+    let Ok(path) = RelPath::new(&format!("{}/{slug}.md", DocType::Change.directory())) else {
+        return Err(NewChangeError::BadSlug {
             slug: slug.to_string(),
-        }
-    })
+        });
+    };
+    Ok(path)
 }
 
 /// What a sync would write: the new text of every stale file, and the text of

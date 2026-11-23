@@ -246,8 +246,10 @@ fn clock_rule(path: &Path) -> Option<&'static ClockRule> {
 fn has_word(line: &str, word: &str) -> bool {
     let identifier = |c: char| c.is_alphanumeric() || c == '_';
     line.match_indices(word).any(|(start, _)| {
-        let before = line[..start].chars().next_back();
-        let after = line[start + word.len()..].chars().next();
+        let before = line.get(..start).and_then(|head| head.chars().next_back());
+        let after = line
+            .get(start + word.len()..)
+            .and_then(|tail| tail.chars().next());
         !before.is_some_and(identifier) && !after.is_some_and(|c| identifier(c) && c != '_')
     })
 }
@@ -445,6 +447,10 @@ fn deny_problem(root: &str, fuzz: &str) -> Option<String> {
     }
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn read_text(root: &Path, name: &str) -> String {
     let bytes = read_tracked(root, Path::new(name));
     decode_text(&bytes)
@@ -473,6 +479,10 @@ fn licenses_mulan_texts_match_the_pinned_digest() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn licenses_zh_hans_matches_the_recorded_fingerprint() {
     let root = gate_root();
     let record = read_text(&root, BACKTRANSLATION);
@@ -497,6 +507,10 @@ fn issue_refs_tracked_files_are_clean() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn time_in_crates_tracked_files_name_no_clock() {
     let root = gate_root();
     let tracked = tracked_paths();
@@ -543,6 +557,10 @@ fn time_in_crates_tracked_files_name_no_clock() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn citation_version_matches_the_workspace() {
     let root = gate_root();
     let problem = version_problem(
@@ -608,6 +626,10 @@ fn licenses_accepts_a_matching_fingerprint() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "the digest encoder produces exactly 64 ASCII hex digits"
+)]
 fn licenses_require_a_canonical_fingerprint_with_non_hex_boundaries() {
     let digest = sha256_hex(b"the text");
     let record = |text: &str| format!("- {FINGERPRINT_LABEL}: {text}");
@@ -617,7 +639,7 @@ fn licenses_require_a_canonical_fingerprint_with_non_hex_boundaries() {
         format!("A{digest}"),
         format!("{digest}f"),
         format!("{digest}F"),
-        digest[..63].to_owned(),
+        digest.get(..63).expect("63-digit prefix").to_owned(),
     ] {
         assert_eq!(recorded_fingerprint(&record(&invalid)), None, "{invalid}");
     }
@@ -832,6 +854,10 @@ fn issue_refs_treats_only_a_nul_byte_as_binary() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn issue_refs_flags_a_token_in_a_latin_1_file() {
     // Invalid UTF-8 is not binary: a Latin-1 file is still scanned.
     let mut bytes = b"caf\xe9 ".to_vec();
@@ -851,6 +877,10 @@ fn issue_refs_skips_a_nul_containing_file_holding_a_token() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn issue_refs_scans_text_files_and_skips_binary_ones() {
     let scratch =
         purrdf_testkit::TempDir::new_in(std::env::temp_dir()).expect("create scratch directory");

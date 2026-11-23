@@ -270,6 +270,10 @@ pub(crate) fn apply(repo: &Repo, report: &SyncReport) -> Repo {
 }
 
 /// `repo` after one sync.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 pub(crate) fn synced(repo: &Repo) -> Repo {
     match sync(repo) {
         Ok(report) => apply(repo, &report),

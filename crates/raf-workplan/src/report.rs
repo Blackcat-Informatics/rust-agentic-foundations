@@ -15,8 +15,14 @@ use raf_okf::Location;
 use raf_rdf::{Builder, Error, Format, Graph, TermBox, TermValue, Triple, vocab};
 use std::collections::BTreeMap;
 
+#[expect(
+    clippy::expect_used,
+    reason = "usize has at most 64 bits on the supported Rust target and every value fits i128"
+)]
 fn count(value: usize) -> TermValue {
-    TermValue::integer(i128::try_from(value).expect("supported pointer width fits i128"))
+    TermValue::integer(
+        i128::try_from(value).expect("INVARIANT: the supported pointer width fits i128"),
+    )
 }
 
 /// Closed class/property registry of the finding and item-coverage projections.

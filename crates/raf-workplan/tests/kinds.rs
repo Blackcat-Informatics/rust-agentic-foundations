@@ -87,6 +87,10 @@ const OWN_KINDS: [&str; 69] = [
 ];
 
 /// Explicit policy has missing/stale neighbors; a findings verdict is not clean.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn required_review_neighbors() -> Vec<&'static str> {
     use raf_okf::{
         Actor, DocType, RecordHeader, ReviewKind, ReviewRecord, ReviewScope, ReviewVerdict,
@@ -319,6 +323,10 @@ type StrictFixture = (
 /// The demo repository requiring a security review, without and with
 /// `review_strict`, and the review records a test can add to it: a clean one and
 /// one with findings at the same digests, then an early and a late pair.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn strict_fixture(records: &[(&str, &str, raf_okf::ReviewVerdict)]) -> StrictFixture {
     use raf_okf::{
         Actor, DocType, RecordHeader, ReviewKind, ReviewRecord, ReviewScope, ReviewVerdict,
@@ -373,6 +381,10 @@ fn with_records(repo: &support::Repo, records: &[(String, String)]) -> support::
     repo
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn review_stale_message(repo: &support::Repo, source: &raf_source::Workspace) -> String {
     support::check_in(repo, source)
         .into_iter()
@@ -434,6 +446,10 @@ fn a_strict_capability_accepts_only_a_clean_current_review() {
 /// A clean review of source that has since changed does not satisfy a strict
 /// capability, and its finding names the changed inputs, not a verdict.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn a_strict_capability_refuses_a_clean_review_of_changed_source() {
     use support::strict as fixture;
     let (_, strict, source, records) = strict_fixture(&[(

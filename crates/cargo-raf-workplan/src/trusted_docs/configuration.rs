@@ -150,6 +150,13 @@ fn inspect_document(document: &Document<'_>) -> Result<(), Failure> {
 mod tests {
     use super::*;
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn admitted(text: &str) -> bool {
         let profile = purrdf_toml::Profile::standard().unwrap();
         let document = purrdf_toml::analyze(

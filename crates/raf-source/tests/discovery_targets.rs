@@ -11,6 +11,10 @@ use raf_source::{
 const DEMO: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n";
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn relative_queries_select_the_reading_package_without_crossing_source_roots() {
     let first = tree(&[
         ("Cargo.toml", DEMO),
@@ -83,6 +87,10 @@ fn relative_queries_select_the_reading_package_without_crossing_source_roots() {
     );
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn assert_relative_package_route(ws: &Workspace, id: PackageId, own: &str, foreign: &str) {
     let resolved = ws
         .resolve_from_package_id(id, "demo::reader", "self::Routed")
@@ -128,6 +136,10 @@ fn assert_relative_package_route(ws: &Workspace, id: PackageId, own: &str, forei
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn independently_rooted_same_name_packages_resolve_only_by_their_selected_identity() {
     let first = tree(&[("Cargo.toml", DEMO), ("src/lib.rs", "pub fn first() {}")]);
     let second = tree(&[("Cargo.toml", DEMO), ("src/lib.rs", "pub fn second() {}")]);
@@ -184,6 +196,10 @@ fn independently_rooted_same_name_packages_resolve_only_by_their_selected_identi
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn inherited_workspaces_and_renamed_path_dependencies_stay_within_each_source() {
     let manifest = "[workspace]\nmembers = ['app', 'helper']\n\
         [workspace.package]\nedition = '2021'\n\
@@ -277,6 +293,10 @@ fn entry(
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn each_target_kind_with_default_paths_has_its_name_kind_crate_path_and_shipping_flag() {
     let ws = load(
         &[
@@ -375,6 +395,10 @@ fn each_target_kind_with_default_paths_has_its_name_kind_crate_path_and_shipping
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn each_target_kind_with_explicit_paths_resolves_beside_its_default_neighbour() {
     let manifest = format!(
         "{DEMO}\nautobins = false\nautotests = false\nautobenches = false\nautoexamples = false\n\
@@ -433,6 +457,10 @@ fn each_target_kind_with_explicit_paths_resolves_beside_its_default_neighbour() 
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_root_module_of_every_target_is_recorded_under_its_crate_path() {
     let ws = load(
         &[
@@ -459,6 +487,10 @@ fn the_root_module_of_every_target_is_recorded_under_its_crate_path() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_library_and_a_binary_with_one_name_resolve_under_their_own_crate_paths() {
     let ws = load(
         &[
@@ -474,6 +506,10 @@ fn a_library_and_a_binary_with_one_name_resolve_under_their_own_crate_paths() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_manifest_with_a_trailing_comment_and_single_quoted_values_is_honoured() {
     let manifest = "[package]\nname = 'demo' # the name\nversion = \"0.1.0\"\n\n\
                     [lib]\npath = 'engine/lib.rs' # moved\n";
@@ -491,6 +527,10 @@ fn a_manifest_with_a_trailing_comment_and_single_quoted_values_is_honoured() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_virtual_manifest_contributes_nothing_but_its_children_are_found() {
     let virtual_only =
         load(&[("Cargo.toml", "[workspace]\nmembers = []\n")], &["."]).expect("loads");
@@ -514,6 +554,10 @@ fn a_virtual_manifest_contributes_nothing_but_its_children_are_found() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn discovery_target_and_module_failures_precede_later_load_phases() {
     let malformed = load(
         &[
@@ -585,6 +629,10 @@ fn discovery_target_and_module_failures_precede_later_load_phases() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_empty_root_list_is_a_no_roots_error_beside_dot_which_loads() {
     let files = [("Cargo.toml", DEMO), ("src/lib.rs", "")];
     let error = load(&files, &[]).expect_err("no roots is an error");
@@ -593,6 +641,10 @@ fn an_empty_root_list_is_a_no_roots_error_beside_dot_which_loads() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_package_nested_below_a_package_without_a_workspace_is_not_discovered() {
     let files = [
         ("Cargo.toml", DEMO),
@@ -621,6 +673,10 @@ fn a_package_nested_below_a_package_without_a_workspace_is_not_discovered() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn target_and_hidden_directories_are_skipped_beside_a_discovered_sibling() {
     let ws = load(
         &[
@@ -645,6 +701,10 @@ fn target_and_hidden_directories_are_skipped_beside_a_discovered_sibling() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn only_the_named_roots_are_searched() {
     let files = [
         ("a/Cargo.toml", "[package]\nname = \"a\"\n"),
@@ -662,6 +722,10 @@ fn only_the_named_roots_are_searched() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_missing_root_is_an_error_beside_an_existing_one() {
     let files = [
         ("a/Cargo.toml", "[package]\nname = \"a\"\n"),
@@ -674,6 +738,10 @@ fn a_missing_root_is_an_error_beside_an_existing_one() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn autodiscovery_flags_turn_inferred_targets_off_but_explicit_tables_are_still_found() {
     let manifest = "[package]\nname = \"demo\"\nautobins = false\nautotests = false\n\
          autobenches = false\nautoexamples = false\n\n\
@@ -715,6 +783,10 @@ fn autodiscovery_flags_turn_inferred_targets_off_but_explicit_tables_are_still_f
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn autolib_false_drops_the_inferred_library_but_keeps_an_explicit_one() {
     let off = "[package]\nname = \"demo\"\nautolib = false\n";
     // No `[lib]`: `src/lib.rs` is not a library, and the binary beside it stays.
@@ -749,6 +821,11 @@ fn autolib_false_drops_the_inferred_library_but_keeps_an_explicit_one() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn two_packages_with_one_name_are_an_error_naming_both_manifests() {
     let files = [
         ("a/Cargo.toml", "[package]\nname = \"same\"\n"),
@@ -779,6 +856,10 @@ fn two_packages_with_one_name_are_an_error_naming_both_manifests() {
     assert!(load(&distinct, &["."]).is_ok());
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn target_problem(error: &LoadError) -> &TargetProblem {
     match &error.kind {
         LoadErrorKind::Target(problem) => problem,
@@ -786,6 +867,10 @@ fn target_problem(error: &LoadError) -> &TargetProblem {
     }
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn key_of(error: &LoadError) -> &str {
     match error.origin.as_deref() {
         Some(Origin::ManifestKey { key }) => key,
@@ -794,6 +879,10 @@ fn key_of(error: &LoadError) -> &str {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_explicit_target_file_that_is_missing_is_an_error_naming_the_manifest_key() {
     let manifest = format!("{DEMO}\n[[bin]]\nname = \"tool\"\npath = \"src/missing.rs\"\n");
     let error = load(&[("Cargo.toml", &manifest)], &["."]).expect_err("missing");
@@ -812,6 +901,10 @@ fn an_explicit_target_file_that_is_missing_is_an_error_naming_the_manifest_key()
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_target_table_without_a_name_is_an_error_naming_the_key() {
     for table in ["bin", "test", "bench", "example"] {
         let manifest = format!("{DEMO}\n[[{table}]]\npath = \"x.rs\"\n");
@@ -822,6 +915,11 @@ fn a_target_table_without_a_name_is_an_error_naming_the_key() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn two_targets_sharing_one_root_are_an_error_naming_the_second() {
     let manifest = format!(
         "{DEMO}\n[[bin]]\nname = \"one\"\npath = \"src/shared.rs\"\n\n\
@@ -840,6 +938,10 @@ fn two_targets_sharing_one_root_are_an_error_naming_the_second() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_target_path_that_leaves_the_tree_is_refused_and_a_path_that_stays_is_accepted() {
     for path in ["../../outside.rs", "/abs/outside.rs"] {
         let manifest = format!("{DEMO}\n[[bin]]\nname = \"tool\"\npath = \"{path}\"\n");
@@ -860,6 +962,10 @@ fn a_target_path_that_leaves_the_tree_is_refused_and_a_path_that_stays_is_accept
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_manifest_that_is_not_toml_or_has_neither_table_is_a_typed_error() {
     let error = load(&[("Cargo.toml", "[package\nname =")], &["."]).expect_err("bad toml");
     assert!(
@@ -925,6 +1031,10 @@ fn a_manifest_that_is_not_toml_or_has_neither_table_is_a_typed_error() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_manifest_over_the_cap_is_refused_naming_it_and_one_of_exactly_the_cap_loads() {
     let padding = |len: usize| {
         let head = format!("{DEMO}# ");
@@ -948,6 +1058,10 @@ fn a_manifest_over_the_cap_is_refused_naming_it_and_one_of_exactly_the_cap_loads
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn deeply_nested_inline_tables_are_a_typed_error_on_the_callers_stack_and_a_shallow_one_loads() {
     let nested = |levels: usize| {
         let mut value = "1".to_owned();
@@ -967,6 +1081,10 @@ fn deeply_nested_inline_tables_are_a_typed_error_on_the_callers_stack_and_a_shal
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_shared_test_helper_directory_is_reached_by_two_targets_and_listed_once() {
     let ws = load(
         &[
@@ -1003,6 +1121,10 @@ fn a_shared_test_helper_directory_is_reached_by_two_targets_and_listed_once() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn targets_are_sorted_and_two_loads_are_equal() {
     let files = [
         ("b/Cargo.toml", "[package]\nname = \"alpha\"\n"),
@@ -1036,6 +1158,10 @@ fn targets_are_sorted_and_two_loads_are_equal() {
     assert_eq!(identities(&first), identities(&reversed_roots));
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn duplicate_path(error: &LoadError) -> (&str, &str, &str) {
     match target_problem(error) {
         TargetProblem::DuplicateCratePath {
@@ -1048,6 +1174,10 @@ fn duplicate_path(error: &LoadError) -> (&str, &str, &str) {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn two_targets_with_one_crate_path_are_an_error_naming_both_beside_distinct_names() {
     for (table, directory, segment) in [
         ("test", "tests", "test_crate"),
@@ -1098,6 +1228,11 @@ fn two_targets_with_one_crate_path_are_an_error_naming_both_beside_distinct_name
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn two_packages_whose_targets_share_crate_paths_load_and_are_told_apart_by_package() {
     let files = [
         ("a/Cargo.toml", "[package]\nname = \"x-y\"\n"),
@@ -1159,6 +1294,10 @@ fn two_packages_whose_targets_share_crate_paths_load_and_are_told_apart_by_packa
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_first_party_module_named_like_the_test_namespace_loads_beside_a_test_target() {
     let ws = load(
         &[
@@ -1198,6 +1337,10 @@ fn settings(ws: &Workspace) -> Vec<(String, TargetKind, bool, Vec<String>, bool,
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn harness_required_features_test_and_doctest_are_read_from_each_target_table() {
     let manifest = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n\
                     [lib]\nharness = false\ntest = false\ndoctest = false\n\
@@ -1266,6 +1409,10 @@ fn harness_required_features_test_and_doctest_are_read_from_each_target_table() 
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_test_setting_of_the_wrong_type_is_a_manifest_error_naming_its_key() {
     for (table, key, value) in [
         ("lib", "harness", "\"no\""),
@@ -1294,6 +1441,10 @@ fn a_test_setting_of_the_wrong_type_is_a_manifest_error_naming_its_key() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn required_features_on_the_library_is_a_manifest_error_beside_a_binary_that_names_them() {
     let refused = format!("{DEMO}[lib]\nrequired-features = [\"cli\"]\n");
     let error = load(&[("Cargo.toml", &refused), ("src/lib.rs", "")], &["."])

@@ -242,8 +242,9 @@ impl Files {
         };
         let base = blob(repository, base, prefix, path)?
             .map(|bytes| {
-                let text = String::from_utf8(bytes)
-                    .map_err(|_| document(Side::MergeBase, "is not UTF-8 text".to_string()))?;
+                let Ok(text) = String::from_utf8(bytes) else {
+                    return Err(document(Side::MergeBase, "is not UTF-8 text".to_string()));
+                };
                 Body::parse(&text).map_err(|error| document(Side::MergeBase, error.to_string()))
             })
             .transpose()?;

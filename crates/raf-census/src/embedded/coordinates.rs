@@ -115,8 +115,8 @@ impl<'source, 'meter> Coordinates<'source, 'meter> {
                     "Source's retained shebang is not its original source prefix",
                 ));
             }
-            for (offset, _) in source[..bom].char_indices() {
-                own.scalar(offset, false)?;
+            if bom != 0 {
+                own.scalar(0, false)?;
             }
             // Source pads each original header byte with one ASCII space.
             // Intermediate entries can be inside an original UTF-8 scalar.
@@ -127,7 +127,10 @@ impl<'source, 'meter> Coordinates<'source, 'meter> {
         } else {
             0
         };
-        for (offset, ch) in source[header_end..].char_indices() {
+        let content = source.get(header_end..).ok_or(Refusal::Invariant(
+            "logical source header ends outside UTF-8 boundaries",
+        ))?;
+        for (offset, ch) in content.char_indices() {
             let offset = header_end.checked_add(offset).ok_or(Refusal::Invariant(
                 "logical source offset arithmetic overflow",
             ))?;

@@ -278,6 +278,10 @@ pub(crate) struct Manifest {
 }
 
 /// An edition such as `2021` as its year.
+#[expect(
+    clippy::map_err_ignore,
+    reason = "invalid Cargo editions use one key-specific correction and have no native TOML parse cause"
+)]
 fn year(text: &str, key: &str) -> Result<u16, ManifestError> {
     text.parse()
         .map_err(|_| at_key(key, "must be a year such as \"2021\""))

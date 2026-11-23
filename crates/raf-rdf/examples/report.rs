@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 //! A closed ground report with typed fields and named statement provenance.
 use raf_rdf::{Builder, Format, Graph, TermBox, TermValue, Triple, vocab};
+use std::io::{self, Write as _};
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut graph = Builder::new();
     let root = TermValue::iri("");
@@ -46,6 +47,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let text = graph.to_text(format)?;
     assert_eq!(Graph::from_text(&text, format)?.to_text(format)?, text);
-    print!("{text}");
+    io::stdout().lock().write_all(text.as_bytes())?;
     Ok(())
 }

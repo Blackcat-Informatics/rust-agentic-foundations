@@ -16,14 +16,14 @@ default-target = "x86_64-unknown-linux-gnu"
 targets = []
 
 [dependencies]
-clap = { version = "4.6.7", default-features = false, features = ["std", "derive", "help", "usage", "error-context", "suggestions"] }
-raf-census = { path = "../raf-census", version = "0.8.0" }
-raf-rdf = { path = "../raf-rdf", version = "0.8.0" }
-raf-source = { path = "../raf-source", version = "0.8.0" }
+clap.workspace = true
+raf-census.workspace = true
+raf-rdf.workspace = true
+raf-source.workspace = true
 
 [dev-dependencies]
 capnp.workspace = true
-raf-fixtures = { path = "../raf-fixtures" }
+raf-fixtures.workspace = true
 purrdf-core.workspace = true
 purrdf-ed25519.workspace = true
 purrdf-hash.workspace = true

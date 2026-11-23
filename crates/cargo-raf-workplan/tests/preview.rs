@@ -42,6 +42,10 @@ fn the_proposed_text_is_printed_and_the_markers_are_not() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_output_is_the_text_the_library_previews_under_a_header_for_each_document() {
     let repo = Repo::synced("preview-equivalence", false);
     let opened = raf_workplan::Gate::workspace(repo.root())

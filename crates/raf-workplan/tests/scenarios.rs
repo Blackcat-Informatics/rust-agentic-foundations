@@ -49,6 +49,10 @@ fn record_path(slug: &str) -> String {
 
 /// The lines of an obligation list, as `kind section`, in the order the list
 /// prints them.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn owed(project: &Project, slug: &str) -> Vec<String> {
     let reconciled = project
         .lifecycle()
@@ -98,6 +102,10 @@ fn shape(completion: &Completion) -> Vec<String> {
 
 /// Run `change complete` and require a refusal that changed nothing: the tree
 /// is byte for byte what it was, and the record is still there.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn refused(project: &Project, slug: &str) -> Completion {
     let before = project.snapshot();
     let completion = project
@@ -119,6 +127,10 @@ fn assert_refusal<S: AsRef<str>>(label: &str, completion: &Completion, expected:
 
 /// Run `change complete` and require that it removes the record and rewrites
 /// the capability and, when its state changes, the catalogue.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn completed(project: &Project, slug: &str, document: &str) {
     let mut rewritten = vec![document.to_string()];
     if project.text(document).contains("state: implementing") {
@@ -227,6 +239,10 @@ fn genesis() -> (Project, Landed) {
 /// What `reconcile` lists while the proposals of `redesign` stand, beside the
 /// assessments: an unresolved proposal for each block, the sections that are
 /// affected and carry no block untouched, and each item without outcome.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn expected_while_proposed(redesign: &Redesign) -> Vec<String> {
     let proposed = redesign.drafts.last().expect("a draft");
     let mut lines = Vec::new();
@@ -248,6 +264,10 @@ fn expected_while_proposed(redesign: &Redesign) -> Vec<String> {
 /// anything is built: with no earlier assessment, each affected section has
 /// none; after the earlier redesigns were assessed, a section the proposal
 /// edited has moved, and an affected section it left as it was is current.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn assessments_while_proposed(redesign: &Redesign, first: bool) -> Vec<String> {
     let proposed = redesign.drafts.last().expect("a draft");
     HEADINGS
@@ -268,6 +288,10 @@ fn assessments_while_proposed(redesign: &Redesign, first: bool) -> Vec<String> {
 }
 
 /// The items of a redesign with their outcomes, or without.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn items(
     redesign: &Redesign,
     settled: bool,
@@ -313,6 +337,10 @@ struct Step<'a> {
 impl<'a> Step<'a> {
     /// Fork a branch and open the change with `change new`. The capability is
     /// delivered, so the guidance says what the author does to its state.
+    #[expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )]
     fn open(project: &'a Project, redesign: &'a Redesign, before: usize) -> Self {
         let root = project.root();
         let path = record_path(redesign.slug);
@@ -394,6 +422,10 @@ impl<'a> Step<'a> {
 
     /// Build the code, tests, examples and current executable usage together.
     /// The preceding contract and rationale still stand beside the proposal.
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     fn build(&self) -> String {
         let slug = self.redesign.slug;
         let after = streaming::files(self.redesign.version);
@@ -482,6 +514,10 @@ impl<'a> Step<'a> {
     /// Write the account: the blocks give way to the contract text, every item
     /// gets its outcome, and reconcile has nothing left. The bound tests and
     /// examples resolve statically.
+    #[expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )]
     fn settle(&self) -> String {
         let slug = self.redesign.slug;
         let version = self.redesign.version;
@@ -619,6 +655,11 @@ fn assert_contract_stated_directly(project: &Project, document: &str, commits: &
 }
 
 /// The path a link of a document in `docs/capabilities` names, from the root.
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_in_result,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn link_target(link: &str) -> Option<String> {
     let target = link.split('#').next().expect("a target");
     if target.is_empty() {
@@ -639,6 +680,10 @@ fn link_target(link: &str) -> Option<String> {
 }
 
 /// Scenario A: "every link resolves".
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn assert_links_resolve(project: &Project, document: &str) {
     assert_eq!(project.findings(), []);
     Gate::workspace(project.root()).assert_clean();
@@ -670,6 +715,10 @@ fn tracked_files(project: &Project) -> BTreeSet<String> {
 }
 
 /// Scenario A: "no PROPOSED block or change file is on the reading path".
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn assert_reading_path_is_clear(project: &Project) {
     let opened = Gate::workspace(project.root()).open().expect("opens");
     let plan = opened.workplan();
@@ -721,6 +770,10 @@ fn assert_rationale_kept(document: &str) {
 }
 
 /// Scenario A: "every earlier state is recoverable with `git show`".
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn assert_earlier_states_recoverable(project: &Project, earlier: &[Landed]) {
     for state in earlier {
         let version = state.version;
@@ -782,6 +835,10 @@ fn assert_superseded_wording_gone(landed: &[Landed], document: &str) {
 
 /// The changes themselves are recoverable: each record is in the history of its
 /// path, deleted, and its commits show the proposal and the outcomes.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn assert_changes_recoverable(project: &Project, commits: &[Commits]) {
     for commit in commits {
         let path = record_path(commit.slug);
@@ -809,6 +866,10 @@ fn assert_changes_recoverable(project: &Project, commits: &[Commits]) {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn several_redesigns_leave_one_readable_present() {
     let (project, first) = genesis();
     let mut landed = vec![first];
@@ -913,6 +974,10 @@ fn window_record(project: &Project, outcomes: [Option<&str>; 3]) {
 /// with its open questions and its candidate contract in PROPOSED blocks, the
 /// change that lists it, and a crate with nothing in it. The work is on the
 /// branch `window`, forked from the default branch.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn candidate() -> (Project, String) {
     let files = vec![
         ("src/lib.rs".to_string(), window::EMPTY_LIB.to_string()),
@@ -1041,6 +1106,10 @@ fn tense_phrases(document: &str) -> Vec<&'static str> {
 }
 
 /// The code of the first `rust` fence of a section.
+#[expect(
+    clippy::string_slice,
+    reason = "the test requires a valid UTF-8 span from the fixture or checked operation"
+)]
 fn fenced_rust(section: &str) -> Option<String> {
     let start = section.find("```rust\n")? + "```rust\n".len();
     let end = section[start..].find("```")?;
@@ -1057,6 +1126,10 @@ struct Account<'a> {
 }
 
 impl<'a> Account<'a> {
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     fn of(project: &'a Project) -> Self {
         Self {
             project,
@@ -1123,6 +1196,10 @@ impl<'a> Account<'a> {
     /// Current API references: every `Window::name` the body of the document
     /// writes is a function of the library, there are several, and the renamed
     /// function is the one named.
+    #[expect(
+        clippy::string_slice,
+        reason = "the test requires a valid UTF-8 span from the fixture or checked operation"
+    )]
     fn references(&self, faults: &mut Vec<&'static str>) {
         let body = self
             .document
@@ -1390,6 +1467,10 @@ fn refuse_until_reconciled(project: &Project, template: &str) -> String {
 /// accurate capability explanation, a real usage example, current API
 /// references, explicit limitations and a test traceability table, and no
 /// proposal text presented as established behaviour."
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn assert_delivered_account(project: &Project, settled: &str, finished: &str) {
     assert_eq!(Account::of(project).faults(), Vec::<&str>::new());
     assert_eq!(project.findings(), []);
@@ -1514,6 +1595,10 @@ fn planning_produces_the_documentation() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_document_that_merely_exists_does_not_satisfy_the_scenario() {
     let (project, template) = candidate();
     implement(&project);

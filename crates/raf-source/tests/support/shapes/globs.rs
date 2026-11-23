@@ -121,6 +121,10 @@ pub(crate) fn named(name: &str) -> Option<&'static GlobShape> {
 
 /// A chain of `n` globs: each module globs the next, and the last defines
 /// one function.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub(crate) fn chain(n: usize) -> String {
     let mut lib = String::new();
     for i in 0..n {
@@ -132,6 +136,10 @@ pub(crate) fn chain(n: usize) -> String {
 
 /// A module of `n` public functions, which each of `n` modules globs
 /// publicly.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub(crate) fn many_items(n: usize) -> String {
     let mut lib = String::from("pub mod d {");
     for i in 0..n {
@@ -156,6 +164,10 @@ pub(crate) fn private_fan_in(n: usize) -> String {
     fan_in(n, "")
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn fan_in(n: usize, vis: &str) -> String {
     let mut lib = String::from("pub mod t {");
     for i in 0..n {
@@ -172,6 +184,10 @@ fn fan_in(n: usize, vis: &str) -> String {
 /// in a struct `X<i>` through a `pub` glob and another struct `X<i>`
 /// through a private one, so that each carries its name with a companion,
 /// and `u` globbing `t`.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub(crate) fn companion_fan_in(n: usize) -> String {
     let mut lib = String::from("pub mod t {");
     for i in 0..n {
@@ -191,6 +207,10 @@ pub(crate) fn companion_fan_in(n: usize) -> String {
 
 /// The prelude pattern: the crate root globs each of `n` children, and each
 /// child, which defines one struct, globs its parent.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub(crate) fn prelude(n: usize) -> String {
     let mut lib = String::new();
     for i in 0..n {
@@ -218,6 +238,10 @@ pub(crate) fn ambiguous_hub(n: usize) -> String {
 }
 
 /// A hub of `n` siblings, the sibling `i` defining the struct `T<i / per>`.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn hub_of(n: usize, per: usize) -> String {
     let mut lib = String::from("pub mod hub {");
     for i in 0..n {
@@ -245,6 +269,10 @@ fn hub_of(n: usize, per: usize) -> String {
 /// arrives at the table of a `t<i>` is read again from the one read of
 /// `t<i>` whose table holds it, and the tables that hold it, about `2n` of
 /// them, fewer than the `2n + 7` reads of `t<i>`, are looked at to find it.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub(crate) fn holder_scan(n: usize) -> String {
     let pads = 2 * n + 5;
     let mut lib = String::from("pub mod d {");
@@ -278,6 +306,10 @@ pub(crate) fn holder_scan(n: usize) -> String {
 /// them: each import looks the name up in what the globs of `t` bring in.
 /// The imports are private, as in the reproducer: rustc refuses to
 /// re-export a name that private globs bring in.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub(crate) fn lookups(n: usize) -> String {
     let mut lib = String::from("pub mod t {");
     for i in 0..n {

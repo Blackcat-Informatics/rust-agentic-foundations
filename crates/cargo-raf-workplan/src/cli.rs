@@ -810,6 +810,13 @@ mod tests {
     }
 
     /// The same words in both shapes of the argument vector.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn both(words: &[&str]) -> [Args; 2] {
         let direct: Vec<&str> = std::iter::once("cargo-raf-workplan")
             .chain(words.iter().copied())
@@ -879,6 +886,13 @@ mod tests {
         );
     }
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::panic,
+            reason = "the assertion reports the unexpected outcome and terminates the test"
+        )
+    )]
     fn new_args(words: &[&str]) -> NewArgs {
         match same(words).command {
             Command::Change(Change::New(args)) => args,
@@ -936,6 +950,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn change_new_needs_a_capability_and_both_or_neither_spdx_option() {
         for words in [
             &["cargo-raf-workplan", "change", "new", "grow"][..],
@@ -992,6 +1013,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn a_command_that_takes_a_slug_refuses_one_that_starts_with_a_dash_in_both_forms() {
         for head in [
             &["change", "impact"][..],
@@ -1077,6 +1105,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn formats_are_closed_and_review_accepts_json() {
         for format in ["yaml", "json-pretty", "JSON"] {
             let error = parsed(&["cargo-raf-workplan", "--format", format, "check"])
@@ -1095,6 +1130,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn a_missing_command_an_unknown_command_and_a_missing_slug_are_usage_errors() {
         for words in [
             &["cargo-raf-workplan"][..],
@@ -1118,6 +1160,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn a_slug_that_starts_with_a_dash_is_a_usage_error_however_it_is_given() {
         for slug in ["-rf", "--since=x", "-", "--"] {
             // After `--` the word is a value and the slug parser refuses it.
@@ -1152,6 +1201,13 @@ mod tests {
     }
 
     /// The usage error of `words` in both shapes: exit 2 each time.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn refused(words: &[&str]) {
         let direct: Vec<&str> = std::iter::once("cargo-raf-workplan")
             .chain(words.iter().copied())
@@ -1166,6 +1222,13 @@ mod tests {
         }
     }
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::panic,
+            reason = "the assertion reports the unexpected outcome and terminates the test"
+        )
+    )]
     fn assess_args(words: &[&str]) -> AssessArgs {
         match same(words).command {
             Command::Assess(args) => args,
@@ -1174,6 +1237,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn history_takes_an_id_of_each_kind_and_a_day() {
         for id in [
             "cap:workplan-cli",
@@ -1468,6 +1538,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn help_and_version_exit_zero_in_both_shapes() {
         for words in [
             &["cargo-raf-workplan", "--help"][..],

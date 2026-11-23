@@ -84,13 +84,19 @@ pub(super) fn read(source: MigrationInput<'_>) -> Result<Historical, Error> {
     decoded().map_err(|error| input(source.path, error))
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "Record::new has already admitted this immutable value as an object"
+)]
 fn decode(value: &Value) -> Result<(Vec<Group>, Vec<Group>), DecodeError> {
     unique_members(value)?;
     let mut root = Record::new(value, "legacy census baseline")?;
     let _: usize = root.required("min_tokens")?;
     let _: usize = root.required("units")?;
     // Record::new has already established that this value is an object.
-    let object = value.as_object().expect("record admitted an object");
+    let object = value
+        .as_object()
+        .expect("INVARIANT: record admitted an object");
     let bodies = if object.count("isomorphic_groups") > 0 {
         root.required("isomorphic_groups")?
     } else {

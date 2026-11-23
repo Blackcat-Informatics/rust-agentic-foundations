@@ -20,12 +20,20 @@ use raf_source::{
 const MANIFEST: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n";
 const GRANT: usize = 16 * 1024 * 1024;
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn options(workers: usize) -> ParallelOptions {
     ParallelOptions::new(NonZeroUsize::new(workers).expect("nonzero workers"), GRANT)
         .expect("scheduler fits")
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn nested_inline_alternative_alias_and_target_loads_keep_the_serial_index_and_usage() {
     let tree = MemoryTree::from([
         ("Cargo.toml", MANIFEST),
@@ -109,6 +117,10 @@ impl Tree for FailingTree {
         self.tree.read(path, maximum)
     }
 
+    #[expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )]
     fn read_unseen(
         &self,
         path: &RelPath,
@@ -165,6 +177,10 @@ fn failing_tree(early: &str, panic: bool) -> FailingTree {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_earlier_canonical_descendant_error_wins_over_a_speculative_backend_panic() {
     let tree = failing_tree("mod child;", true);
     let load = LoadOptions::default();
@@ -180,6 +196,11 @@ fn an_earlier_canonical_descendant_error_wins_over_a_speculative_backend_panic()
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn reached_backend_failures_keep_original_typed_causes_and_panic_payloads() {
     let load = LoadOptions::default();
     let tree = failing_tree("pub fn a() {}", false);
@@ -207,6 +228,10 @@ fn reached_backend_failures_keep_original_typed_causes_and_panic_payloads() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn canonical_fact_allowances_refuse_the_exact_serial_position_beside_the_valid_limit() {
     let text = format!("/// {}\npub fn payload() {{}}\n", "d".repeat(4096));
     let tree = MemoryTree::from([
@@ -257,12 +282,21 @@ impl ConfiguredTree {
         }
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     fn take_opened(&self) -> Vec<RelPath> {
         std::mem::take(&mut *self.opened.lock().expect("observation lock"))
     }
 }
 
 impl Tree for ConfiguredTree {
+    #[expect(
+        clippy::expect_used,
+        clippy::unwrap_in_result,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )]
     fn read(&self, path: &RelPath, maximum: u64) -> Result<String, TreeError> {
         self.opened
             .lock()
@@ -271,6 +305,11 @@ impl Tree for ConfiguredTree {
         self.tree.read(path, maximum)
     }
 
+    #[expect(
+        clippy::expect_used,
+        clippy::unwrap_in_result,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )]
     fn read_unseen(
         &self,
         path: &RelPath,
@@ -305,6 +344,10 @@ impl Tree for ConfiguredTree {
 impl ParallelTree for ConfiguredTree {}
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn configured_parallel_ignores_inactive_paths_and_locates_a_reused_alias_at_its_canonical_reach() {
     // A speculative spelling shares its syntax with the canonical descendant.
     // Configuration and fact refusals use the descendant's path and grant.
@@ -372,6 +415,10 @@ fn configured_parallel_ignores_inactive_paths_and_locates_a_reused_alias_at_its_
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_committed_physical_alias_overrides_provisional_unseen_read_errors_and_panics() {
     for panic in [false, true] {
         let tree = FailingTree {
@@ -401,6 +448,10 @@ fn broken_tree(entries: &[(&str, &str)]) -> MemoryTree {
     MemoryTree::from_iter(all)
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn assert_same_error(tree: &MemoryTree, expected_file: &str) {
     let load = LoadOptions::default();
     let serial = Workspace::load_with(tree, &["."], &load).expect_err("serial refuses");
@@ -438,6 +489,10 @@ fn a_later_speculative_syntax_error_does_not_mask_an_earlier_canonical_error() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_reached_speculative_syntax_error_equals_the_serial_error() {
     let broken = broken_tree(&[
         ("src/lib.rs", "mod a;\nmod b;\nmod c;\n"),
@@ -459,6 +514,10 @@ fn a_reached_speculative_syntax_error_equals_the_serial_error() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_canonical_reach_names_the_file_in_a_diagnostic_found_through_another_spelling() {
     let broken = broken_tree(&[
         (
@@ -484,6 +543,10 @@ fn a_canonical_reach_names_the_file_in_a_diagnostic_found_through_another_spelli
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn scheduler_refusals_are_typed_beside_a_valid_grant() {
     let one = NonZeroUsize::new(1).expect("nonzero");
     assert!(ParallelOptions::new(one, GRANT).is_ok());

@@ -10,6 +10,14 @@ use raf_source::MemoryTree;
 
 const MANIFEST: &str = "[package]\nname = \"fixture\"\nversion = \"0.1.0\"\nedition = \"2024\"\n";
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::string_slice,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn region<'a>(function: &'a Function<'a>, snippet: &str, meter: &Meter) -> proof::Region<'a> {
     let start = function.source.find(snippet).unwrap();
     let admitted = regions::admit(
@@ -36,6 +44,13 @@ fn region<'a>(function: &'a Function<'a>, snippet: &str, meter: &Meter) -> proof
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn actual_workspace_collection_keeps_every_reach_and_verifies_checked_embedded_regions() {
     let shared = "fn small(input: i32) { let x = input + 1; sink(x, x); }\nfn large(other: i32) { let earlier = 9; log(earlier); let renamed = other + 1; sink(renamed, renamed); tail(); }";
     let tree = MemoryTree::from([
@@ -128,6 +143,13 @@ fn actual_workspace_collection_keeps_every_reach_and_verifies_checked_embedded_r
     verify_attributed_range_extent();
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn verify_attributed_range_extent() {
     for (expression, semi) in [
         ("0..1", true),
@@ -173,6 +195,15 @@ fn verify_attributed_range_extent() {
     }
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        clippy::string_slice,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn verify_lexical_provenance_and_original_prefix_spans() {
     // Report provenance follows each actual lexical module, including methods
     // whose enclosing generic-value frame is above the module frame.
@@ -233,6 +264,13 @@ fn verify_lexical_provenance_and_original_prefix_spans() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn actual_impl_and_trait_const_generics_remain_fixed_in_method_bodies() {
     let source = "#![no_implicit_prelude]\nstruct S<const N: usize> { values: [u8; N] }\nimpl<const N: usize> S<N> { fn helper(&self, input: usize) { let N = input; sink(self, N); } }\ntrait T<const M: usize> { fn default(&mut self, input: usize) { let M = input; sink(self, M); } }";
     let tree = MemoryTree::from([("Cargo.toml", MANIFEST), ("src/lib.rs", source)]);
@@ -268,6 +306,13 @@ fn actual_impl_and_trait_const_generics_remain_fixed_in_method_bodies() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn empty_body_attributes_and_pruned_original_functions_cannot_become_accepted_owners() {
     for source in [
         "fn allowed<'a, T>() {}",

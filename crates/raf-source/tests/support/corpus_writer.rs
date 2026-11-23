@@ -12,6 +12,10 @@ pub(crate) fn generate_corpus(dir: &Path) {
     write_shapes(dir, &shapes::all());
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn write_shapes(dir: &Path, shapes: &[shapes::Shape]) {
     fs::create_dir_all(dir).expect("create the corpus directory");
     for shape in shapes {
@@ -21,6 +25,10 @@ fn write_shapes(dir: &Path, shapes: &[shapes::Shape]) {
 }
 
 /// Exercise the actual writer in an owned directory without rewriting the corpus.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub(crate) fn assert_corpus_writer() {
     let scratch = support::Scratch::new();
     let shapes = shapes::all();

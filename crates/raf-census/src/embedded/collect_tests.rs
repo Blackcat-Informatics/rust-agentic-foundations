@@ -5,6 +5,14 @@
 
 use super::*;
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn inspect<'source>(
     source: &'source str,
     check: impl FnOnce(Result<Facts<'source>, Failure>) + Send,
@@ -43,6 +51,13 @@ fn inspect<'source>(
     .unwrap();
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn at<'source>(facts: &Facts<'source>, byte: usize) -> Occurrence<'source> {
     facts
         .annotations
@@ -53,6 +68,13 @@ fn at<'source>(facts: &Facts<'source>, byte: usize) -> Occurrence<'source> {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn initializers_read_the_previous_binding_and_inner_shadowing_ends_with_its_block() {
     let source = "// café shifts UTF-8 offsets.\n#![no_implicit_prelude]\n\
         fn helper(input: i32) { let x = input; { let x = x + 1; sink(x); } sink(x); }";
@@ -87,6 +109,13 @@ fn initializers_read_the_previous_binding_and_inner_shadowing_ends_with_its_bloc
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn let_else_divergence_precedes_activation_and_closure_parameters_do_not_replace_captures() {
     let source = "#![no_implicit_prelude]\nenum E { Some(i32), None }\n\
         fn helper(input: E) -> i32 { let x = 1; \
@@ -118,6 +147,13 @@ fn let_else_divergence_precedes_activation_and_closure_parameters_do_not_replace
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn or_patterns_share_declarations_with_their_guard_and_refuse_different_alternative_names() {
     let source = "#![no_implicit_prelude]\nfn helper(input: (i32, i32)) -> i32 { \
         match input { (x, 0) | (0, x) if x > 0 => x, _ => 0 } }";
@@ -145,6 +181,13 @@ fn or_patterns_share_declarations_with_their_guard_and_refuse_different_alternat
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn return_targets_and_shadowed_block_labels_keep_their_actual_control_destinations() {
     let source = "#![no_implicit_prelude]\nfn helper(input: i32) -> i32 { \
         let f = || { return input; }; \
@@ -171,6 +214,13 @@ fn return_targets_and_shadowed_block_labels_keep_their_actual_control_destinatio
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn shorthand_fields_keep_fixed_names_and_unadmitted_attributes_or_boundaries_refuse() {
     let source = "#![no_implicit_prelude]\nstruct S { value: i32 } \
         fn helper(input: S) { let S { value } = input; let other = S { value }; }";
@@ -207,6 +257,13 @@ fn shorthand_fields_keep_fixed_names_and_unadmitted_attributes_or_boundaries_ref
 /// INVARIANT: a lone semicolon is a retained statement with its own span and no
 /// expression. The collector refuses an async expression in a separate fixture.
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn a_lone_semicolon_is_a_statement_and_a_separate_async_fixture_refuses() {
     let source = "#![no_implicit_prelude]\nfn helper(input: i32) { ; sink(input); }";
     inspect(source, |result| {

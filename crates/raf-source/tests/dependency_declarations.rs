@@ -14,6 +14,10 @@ fn tree(dependencies: &str) -> MemoryTree {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn declarations_retain_sources_flags_aliases_and_unevaluated_conditions() {
     let tree = tree(
         "[dependencies]\nplain='>=1.2, <2'\n\
@@ -73,6 +77,10 @@ fn declarations_retain_sources_flags_aliases_and_unevaluated_conditions() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn inheritance_preserves_both_entries_and_the_workspace_path_base() {
     let tree = MemoryTree::from([
         (
@@ -107,6 +115,10 @@ fn inheritance_preserves_both_entries_and_the_workspace_path_base() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn malformed_declarations_refuse_with_valid_neighbors() {
     for declaration in [
         "42",
@@ -186,6 +198,10 @@ fn malformed_declarations_refuse_with_valid_neighbors() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn retained_declarations_use_the_original_item_allowance() {
     let tree = tree("[dependencies]\nexternal={version='1',features=['one','two']}");
     let ws = Workspace::load(&tree, &["."]).expect("default load");

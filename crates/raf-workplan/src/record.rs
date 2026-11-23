@@ -85,7 +85,10 @@ impl Record {
         if !is_kebab(slug) {
             return Err(bad());
         }
-        RelPath::new(&format!("{}/{slug}.md", self.doc_type().directory())).map_err(|_| bad())
+        let Ok(path) = RelPath::new(&format!("{}/{slug}.md", self.doc_type().directory())) else {
+            return Err(bad());
+        };
+        Ok(path)
     }
 
     /// The text of the record file: the rendering of the `raf-okf` writer,
@@ -420,6 +423,14 @@ mod tests {
     use std::fs;
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            clippy::unwrap_used,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn a_directory_swap_after_preflight_refuses_replacement_publication() {
         let scratch = purrdf_testkit::TempDir::new_in(std::env::temp_dir())
             .expect("create replacement fixture");

@@ -184,7 +184,7 @@ inputs:
     digest: aa32afa42e2d644e93113a6853dd8f26dbdf6087e2df3a4c2db01df335551fa3
   - kind: symbol
     name: raf_source::LockedPackageRoots
-    digest: 5ac79cda2e62f715afafe05d9b2459108a904a95e755b8cd0536b49e6c248358
+    digest: f530a332664d30e9225d37eb7f57afe38c60fab88fa0f917a5118d3f793d6439
   - kind: symbol
     name: raf_source::LockedSource
     digest: 20621757ab2b98e7734ff326160f6a57ef77740f9d52459cfa803dccac5cf0ac
@@ -397,7 +397,7 @@ inputs:
     digest: b935908e0bf18a62f32f8ce6447950753e6452a8c1fd0aeb0cd92ea522b0f7ea
   - kind: symbol
     name: raf_source::cargo_version
-    digest: 7140b4d7c9f960dd035dd01925075fcff67350001435ad2ecd39d1a655f3b36e
+    digest: b8b5f637a14a46e6d191d1b38cfa7f9558663d1cb966c5ca1dae800c716201dd
   - kind: symbol
     name: raf_source::cost::shared_text
     digest: 417543dec94f58efe64575df018bc4b13589e906d90c4db5a4f0693d372ab4f1
@@ -424,13 +424,13 @@ inputs:
     digest: b44969cc51582cddcb93cde34d2e12b7c4e5aa7b467cbb7814bfb40c447ef561
   - kind: symbol
     name: raf_source::resolve
-    digest: c09f05b642a37dc589be0bc28932fdcf99900bd263a39bf7570c2133224d46a0
+    digest: 539dd6c8112a1642b4b9e249b8920571ad932212e467f9b3862caaeeb58d6181
   - kind: symbol
     name: raf_source::syntax_storage::syntax_held
     digest: a9f208ca5d3128541cfeb6e44036130de7596532225af3cc093dd92c4e30084b
   - kind: symbol
     name: raf_source::tree
-    digest: 631432a51fc5d7fba82b85c14b7cb8f0ce2ccb1ac69f188e257109accb303e28
+    digest: 8fdc75c19fb4418bc7c44587d80238ebfcad69f942e9d6390314ff9b1144a1d7
   - kind: symbol
     name: raf_source::visit_pattern_bindings
     digest: 27019e74a30a0147f477718f5c4d7d4fd9cd0c9ed93f86efddf4718b98e98fcf

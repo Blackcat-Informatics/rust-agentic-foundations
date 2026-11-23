@@ -79,6 +79,10 @@ impl Case {
     }
 
     /// The case with `body` appended to its file.
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     fn with_body(mut self, body: &str) -> Self {
         let text = self
             .repo
@@ -129,6 +133,10 @@ impl Case {
 /// Move the document at `from` of `repo` to `to`. Moving the architecture
 /// page also points gamma's link to it at its new path, so the move breaks
 /// only the rule its case is about.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn move_document(repo: &mut Repo, from: &str, to: &str) {
     let text = repo.remove(from).expect("the fixture holds the document");
     repo.insert(to.to_string(), text);
@@ -199,6 +207,11 @@ pub(crate) fn coverage_record() -> String {
 
 /// Where a record lives: the directory of its type, under the slug of its
 /// id, or under the one slug of a type a repository holds once.
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 pub(crate) fn record_home(text: &str) -> String {
     let field = |key: &str| {
         text.lines()
@@ -229,6 +242,10 @@ fn record_case(name: &str, kind: &str, record: &str, from: &str, to: &str, at: L
 }
 
 #[expect(clippy::too_many_lines, reason = "one arm per rule of the profile")]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn rule_case_unplaced(tag: RuleTag) -> Case {
     let name = format!("okf-{tag}");
     let kind = name.clone();
@@ -418,6 +435,10 @@ fn rule_case_unplaced(tag: RuleTag) -> Case {
 }
 
 /// The case for a rule of the record types.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn record_rule_case(tag: RuleTag, name: &str, kind: &str) -> Case {
     let evidence = |from: &str, to: &str, at: Location| {
         record_case(name, kind, &evidence_record(), from, to, at)
@@ -510,6 +531,10 @@ fn record_rule_case(tag: RuleTag, name: &str, kind: &str) -> Case {
 #[expect(
     clippy::too_many_lines,
     reason = "one arm per error kind of the reader"
+)]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
 )]
 pub(crate) fn parse_case(tag: ErrorTag) -> Option<Case> {
     let name = format!("okf-parse-{tag}");
@@ -901,6 +926,10 @@ fn record_reference_cases() -> Vec<Case> {
 }
 
 /// Replace the first `from` of `path` in `repo`.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn edit(repo: &mut Repo, path: &str, from: &str, to: &str) {
     let text = repo
         .get_mut(path)
@@ -1236,6 +1265,10 @@ pub(crate) fn all_cases() -> Vec<Case> {
 }
 
 /// Named diagram ownership fails closed for malformed or missing assets.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn diagram_cases() -> Vec<Case> {
     let base = synced::base();
     assert_eq!(check_all(&base), [] as [Finding; 0]);
@@ -1374,6 +1407,10 @@ fn strict_capability(capability: String) -> Repo {
 
 /// The source files of the strict-clean repository with `extra` added to the
 /// file `path`.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn strict_source(path: &str, extra: &str) -> Vec<(&'static str, String)> {
     let mut files = fixture::source_files();
     let file = files
@@ -1523,6 +1560,10 @@ pub(crate) fn strict_cases() -> Vec<Case> {
 
 /// The cases of strict mode for the package the capability binds, which
 /// strict mode alone enforces, with the kinds of two-way coverage.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn strict_coverage_cases() -> Vec<Case> {
     // The unbound items these cases add are orphan lines too: a ceiling for
     // the package keeps each case to the rule it is about.
@@ -1837,6 +1878,10 @@ fn generated_reexport_case(mut repo: Repo) -> Case {
 }
 
 /// Make the valid demo's private globs an ambiguous public surface.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn ambiguous_surface_case(repo: Repo) -> Case {
     // The valid demo keeps these globs private. Export both to make its
     // public `dup` ambiguous, with every actual source unit still owned.
@@ -1868,6 +1913,10 @@ fn ambiguous_surface_case(repo: Repo) -> Case {
 #[expect(
     clippy::too_many_lines,
     reason = "one block per generated-block kind, each a repository with one break"
+)]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
 )]
 pub(crate) fn generated_cases() -> Vec<Case> {
     let base = synced::base();

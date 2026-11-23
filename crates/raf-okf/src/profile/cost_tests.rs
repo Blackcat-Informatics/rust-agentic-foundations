@@ -30,6 +30,13 @@ const UNIT: usize = 1_000;
 /// at once instead of running to the end.
 const CEILING: usize = 64 * UNIT;
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn parse(text: &str) -> Document {
     Document::parse(text).expect("the probe is a document")
 }
@@ -50,6 +57,13 @@ fn entries_that_fit(room: usize, size: impl Fn(usize) -> usize) -> usize {
 
 /// A change record with `count` capabilities in `changes` and one `affects`
 /// entry for each.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn change_with(count: usize) -> String {
     let mut text = String::from(
         "---\ntype: Change\nid: change:probe\ntitle: Probe\ndescription: Probe.\nchanges:\n",
@@ -105,6 +119,13 @@ fn capability_with(sections: usize, per_section: usize) -> String {
 
 /// An evidence record with `count` values, each with its limit, the limits in
 /// the reverse order of the values.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn evidence_with(count: usize) -> String {
     let mut text = String::from(
         "---\ntype: Evidence\nid: evidence:probe\nsubject: command\ninputs:\n  \
@@ -149,6 +170,13 @@ fn assert_linear(kind: Work, build: impl Fn(usize) -> String, run: impl Fn(&str)
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )
+)]
 fn a_change_at_the_cap_judges_each_affects_entry_once_against_one_set() {
     let (text, count) = change_at_the_cap();
     assert!(text.len() <= MAX_TEXT_BYTES && text.len() > MAX_TEXT_BYTES - 64);
@@ -170,6 +198,13 @@ fn a_change_at_the_cap_judges_each_affects_entry_once_against_one_set() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn a_capability_at_the_cap_looks_at_each_block_once() {
     let (text, blocks, sections) = capability_at_the_cap();
     assert!(text.len() <= MAX_TEXT_BYTES && text.len() > MAX_TEXT_BYTES - 16);
@@ -195,6 +230,13 @@ fn a_capability_at_the_cap_looks_at_each_block_once() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn the_blocks_looked_at_grow_with_sections_and_blocks_together() {
     assert_linear(
         Work::BlocksVisited,
@@ -214,6 +256,13 @@ fn the_blocks_looked_at_grow_with_sections_and_blocks_together() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )
+)]
 fn an_evidence_record_at_the_cap_indexes_each_value_once_and_looks_up_each_limit_once() {
     let (text, count) = evidence_at_the_cap();
     assert!(text.len() <= MAX_TEXT_BYTES && text.len() > MAX_TEXT_BYTES - 64);

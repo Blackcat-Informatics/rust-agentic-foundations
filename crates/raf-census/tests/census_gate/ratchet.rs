@@ -16,6 +16,10 @@ pub(super) fn ratcheted_declaration() -> Builder {
 
 /// `ratcheted` is stated only as true, once, and only for a pattern whose jobs
 /// are enforced; a forbidden pattern states nothing and still loads.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 pub(super) fn ratcheted_declarations_are_true_only_unique_and_held_by_enforced_jobs() {
     let load = |graph: Builder| {
         Ledger::from_turtle(&graph.finish().unwrap().to_text(Format::Turtle).unwrap())
@@ -115,6 +119,10 @@ pub(super) fn scoped_pattern(scope: &[(&str, &str)], shipping_only: bool) -> Bui
 
 /// One drop call placed at `site`, beside the approved home, in a package with
 /// a library, an integration test, a build script and a legacy module.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn scoped_tree(site: &str, graph: Builder) -> MemoryTree {
     let call = "std::mem::drop(2);";
     let mut lib = String::from(
@@ -147,6 +155,10 @@ fn scoped_tree(site: &str, graph: Builder) -> MemoryTree {
     files.into_iter().collect()
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn scoped_copies(site: &str, scope: &[(&str, &str)], shipping_only: bool) -> usize {
     let tree = scoped_tree(site, scoped_pattern(scope, shipping_only));
     fixture_gate(".").check_tree(&tree).unwrap().jobs()[0].copies
@@ -172,6 +184,10 @@ fn ratchet_tree(
 }
 
 /// `ratchet_tree` over an already built ledger graph.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn ratchet_tree_over(
     graph: Builder,
     modules: &[(&str, &str)],
@@ -209,6 +225,10 @@ fn ratchet_tree_over(
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn ratcheted_patterns_record_counted_sites_and_hold_both_directions() {
     let check = |modules: &[(&str, &str)], record: Option<&str>| {
         fixture_gate(".")
@@ -317,6 +337,10 @@ fn ratcheted_patterns_record_counted_sites_and_hold_both_directions() {
 /// A unit that holds a recorded ratcheted hit and also a forbidden constant of
 /// the same job is still a COPY: only the generic finding reports the constant,
 /// so the ratcheted hit may not suppress it. The ratcheted-only neighbour is clean.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn ratcheted_hit_does_not_hide_a_forbidden_constant(modules: &[(&str, &str)], record: &str) {
     let with_constant = |modules: &[(&str, &str)]| {
         let mut graph = lexical_pattern_graph("call", "std::mem::drop");
@@ -351,6 +375,10 @@ fn ratcheted_hit_does_not_hide_a_forbidden_constant(modules: &[(&str, &str)], re
 /// With no hit left anywhere, home included, the recorded sites are stale; the
 /// lowered record keeps the rule with no site row, the pattern is not reported as
 /// matching no source item, and a new hit is growth.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn burned_down_ratchet_stays_a_guard(record: &str) {
     let burned = [("a", "pub fn one(){}\n"), ("b", "pub fn three(){}\n")];
     let check_burned = |record: &str| {
@@ -404,6 +432,10 @@ fn burned_down_ratchet_stays_a_guard(record: &str) {
 }
 
 /// The same hits under a pattern that is not ratcheted stay findings.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn forbidden_neighbour_keeps_hard_failure_and_records_no_site(modules: &[(&str, &str)]) {
     let forbidden = fixture_gate(".")
         .check_tree(&ratchet_tree(modules, RATCHET_HOME, None, false))
@@ -422,6 +454,10 @@ fn forbidden_neighbour_keeps_hard_failure_and_records_no_site(modules: &[(&str, 
 }
 
 /// True when comparing `present` to `record` reports growth, which a write refuses.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn record_may_not_admit(record: &str, present: &DebtRecord) -> bool {
     DebtRecord::from_turtle(record)
         .unwrap()
@@ -469,6 +505,10 @@ fn path_scope_is_silent_inside_an_excluded_prefix_and_reports_outside_it() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn contradictory_or_unknown_scope_refuses_at_load_beside_a_valid_neighbour() {
     let load = |scope: &[(&str, &str)], shipping: bool| {
         let graph = scoped_pattern(scope, shipping).finish().unwrap();
@@ -547,6 +587,10 @@ fn contradictory_or_unknown_scope_refuses_at_load_beside_a_valid_neighbour() {
     assert!(error.contains("stated only as true"), "{error}");
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn macro_scope_tree(lib_tail: &str, extra: &[(&str, &str)], graph: Builder) -> MemoryTree {
     let mut files = vec![
         (
@@ -567,6 +611,10 @@ fn macro_scope_tree(lib_tail: &str, extra: &[(&str, &str)], graph: Builder) -> M
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn shipping_scope_follows_the_test_role_of_a_module_level_macro_invocation() {
     for (tail, copies) in [("blocked!();\n", 1), ("#[cfg(test)]\nblocked!();\n", 0)] {
         let mut graph = lexical_pattern_graph("macro", "blocked");
@@ -584,6 +632,10 @@ fn shipping_scope_follows_the_test_role_of_a_module_level_macro_invocation() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn a_shared_file_hit_is_scoped_by_the_target_whose_resolution_matched() {
     let shared = [
         ("src/shared.rs", "pub fn used(){ super::blocked(); }\n"),
@@ -670,6 +722,10 @@ fn rule_modules(hit: &str) -> [(&'static str, String); 2] {
 
 /// Two packages: the modules live in `demo`, the approved home in `approved`,
 /// so no detector's home-package exemption hides a hit.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn rule_tree(mut graph: Builder, modules: &[(&str, &str)], record: Option<&str>) -> MemoryTree {
     assert!(
         graph
@@ -723,6 +779,10 @@ fn rule_tree(mut graph: Builder, modules: &[(&str, &str)], record: Option<&str>)
 }
 
 /// Check a tree whose one enforced job forbids `rule`, ratcheted or not.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn rule_report(
     (rule, ratcheted): (&str, bool),
     modules: &[(&str, String)],
@@ -756,6 +816,10 @@ fn rule_report(
 /// until the record is lowered, a deleted file is stale, and the same rule left
 /// forbidden stays a hard finding that records nothing.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn ratcheted_rules_record_counted_sites_and_hold_both_directions() {
     for (rule, hit) in [
         ("serde-json", "let _=serde_json::to_string(&1);"),
@@ -861,6 +925,10 @@ fn repeated_modules(both: &[(&'static str, String); 2], hit: &str) -> [(&'static
 /// `ratchetedRule` names a rule the same enforced job forbids, never a pattern
 /// or a job-scoped detector, and every job that forbids the rule agrees. Each
 /// refusal sits beside the valid declaration it differs from.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 pub(super) fn ratchet_rule_declarations_are_enabled_enforced_scoped_and_consistent() {
     let load = |graph: Builder| {
         Ledger::from_turtle(&graph.finish().unwrap().to_text(Format::Turtle).unwrap())
@@ -954,6 +1022,10 @@ pub(super) fn ratchet_rule_declarations_are_enabled_enforced_scoped_and_consiste
 /// A rule the Gate requires everywhere cannot also be ratcheted by a job; the
 /// same ratchet without the requirement evaluates.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn a_required_rule_cannot_also_be_ratcheted() {
     let modules = rule_modules("flag!();");
     let build = || {
@@ -984,6 +1056,10 @@ fn a_required_rule_cannot_also_be_ratcheted() {
 }
 
 /// Two jobs reach one forbidden pattern, the second by a rule fingerprint.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn a_pattern_reached_through_another_jobs_rule_cannot_be_ratcheted() {
     let load = |graph: Builder| {
         Ledger::from_turtle(&graph.finish().unwrap().to_text(Format::Turtle).unwrap())

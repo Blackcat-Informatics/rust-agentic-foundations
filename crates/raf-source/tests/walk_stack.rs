@@ -16,6 +16,10 @@ use raf_source::{Budget, LoadError, LoadErrorKind, MemoryTree, Tree, Workspace};
 const DEMO: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n";
 
 /// Run `work` on a thread with a stack of `bytes`.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn on_stack<T: Send>(bytes: usize, work: impl FnOnce() -> T + Send) -> T {
     thread::scope(|scope| {
         thread::Builder::new()
@@ -48,6 +52,10 @@ fn chain(levels: usize) -> String {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_memory_chain_of_twenty_thousand_directories_is_refused_typed_on_a_two_mib_thread() {
     let deep = format!("{}x.txt", chain(20_000));
     let tree = MemoryTree::try_from_iter([(deep.as_str(), "")]).expect("tree");
@@ -59,6 +67,10 @@ fn a_memory_chain_of_twenty_thousand_directories_is_refused_typed_on_a_two_mib_t
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_directory_at_the_depth_limit_is_walked_and_one_below_it_is_refused() {
     let at = format!("{}x.txt", chain(128));
     let tree = MemoryTree::try_from_iter([(at.as_str(), "")]).expect("tree");
@@ -77,6 +89,10 @@ fn a_directory_at_the_depth_limit_is_walked_and_one_below_it_is_refused() {
 /// literal `workspace.members` pattern, and inherits its edition. The load is
 /// rooted at the member, so discovery walks no deeper than the member itself
 /// and only the member expansion walks the chain.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn deep_member(levels: usize) -> MemoryTree {
     let member = chain(levels);
     let pattern = member.trim_end_matches('/');
@@ -97,6 +113,10 @@ fn deep_member(levels: usize) -> MemoryTree {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_member_pattern_at_the_depth_limit_expands_and_one_deeper_is_refused_typed() {
     let at = deep_member(128);
     let root = chain(128);
@@ -136,6 +156,11 @@ fn nested_modules(levels: usize, inline: bool) -> MemoryTree {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn one_hundred_twenty_eight_nested_modules_load_on_a_five_hundred_twelve_kib_thread() {
     for inline in [true, false] {
         let tree = nested_modules(128, inline);
@@ -161,6 +186,10 @@ fn one_hundred_twenty_eight_nested_modules_load_on_a_five_hundred_twelve_kib_thr
 
 #[cfg(unix)]
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_disk_chain_of_directories_is_refused_typed_on_a_two_mib_thread() {
     use raf_source::DiskTree;
     use support::Scratch;
@@ -223,6 +252,10 @@ fn nested_groups(levels: usize) -> String {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_use_tree_at_the_recursion_limit_loads_resolves_and_drops_on_a_five_hundred_twelve_kib_thread()
 {
     let limit = Budget::Recursion.limit();

@@ -114,6 +114,10 @@ fn padded(head: &str, head_tokens: usize, total: usize) -> String {
 }
 
 /// A forwarder `f(a, 1, 2, ...)` of exactly `total` tokens.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn forwarder(total: usize) -> String {
     let tail = if total.is_multiple_of(2) { "" } else { "?" };
     let args = (total - 3 - tail.len()).div_ceil(2);
@@ -978,6 +982,11 @@ pub(crate) fn registry() -> Registry {
 /// The table in its pinned form: one line per fixture, `id tokens body shim`,
 /// with `-` for a print the fixture does not have. The bodies are printed at
 /// `min_tokens` 1 so every fixture has one.
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 pub(crate) fn table(registry: &Registry) -> String {
     let options = CensusOptions::default()
         .min_tokens(1)

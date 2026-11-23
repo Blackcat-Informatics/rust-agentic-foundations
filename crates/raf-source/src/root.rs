@@ -3,6 +3,7 @@
 
 //! Workspace-root lookup over the bounded tree and membership model.
 
+use crate::discovery::manifest_path;
 use crate::error::{LoadError, LoadErrorKind, Origin};
 use crate::manifest::{self, Manifest};
 use crate::members::members;
@@ -22,7 +23,7 @@ fn finding(path: &RelPath, message: impl Into<String>) -> LoadError {
 }
 
 fn read(tree: &dyn Tree, dir: &RelPath) -> Result<Option<Manifest>, LoadError> {
-    let path = dir.join("Cargo.toml").expect("a literal child");
+    let path = manifest_path(dir)?;
     if tree
         .entry(&path)
         .map_err(|error| LoadError::tree(&path, None, &Origin::Discovery, error))?
@@ -55,7 +56,7 @@ fn owns(
     parsed: &Manifest,
     package: &RelPath,
 ) -> Result<bool, LoadError> {
-    let path = root.join("Cargo.toml").expect("a literal child");
+    let path = manifest_path(root)?;
     let found = members(
         tree,
         &Meter::new(&LoadOptions::default()),

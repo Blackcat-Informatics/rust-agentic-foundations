@@ -13,6 +13,10 @@ const OTHER: &str = "registry+https://example.test/other";
 const SPARSE: &str = "sparse+https://example.test/index";
 const REV: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn declaration(value: &str) -> DependencyDeclaration {
     let manifest = format!("[package]\nname='app'\nversion='1.0.0'\n[dependencies]\nalias={value}");
     let tree = MemoryTree::from([("Cargo.toml", manifest.as_str()), ("src/lib.rs", "")]);
@@ -22,6 +26,10 @@ fn declaration(value: &str) -> DependencyDeclaration {
         .clone()
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn path_declaration() -> DependencyDeclaration {
     let tree = MemoryTree::from([
         (
@@ -41,6 +49,10 @@ fn path_declaration() -> DependencyDeclaration {
         .clone()
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn catalog(reverse: bool) -> (LockedCatalog, LockedPackageId) {
     let branch = format!("git+https://example.test/repo?branch=feature%2Ftrees#{REV}");
     let default = format!("git+https://example.test/repo#{REV}");
@@ -98,6 +110,10 @@ fn catalog(reverse: bool) -> (LockedCatalog, LockedPackageId) {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn rename_version_and_registry_select_only_the_owners_exact_outgoing_row() {
     assert_cargo_version_selection();
     for reverse in [false, true] {
@@ -139,7 +155,7 @@ fn rename_version_and_registry_select_only_the_owners_exact_outgoing_row() {
             error.to_string().contains("no compatible outgoing"),
             "{error}"
         );
-        let mut broad = declaration.clone();
+        let mut broad = declaration;
         broad.specification.version = Some(">=1, <3".into());
         let error = catalog
             .select_dependency(
@@ -154,6 +170,10 @@ fn rename_version_and_registry_select_only_the_owners_exact_outgoing_row() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn git_reference_kind_and_local_source_family_are_constraints_not_tree_proofs() {
     let (catalog, owner) = catalog(false);
     for (value, reference) in [
@@ -201,6 +221,10 @@ fn git_reference_kind_and_local_source_family_are_constraints_not_tree_proofs() 
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn workspace_inheritance_selects_its_package_and_source_without_evaluating_cfg() {
     let tree = MemoryTree::from([
         (
@@ -234,6 +258,10 @@ fn workspace_inheritance_selects_its_package_and_source_without_evaluating_cfg()
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn absent_mismatched_and_malformed_registry_configuration_refuses_beside_valid_indexes() {
     let (catalog, owner) = catalog(false);
     let declaration = declaration("{package='helper',version='2'}");
@@ -270,7 +298,7 @@ fn absent_mismatched_and_malformed_registry_configuration_refuses_beside_valid_i
             }
         );
     }
-    let mut explicit = declaration.clone();
+    let mut explicit = declaration;
     explicit.specification.registry_index = Some("sparse+https://example.test/index".into());
     assert!(
         catalog
@@ -290,6 +318,10 @@ fn absent_mismatched_and_malformed_registry_configuration_refuses_beside_valid_i
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn selection_honors_work_and_retained_catalog_item_admission() {
     assert_qualifier_work_admission();
     let (catalog, owner) = catalog(false);
@@ -327,6 +359,10 @@ fn selection_honors_work_and_retained_catalog_item_admission() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn malformed_observations_and_unknown_owners_refuse_without_an_alternate_identity() {
     let (catalog, owner) = catalog(false);
     let valid = declaration("{package='helper',git='https://example.test/repo',tag='v2'}");
@@ -376,6 +412,11 @@ fn malformed_observations_and_unknown_owners_refuse_without_an_alternate_identit
             .is_ok()
     );
 }
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn assert_cargo_version_selection() {
     for (requirement, version, compatible) in [
         ("=1.2.3+expected", "1.2.3+actual.001", true),
@@ -454,6 +495,10 @@ fn assert_cargo_version_selection() {
     }
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn version_catalog(version: &str) -> (LockedCatalog, LockedPackageId) {
     let lock = format!(
         "version=4\n[[package]]\nname='app'\nversion='1.0.0'\ndependencies=[{edge:?}]\n\
@@ -475,6 +520,10 @@ fn version_catalog(version: &str) -> (LockedCatalog, LockedPackageId) {
     (catalog, owner)
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn assert_qualifier_work_admission() {
     let version = format!("1.2.3-{}", "9".repeat(4096));
     let (catalog, owner) = version_catalog(&version);

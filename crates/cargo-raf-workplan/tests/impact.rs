@@ -253,6 +253,10 @@ fn source_impact_fixture() -> (Repo, String) {
 /// An impact trace starts at the edited definition, even when several
 /// documented and undocumented definitions share its file and Git revision.
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn source_impact_traces_bound_guarantees_and_marks_public_items_without_owners() {
     let (repo, source) = source_impact_fixture();
     repo.edit("src/lib.rs", "other() {}", "other() { let _x = 1; }");

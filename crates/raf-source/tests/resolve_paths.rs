@@ -14,6 +14,10 @@ fn lib(text: &str) -> Workspace {
     lib_in("2021", text)
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn lib_in(edition: &str, text: &str) -> Workspace {
     let manifest = format!(
         "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"{edition}\"\n\
@@ -39,6 +43,10 @@ fn everywhere(answer: &ResolveError) -> Vec<Result<String, ResolveError>> {
     vec![Err(answer.clone()); 4]
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn path_of(ws: &Workspace, path: &str) -> String {
     ws.resolve(path)
         .unwrap_or_else(|e| panic!("{path}: {e}"))
@@ -390,6 +398,10 @@ fn a_use_path_counts_only_what_the_reading_module_can_access() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_use_path_is_read_in_one_name_space_or_in_each_in_turn() {
     let ws = lib("mod a { pub struct Both {} pub fn Both() {} pub fn only() {} }\nmod b {}\n");
     assert_eq!(
@@ -577,6 +589,10 @@ fn an_import_that_starts_with_a_name_two_globs_bring_in_as_different_modules_is_
     assert_eq!(loads, 120 * 2 * 6);
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn two_libraries_sharing_a_crate_name() -> Workspace {
     let tree: MemoryTree = [
         (
@@ -614,6 +630,11 @@ fn two_libraries_sharing_a_crate_name() -> Workspace {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_module_of_a_crate_name_two_libraries_share_is_ambiguous_to_a_reader_as_to_a_resolve() {
     let ws = two_libraries_sharing_a_crate_name();
     let roots = |error: ResolveError| match error {

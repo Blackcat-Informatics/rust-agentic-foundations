@@ -89,6 +89,10 @@ pub(crate) fn repo(files: &[(&str, String)]) -> Repo {
 }
 
 /// `repo` with the first `from` of `path` replaced by `to`.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 pub(crate) fn replaced(repo: &Repo, path: &str, from: &str, to: &str) -> Repo {
     let mut next = repo.clone();
     let text = next

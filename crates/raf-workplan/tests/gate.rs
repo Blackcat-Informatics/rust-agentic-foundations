@@ -34,6 +34,10 @@ fn serial() -> MutexGuard<'static, ()> {
 struct Scratch(purrdf_testkit::TempDir);
 
 impl Scratch {
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     fn new() -> Self {
         Self(purrdf_testkit::TempDir::new_in(std::env::temp_dir()).expect("a scratch directory"))
     }
@@ -43,6 +47,10 @@ impl Scratch {
     }
 
     /// Write one file, creating its directories.
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     fn put(&self, path: &str, text: &str) {
         let target = self.path().join(path);
         fs::create_dir_all(target.parent().expect("a file has a directory"))
@@ -67,6 +75,11 @@ impl Scratch {
 }
 
 /// The message a closure panics with, and `None` when it does not panic.
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_in_result,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn panic_message(run: impl FnOnce()) -> Option<String> {
     let payload = catch_unwind(AssertUnwindSafe(run)).err()?;
     let text = payload
@@ -76,12 +89,20 @@ fn panic_message(run: impl FnOnce()) -> Option<String> {
     Some(text.expect("a panic with a text"))
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn rel(text: &str) -> RelPath {
     RelPath::new(text).expect("a relative path")
 }
 
 /// Every file below `dir`, as paths relative to it, symlinks included.
 fn files_below(dir: &Path) -> Vec<RelPath> {
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     fn walk(dir: &Path, prefix: &str, out: &mut Vec<RelPath>) {
         let mut names: Vec<_> = fs::read_dir(dir)
             .expect("a listable directory")
@@ -112,6 +133,10 @@ fn kinds(findings: &[Finding]) -> Vec<&'static str> {
 }
 
 /// The synced base repository with `text` appended to the overview page.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn with_overview_link(link: &str) -> Repo {
     let mut repo = base();
     let page = repo.get_mut(OVERVIEW).expect("the base has an overview");
@@ -122,6 +147,10 @@ fn with_overview_link(link: &str) -> Repo {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_clean_repository_passes() {
     let _lock = serial();
     let scratch = Scratch::new();
@@ -138,6 +167,10 @@ fn a_clean_repository_passes() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_broken_repository_panics_listing_every_finding() {
     let _lock = serial();
     let scratch = Scratch::new();
@@ -187,6 +220,10 @@ fn a_broken_repository_panics_listing_every_finding() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_missing_capabilities_directory_is_an_error() {
     let _lock = serial();
     let scratch = Scratch::new();
@@ -208,6 +245,10 @@ fn a_missing_capabilities_directory_is_an_error() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_capabilities_directory_without_a_capability_document_is_an_error() {
     let _lock = serial();
     let scratch = Scratch::new();
@@ -232,6 +273,10 @@ fn a_capabilities_directory_without_a_capability_document_is_an_error() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_directory_that_does_not_exist_is_an_error() {
     let _lock = serial();
     let scratch = Scratch::new();
@@ -244,6 +289,10 @@ fn a_directory_that_does_not_exist_is_an_error() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_source_workspace_that_does_not_load_is_an_error() {
     let _lock = serial();
     let scratch = Scratch::new();
@@ -286,6 +335,10 @@ fn a_missing_changes_directory_is_the_empty_set_of_changes() {
 
 #[cfg(unix)]
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_link_to_a_symlink_the_tracked_set_names_is_link_symlink() {
     let _lock = serial();
     let scratch = Scratch::new();
@@ -359,6 +412,10 @@ fn a_link_to_a_file_the_tracked_set_leaves_out_is_link_broken() {
 /// so setting up the fixture never touches the repository of a hook that runs
 /// the test. The scratch gate explicitly discovers this independent repository;
 /// ambient selectors are tested separately below.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn git(dir: &Path, args: &[&str]) {
     let mut command = Command::new("git");
     command.arg("-C").arg(dir).args(args);
@@ -410,6 +467,10 @@ fn inside_a_git_checkout_the_tracked_paths_come_from_the_index() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_work_tree_whose_index_cannot_be_listed_is_an_error_and_not_a_walk() {
     let _lock = serial();
     let scratch = Scratch::new();
@@ -430,6 +491,10 @@ fn a_work_tree_whose_index_cannot_be_listed_is_an_error_and_not_a_walk() {
 const CHILD_DIR: &str = "RAF_WORKPLAN_GATE_CHILD_DIR";
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_ambient_git_dir_cannot_redirect_native_repository_discovery() {
     let _lock = serial();
     let scratch = Scratch::new();
@@ -460,6 +525,15 @@ fn an_ambient_git_dir_cannot_redirect_native_repository_discovery() {
 /// The child of the test above. It does nothing unless the parent names the
 /// directory, so an ordinary run passes it.
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
+#[expect(
+    clippy::print_stdout,
+    reason = "this executable writes its results to the caller's standard output"
+)]
 fn the_gate_under_a_git_dir_that_names_nothing() {
     let _lock = serial();
     let Some(dir) = std::env::var_os(CHILD_DIR) else {
@@ -480,6 +554,10 @@ fn the_gate_under_a_git_dir_that_names_nothing() {
 // --- Gate::open and Gate::programs -----------------------------------------
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn open_gives_the_tree_the_workspace_the_tracked_paths_and_the_documents() {
     let _lock = serial();
     let scratch = Scratch::new();
@@ -539,6 +617,10 @@ fn open_gives_the_tree_the_workspace_the_tracked_paths_and_the_documents() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn open_is_the_load_of_try_check_and_refuses_what_it_refuses() {
     let _lock = serial();
     let scratch = Scratch::new();
@@ -567,6 +649,10 @@ fn open_is_the_load_of_try_check_and_refuses_what_it_refuses() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn each_call_of_workplan_reads_the_documents_as_they_are_on_disk_then() {
     let _lock = serial();
     let scratch = Scratch::new();

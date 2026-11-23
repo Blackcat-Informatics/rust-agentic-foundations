@@ -221,7 +221,7 @@ fn add_views(
                 crate::generated::cell(detail.caption()),
                 relative(path, &stem(owner, detail.view().name()))
             )
-            .expect("writing to String cannot fail");
+            .map_err(DiagramError::data)?;
         }
         stored.blocks.push(Block {
             path: path.into(),
@@ -650,8 +650,20 @@ impl Stored {
                     ),
                 ));
             };
-            let content = &body.text()[block.content().bytes.start - body.span().bytes.start
-                ..block.content().bytes.end - body.span().bytes.start];
+            let body_start = body.span().bytes.start;
+            let content = block
+                .content()
+                .bytes
+                .start
+                .checked_sub(body_start)
+                .zip(block.content().bytes.end.checked_sub(body_start))
+                .and_then(|(start, end)| body.text().get(start..end))
+                .ok_or_else(|| {
+                    finding(
+                        path,
+                        "generated diagram text falls outside the document body",
+                    )
+                })?;
             let text = if body.text().contains("\r\n") {
                 expected.markdown.replace('\n', "\r\n")
             } else {

@@ -41,6 +41,10 @@ fn reconcile_as_is(repo: &Repo, change: &str) -> Result<Reconciled, ReconcileErr
     with_plan(repo, |plan| plan.reconcile(change))
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn reconcile(repo: &Repo) -> Reconciled {
     reconcile_err(repo, "shape").unwrap_or_else(|e| panic!("`reconcile` should succeed: {e}"))
 }
@@ -123,6 +127,10 @@ fn cases() -> Vec<Case> {
 
 /// Missing reviews and persisted reviews of changed source both owe a current
 /// review; a findings verdict supplies coverage without claiming clean code.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn review_cases(base: &Repo, cases: &mut Vec<Case>) {
     use raf_okf::{DocType, RecordHeader, ReviewKind, ReviewRecord, ReviewScope, ReviewVerdict};
     use raf_source::MemoryTree;
@@ -206,7 +214,7 @@ fn review_cases(base: &Repo, cases: &mut Vec<Case>) {
         "review_required: [security]\n",
         "review_required: [security]\nreview_strict: true\n",
     );
-    let mut clean = review.clone();
+    let mut clean = review;
     clean.inputs = with_plan(&strict, |plan| plan.review_inputs(&scope).unwrap());
     clean.verdict = ReviewVerdict::Clean;
     clean.findings_ref = None;
@@ -661,7 +669,7 @@ fn trace_cases(cases: &mut Vec<Case>) {
     cases.push(Case {
         name: "evidence-stale-claimed",
         broken: claimed(Some(&stale)),
-        fixed: fixed.clone(),
+        fixed,
         want: vec![stale_want()],
     });
     let by_for = |record: &Evidence| {
@@ -1023,6 +1031,10 @@ fn assessment_cases() -> Vec<Case> {
 
 impl Case {
     /// As [`Case::run`], with the repositories judged as they are.
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     fn run_as_is(&self) {
         let list = reconcile_as_is(&self.broken, "shape").expect("reconciles");
         assert_eq!(list.len(), self.want.len(), "{}: {list}", self.name);
@@ -1046,6 +1058,10 @@ fn each_assessment_fault_is_owed_at_the_section_naming_the_input_and_a_current_a
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn contract_effect_none_keeps_the_assessments_and_another_section_is_not_judged() {
     let none = replaced(
         &base(),
@@ -1089,6 +1105,10 @@ fn the_baseline_owes_nothing_and_check_agrees() {
 // --- every kind, in both directions ------------------------------------------
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn every_document_local_kind_is_raised_and_history_kinds_are_not() {
     let mut raised: BTreeSet<&str> = BTreeSet::new();
     let mut names = BTreeSet::new();
@@ -1132,6 +1152,10 @@ fn every_document_local_kind_is_raised_and_history_kinds_are_not() {
 // --- derived, not re-implemented ---------------------------------------------
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_binding_obligations_are_the_gaps_of_the_roadmap() {
     // Every list empty, then three entries that do not resolve.
     let none = repo(&[
@@ -1252,6 +1276,10 @@ fn capabilities_that_bind_nothing_owe_no_binding() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_proposals_are_those_of_the_graph_for_this_change_only() {
     // A block of another change in the same capability is not this change's.
     let both = repo(&[
@@ -1346,6 +1374,10 @@ fn untidy() -> Repo {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn two_blocks_in_one_section_print_in_document_order_and_every_line_is_in_order() {
     let repo = untidy();
     let list = reconcile(&repo);
@@ -1425,6 +1457,10 @@ fn equal_inputs_print_equal_output() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_change_is_found_with_or_without_its_prefix() {
     let repo = untidy();
     assert_eq!(
@@ -1436,6 +1472,10 @@ fn the_change_is_found_with_or_without_its_prefix() {
 // --- the footprint of the change ---------------------------------------------
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn only_the_capabilities_the_change_lists_are_judged() {
     // `sigma` is stale and untidy and not listed by `shape2`.
     let stale = repo(&[
@@ -1583,6 +1623,11 @@ fn contract_effect_none_keeps_every_obligation_the_documents_can_show() {
 // --- refusals and their neighbours -------------------------------------------
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn an_unknown_change_is_not_a_change_that_did_not_load() {
     let base = base();
     // The neighbour: the change that exists reconciles.
@@ -1621,6 +1666,11 @@ fn an_unknown_change_is_not_a_change_that_did_not_load() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_listed_capability_that_is_not_loaded_is_an_error_and_not_a_skipped_one() {
     let base = base();
     // Missing altogether.
@@ -1661,6 +1711,12 @@ fn a_listed_capability_that_is_not_loaded_is_an_error_and_not_a_skipped_one() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    clippy::string_slice,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_delivered_capability_that_breaks_another_rule_too_is_not_read_as_unbound() {
     let delivered = repo(&[
         (OMEGA, capability("omega", "delivered", BOUND, &[])),
@@ -1710,6 +1766,10 @@ fn a_delivered_capability_that_breaks_another_rule_too_is_not_read_as_unbound() 
 // --- nothing is written ------------------------------------------------------
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn reconcile_writes_nothing() {
     let scratch = Scratch::new("reconcile-read-only");
     let root = scratch.path();
@@ -1734,6 +1794,10 @@ fn contract_with(text: &str) -> Result<Reconciled, ReconcileError> {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_very_long_line_is_one_obligation() {
     let line = "will ".repeat(180_000);
     let list = contract_with(&format!("\n{line}\n")).expect("reconciles");
@@ -1741,6 +1805,10 @@ fn a_very_long_line_is_one_obligation() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_hundred_thousand_lines_are_a_hundred_thousand_obligations_in_order() {
     let text = "will\n".repeat(100_000);
     let list = contract_with(&format!("\n{text}")).expect("reconciles");
@@ -1755,6 +1823,10 @@ fn a_hundred_thousand_lines_are_a_hundred_thousand_obligations_in_order() {
 
 /// Reconcile `text` at the end of the last section of an implementing
 /// `omega`, after its generated blocks.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn last_section_with(text: &str) -> Result<Reconciled, ReconcileError> {
     let mut repo = base();
     let omega = repo.get_mut(OMEGA).expect("omega");
@@ -1763,6 +1835,10 @@ fn last_section_with(text: &str) -> Result<Reconciled, ReconcileError> {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_unterminated_fence_hides_the_rest_of_the_section() {
     let list = last_section_with("\nStable text.\n\n```text\nwill is hidden\nnot yet either\n")
         .expect("reconciles");
@@ -1775,6 +1851,10 @@ fn an_unterminated_fence_hides_the_rest_of_the_section() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn an_unterminated_fence_in_an_earlier_section_hides_the_headings_after_it() {
     // The sections after the fence are not headings, so the document does
     // not load, and the change that lists it is refused and not misread.
@@ -1794,6 +1874,10 @@ fn an_unterminated_fence_in_an_earlier_section_hides_the_headings_after_it() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn text_that_is_read_as_wording_at_a_hostile_size_owes_nothing() {
     // No space at all, link openers that never close, and a wrapped phrase
     // that never completes.
@@ -1809,6 +1893,10 @@ fn text_that_is_read_as_wording_at_a_hostile_size_owes_nothing() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_capability_over_the_size_bound_is_not_loaded_and_refused() {
     let text = "x".repeat(2 * 1024 * 1024);
     let documents = [
@@ -1838,6 +1926,10 @@ fn a_capability_over_the_size_bound_is_not_loaded_and_refused() {
 // --- near misses --------------------------------------------------------------
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn wording_that_only_looks_like_a_phrase_owes_nothing() {
     let text = "
 Goodwill is not wording, and William wrote it. A willing reader is fine.
@@ -1861,6 +1953,10 @@ that will span lines -->
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn text_of_a_proposed_block_is_not_read_for_wording() {
     let result =
         contract_with("\n> [!PROPOSED change:shape]\n> The parser will return an error.\n");
@@ -1918,6 +2014,10 @@ const ARTIFACT_BINARY: &str = ".stage/run/trace.bin";
 /// Not UTF-8: a text read could not have digested it.
 const ARTIFACT_BYTES: &[u8] = &[0xff, 0xfe, 0x00, 0x80, 0x41];
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn artifact_stale_count(root: &Path) -> usize {
     on_disk(root, |plan| {
         plan.reconcile("shape")
@@ -1943,6 +2043,10 @@ fn write_artifact_record(root: &Path, record: &Evidence) {
 /// A binary artifact is digested by its exact bytes through the verified
 /// handle: the matching file is current, and one flipped byte is stale.
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_binary_artifact_is_current_while_its_bytes_match_and_stale_when_one_changes() {
     let scratch = Scratch::new("artifact-binary");
     let root = scratch.path();
@@ -1961,6 +2065,10 @@ fn a_binary_artifact_is_current_while_its_bytes_match_and_stale_when_one_changes
 /// artifact, so the record is stale, while a file inside the root is current.
 #[cfg(unix)]
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_artifact_that_leads_outside_the_workspace_is_refused() {
     let scratch = Scratch::new("artifact-inside");
     let outside = Scratch::new("artifact-outside");
@@ -1983,6 +2091,11 @@ fn an_artifact_that_leads_outside_the_workspace_is_refused() {
 /// would send the author to record again; the memory tree beside it reads the
 /// same file and owes nothing.
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn an_artifact_the_tree_cannot_read_refuses_the_reconcile_instead_of_going_stale() {
     const PATH: &str = ".stage/run/bench.txt";
     let cited = Evidence::passing("bound", "[cap:omega]").artifact(PATH, b"peak 41\n");

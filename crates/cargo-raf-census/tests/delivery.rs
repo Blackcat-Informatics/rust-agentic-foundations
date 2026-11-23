@@ -22,6 +22,10 @@ use std::{
     process::{Command, ExitCode, Output},
 };
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn put(graph: &mut Builder, subject: &str, key: &str, object: Term) {
     graph
         .insert(Triple {
@@ -36,6 +40,10 @@ fn put(graph: &mut Builder, subject: &str, key: &str, object: Term) {
         .unwrap();
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn ledger(version: u32) -> String {
     ledger_graph(version)
         .finish()
@@ -87,6 +95,10 @@ fn ledger_graph(version: u32) -> Builder {
     graph
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn fixture() -> purrdf_testkit::TempDir {
     let scratch = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();
     source_fixture(scratch.path());
@@ -94,6 +106,10 @@ fn fixture() -> purrdf_testkit::TempDir {
     scratch
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn source_fixture(root: &Path) {
     fs::create_dir(root.join("src")).unwrap();
     fs::write(
@@ -104,6 +120,10 @@ fn source_fixture(root: &Path) {
     source(root, 2);
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn source(root: &Path, copies: usize) {
     let mut text = "/// The operation.\npub fn home()->u32{7}\n".to_owned();
     for index in 0..copies {
@@ -122,6 +142,10 @@ static CHILD: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// Start a command and wait for it under [`CHILD`]; every command of this
 /// binary goes through it.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn alone(command: &mut Command) -> Output {
     let _alone = CHILD
         .lock()
@@ -140,6 +164,10 @@ fn run(root: &Path, words: &[&str]) -> Output {
 /// The starter enables the structural gate without granting any debt or replacing policy.
 #[cfg(target_os = "linux")]
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn init_creates_a_clean_structural_policy_and_preserves_existing_records() {
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
     let root = scratch.path();
@@ -208,6 +236,10 @@ fn init_creates_a_clean_structural_policy_and_preserves_existing_records() {
 /// A destination or temporary named as a missing source file stays absent on refusal.
 #[cfg(target_os = "linux")]
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn init_refuses_source_and_git_administration_destinations() {
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
     let root = scratch.path();
@@ -256,6 +288,10 @@ fn capnp_history(
     run(root, &args)
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn commit_capnp_descriptor(root: &Path, bytes: &[u8]) -> String {
     fs::write(root.join("schema.bin"), bytes).unwrap();
     git_repo::commit_all(root)
@@ -268,6 +304,10 @@ const RPC_FILE_ID: u64 = 0xd128_dbd8_16a8_f941;
 const RPC_PATH: &str = "rpc-base.capnp";
 const OTHER_FILE_ID: u64 = 0xa7c2_bc02_a14a_f2d0;
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn file_descriptor(nodes: &[(u64, Option<&str>)], requests: &[(u64, &str)]) -> Vec<u8> {
     compiler_request(|mut request| {
         let mut schema = request
@@ -295,6 +335,10 @@ fn compiler_request(
     capnp::serialize::write_message_to_words(&message)
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn request_files(
     request: capnp::schema_capnp::code_generator_request::Builder<'_>,
     requests: &[(u64, &str)],
@@ -310,6 +354,10 @@ fn request_files(
 /// File history follows the selected ID through filename changes and path reuse.
 /// A request can select files alone or alongside compatible layouts.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_history_checks_committed_file_identities() {
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
     let root = scratch.path();
@@ -364,6 +412,10 @@ const DECLARATIONS_BASE: &[u8] = include_bytes!("fixtures/capnp/declarations-bas
 /// Stable IDs preserve declaration identity, declared types and annotation targets.
 /// Values and referenced layouts evolve independently, including in partial imports.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_history_compares_file_declaration_identities() {
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
     let root = scratch.path();
@@ -449,6 +501,10 @@ struct FixtureDeclaration<'a> {
     children: &'a [(u64, &'a str)],
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn declaration_request(declarations: &[FixtureDeclaration<'_>]) -> Vec<u8> {
     compiler_request(|mut request| {
         let mut nodes = request
@@ -523,6 +579,10 @@ fn declaration_request(declarations: &[FixtureDeclaration<'_>]) -> Vec<u8> {
 /// A selected constant requires a type and a well-formed nominal reference.
 /// Foreign scopes and layouts outside the selection can remain partial.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_history_refuses_malformed_constant_types() {
     const CONSTANT: u64 = DECLARATIONS_FILE + 1;
     const FOREIGN: u64 = DECLARATIONS_FILE + 2;
@@ -607,6 +667,10 @@ fn capnp_history_refuses_malformed_constant_types() {
 /// An annotation requires an explicit and valid nominal type without selecting
 /// the referenced layout.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_history_refuses_malformed_annotation_types() {
     const ANNOTATION: u64 = DECLARATIONS_FILE + 1;
     const TARGET: u64 = DECLARATIONS_FILE + 2;
@@ -666,6 +730,10 @@ fn capnp_history_refuses_malformed_annotation_types() {
 /// A selected scope's declarations require reciprocal, unique ownership.
 /// Unrelated namespaces cannot claim a selected declaration.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_history_refuses_invalid_declaration_ownership() {
     const CHILD: u64 = DECLARATIONS_FILE + 1;
     const OTHER: u64 = DECLARATIONS_FILE + 2;
@@ -753,6 +821,10 @@ fn capnp_history_refuses_invalid_declaration_ownership() {
 
 /// The bound on nominal declaration nesting applies across flat descriptor IDs.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_history_bounds_file_declaration_nesting() {
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
     let root = scratch.path();
@@ -798,6 +870,10 @@ fn capnp_history_bounds_file_declaration_nesting() {
 /// A requested file row must match one file node and uniquely own its path.
 /// Incomplete, ambiguous, and noncanonical inputs refuse the whole verdict.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_history_refuses_inconsistent_file_identities() {
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
     let root = scratch.path();
@@ -880,6 +956,10 @@ fn capnp_history_refuses_inconsistent_file_identities() {
 /// Method ordinals, endpoint layouts and input defaults all survive comparison
 /// through the committed descriptors. Named dependencies keep their history.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_history_checks_inline_rpc_methods() {
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
     let root = scratch.path();
@@ -916,6 +996,10 @@ fn capnp_history_checks_inline_rpc_methods() {
 /// The interface owns its parameter count and its methods' endpoint types.
 /// Shared named endpoint layouts are compared once by declaration ID.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_history_compares_named_rpc_endpoints() {
     const READER: &str = "0xeec2000000000005";
     const INPUT: &str = "0xeec2000000000002";
@@ -977,6 +1061,10 @@ fn capnp_history_compares_named_rpc_endpoints() {
 /// Enclosing arity is visible on the selected interface even when its detached
 /// role IDs and slot types are stable. Bindings can span all lexical scopes.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_history_compares_nested_generic_rpc_owners() {
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
     let root = scratch.path();
@@ -1024,6 +1112,10 @@ fn capnp_history_refuses_invalid_nested_generic_rpc_owners() {
     );
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn assert_capnp_rpc_refusals(descriptor: &[u8], refusals: &[(&str, &str)]) {
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
     let root = scratch.path();
@@ -1040,6 +1132,10 @@ fn assert_capnp_rpc_refusals(descriptor: &[u8], refusals: &[(&str, &str)]) {
 /// Method and lexical positions remain distinct, and unused arity changes
 /// produce one method finding with no duplicate findings on its empty roles.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_history_compares_implicit_rpc_parameters() {
     const READER: &str = "0xeec4400000000002";
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
@@ -1110,6 +1206,10 @@ fn capnp_history_refuses_invalid_implicit_rpc_parameters() {
 /// Omitted and explicit unbound arguments compare alike even in an enclosing
 /// scope. Bound positions and a shared endpoint's enclosing arity stay visible.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_history_compares_unbound_rpc_endpoints() {
     const READER: &str = "0xcd8cb54000000005";
     let compatible = include_bytes!("fixtures/capnp/rpc-unbound-compatible.bin");
@@ -1160,6 +1260,11 @@ fn capnp_history_compares_unbound_rpc_endpoints() {
     assert!(verdict.stdout.is_empty(), "{verdict:?}");
 }
 
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn unbound_binding_request(mut descriptor: &[u8]) -> Vec<u8> {
     use capnp::schema_capnp::{brand, code_generator_request, node};
 
@@ -1199,6 +1304,10 @@ fn unbound_binding_request(mut descriptor: &[u8]) -> Vec<u8> {
 /// Named method roles require an ordinary struct and an unambiguous reciprocal
 /// declaration chain, including the generic state of every enclosing scope.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_history_refuses_invalid_named_rpc_endpoints() {
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
     let root = scratch.path();
@@ -1247,6 +1356,10 @@ fn capnp_history_refuses_invalid_named_rpc_endpoints() {
 /// Direct inheritance is a set and inherited layouts belong to the defining
 /// interface, regardless of how many paths reach it.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_history_compares_rpc_inheritance() {
     const LEAF: &str = "0xeec4000000000005";
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
@@ -1280,6 +1393,10 @@ fn capnp_history_compares_rpc_inheritance() {
 /// Nongeneric bases require empty brands and reciprocal declarations in an
 /// acyclic inheritance graph. Unrelated malformed edges stay out of scope.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_history_refuses_invalid_rpc_inheritance() {
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
     let root = scratch.path();
@@ -1316,6 +1433,10 @@ fn capnp_history_refuses_invalid_rpc_inheritance() {
 /// An instantiation set admits reordering and additions. A lost brand belongs
 /// to its declaring interface, and an inherited layout belongs to its base.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_history_compares_branded_rpc_inheritance() {
     const DIAMOND: &str = "0xeec490000000000c";
     const BASE_FINDING: &str =
@@ -1388,6 +1509,10 @@ fn capnp_history_refuses_invalid_branded_rpc_inheritance() {
 
 /// Detached endpoints belong to exactly one method and role across the request.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_history_refuses_unsupported_rpc_endpoints() {
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
     let root = scratch.path();
@@ -1447,6 +1572,10 @@ fn capnp_history_refuses_unsupported_rpc_endpoints() {
 /// The shipped command follows compiled references from the selected type and
 /// compares the committed layouts even when the worktree contains other bytes.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_history_checks_committed_compiler_layouts() {
     let target = Path::new(env!("CARGO_TARGET_TMPDIR"));
     let scratch = purrdf_testkit::TempDir::new_in(target).unwrap();
@@ -1528,6 +1657,10 @@ fn capnp_history_checks_committed_compiler_layouts() {
 /// Strict history compares ordered applications within each annotation ID
 /// and checks values through the concrete brand of a generic declaration.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_history_compares_data_field_annotations() {
     const SERVICE: &str = "0xefc1329300000057";
     let descriptor = include_bytes!("fixtures/capnp/field-annotations-base.bin");
@@ -1574,6 +1707,10 @@ fn capnp_history_compares_data_field_annotations() {
     }
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn assert_field_annotation_changes(verdict: Output, owner: &str, findings: &[(&str, &str)]) {
     use std::fmt::Write as _;
 
@@ -1590,6 +1727,11 @@ fn assert_field_annotation_changes(verdict: Output, owner: &str, findings: &[(&s
     assert_eq!(String::from_utf8(verdict.stdout).unwrap(), expected);
 }
 
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn invalid_field_annotation_request(descriptor: &[u8], wrong_target: bool) -> Vec<u8> {
     use capnp::schema_capnp::node;
 
@@ -1613,6 +1755,10 @@ fn invalid_field_annotation_request(descriptor: &[u8], wrong_target: bool) -> Ve
     })
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn edit_descriptor_node(
     mut descriptor: &[u8],
     id: u64,
@@ -1641,6 +1787,11 @@ fn edit_descriptor_node(
 
 /// Compare each annotation's ordered applications within one retained enumerant.
 #[test]
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn capnp_history_compares_enumerant_annotations() {
     use capnp::schema_capnp::node;
 
@@ -1750,6 +1901,11 @@ const NOMINAL_SERVICE: u64 = 0xfa42_ee55_0000_0085;
 /// Closing over a type and selecting its file produce one application verdict.
 /// The generic record's header uses its own parameter to bind the annotation.
 #[test]
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn capnp_history_compares_nominal_declaration_annotations() {
     use capnp::schema_capnp::brand;
 
@@ -1815,6 +1971,11 @@ fn capnp_history_compares_nominal_declaration_annotations() {
 
 /// Applications require an authored carrier, the exact target and a native value.
 #[test]
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn capnp_history_refuses_invalid_nominal_declaration_annotations() {
     use capnp::schema_capnp::node;
     use raf_census::capnp_history::{self as history, DescriptorError};
@@ -1895,6 +2056,11 @@ const APPLICATION_MARKER_ID: u64 = 0xfa42_ee55_0000_0097;
 /// A selected file compares its own applications and those on its declarations.
 /// The same changes are invisible when only a nominal type is selected.
 #[test]
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn capnp_history_compares_file_and_scalar_annotation_applications() {
     use capnp::schema_capnp::{brand, node};
 
@@ -1969,6 +2135,11 @@ fn capnp_history_compares_file_and_scalar_annotation_applications() {
 
 /// Scoped applications reject a wrong target, fabricated parameter or bad wire value.
 #[test]
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn capnp_history_refuses_invalid_file_and_scalar_annotation_applications() {
     use capnp::schema_capnp::{brand, node};
 
@@ -2050,6 +2221,10 @@ fn capnp_history_refuses_invalid_file_and_scalar_annotation_applications() {
     assert_file_application_wire_cause(root, &base, &current);
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn assert_file_application_wire_cause(root: &Path, base: &str, current: &str) {
     use raf_census::capnp_history::{self as history, DescriptorError};
 
@@ -2074,6 +2249,10 @@ fn assert_file_application_wire_cause(root: &Path, base: &str, current: &str) {
     );
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn descriptor_history_error(
     root: &Path,
     base: &str,
@@ -2113,6 +2292,10 @@ const RPC_INPUT_ID: u64 = 0xe17e_2600_d6c5_1c65;
 
 /// Retained methods and inline slots compare their own ordered applications.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_history_compares_rpc_annotation_applications() {
     let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
     let root = scratch.path();
@@ -2145,6 +2328,11 @@ fn capnp_history_compares_rpc_annotation_applications() {
 
 /// RPC applications enforce exact targets and lexical scope, retaining native causes.
 #[test]
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn capnp_history_refuses_invalid_rpc_annotation_applications() {
     use capnp::schema_capnp::{brand, node};
 
@@ -2234,6 +2422,10 @@ fn capnp_history_refuses_invalid_rpc_annotation_applications() {
     assert_rpc_application_wire_cause(root, &base);
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn assert_rpc_application_wire_cause(root: &Path, base: &str) {
     use raf_census::capnp_history::{self as history, DescriptorError};
 
@@ -2272,6 +2464,10 @@ fn assert_rpc_application_wire_cause(root: &Path, base: &str) {
 /// Required pointer presence is compared through the shipped command on
 /// selected committed structs. An invalid marker never yields a partial verdict.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_history_compares_required_pointer_fields_in_committed_descriptors() {
     const ROOT: &str = "0xf1804b9b18ae6505";
     const MARKER: &str = "0xe91447cf636b013a";
@@ -2378,6 +2574,10 @@ fn capnp_history_compares_required_pointer_fields_in_committed_descriptors() {
 /// Pair declarations constrain presence independently of read defaults and
 /// require both endpoints to be direct unconditional pointer slots.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn capnp_history_compares_declared_pointer_pairs() {
     const ROOT: &str = "0xf1804b9b18ae6505";
     const OPTIONS: &[&str] = &[
@@ -2481,6 +2681,10 @@ fn capnp_history_compares_declared_pointer_pairs() {
     }
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn visibility_nodes<'a>(
     graph: &'a raf_rdf::Graph,
     from: raf_rdf::Node<'a>,
@@ -2490,6 +2694,10 @@ fn visibility_nodes<'a>(
         .map(move |value| graph.get(value.iri().unwrap()).unwrap())
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn visibility_value<'a>(node: raf_rdf::Node<'a>, key: &str) -> &'a str {
     node.values(&format!("{}{key}", vocab::REPORT))
         .next()
@@ -2502,6 +2710,10 @@ fn visibility_value<'a>(node: raf_rdf::Node<'a>, key: &str) -> &'a str {
 /// Count distinct definitions and attribute written paths to their owner
 /// library, including a definition reached only through a member re-export.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn visibility_counts_definitions_and_cross_member_paths_in_dependency_tiers() {
     let target = Path::new(env!("CARGO_TARGET_TMPDIR"));
     let scratch = purrdf_testkit::TempDir::new_in(target).unwrap();
@@ -2606,6 +2818,10 @@ fn visibility_counts_definitions_and_cross_member_paths_in_dependency_tiers() {
     assert!(String::from_utf8_lossy(&cycle.stderr).contains("normal library dependency cycle"));
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn assert_block_glob_scope(root: &Path) {
     fs::write(
         root.join("client/src/loose.rs"),
@@ -2643,6 +2859,10 @@ fn assert_block_glob_scope(root: &Path) {
     );
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn assert_visibility_item_scopes(root: &Path) {
     let bridge = root.join("bridge/src/lib.rs");
     let mut source = fs::read_to_string(&bridge).unwrap();
@@ -2734,6 +2954,10 @@ fn assert_visibility_item_scopes(root: &Path) {
     assert_visibility_glob_namespaces(root);
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn assert_visibility_glob_namespaces(root: &Path) {
     let bridge = root.join("bridge/src/lib.rs");
     let mut source = fs::read_to_string(&bridge).unwrap();
@@ -2854,6 +3078,11 @@ fn assert_visibility_glob_refusals(report: &impl Fn(&str) -> Output) {
     );
 }
 
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn assert_visibility_grouped_self_and_macros(report: &impl Fn(&str) -> Output) {
     let output = report(
         "use bridge::api::entry::{self as grouped}; use bridge::ping as grouped;\n\
@@ -2941,6 +3170,10 @@ fn assert_visibility_grouped_self_and_macros(report: &impl Fn(&str) -> Output) {
     }
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn assert_visibility_report(graph: &raf_rdf::Graph) {
     let root = graph.get("").unwrap();
     let libraries: std::collections::BTreeMap<_, _> = visibility_nodes(graph, root, "library")
@@ -2983,6 +3216,10 @@ fn assert_visibility_report(graph: &raf_rdf::Graph) {
     assert_visibility_paths(graph, base, libraries["bridge"]);
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn assert_visibility_paths(
     graph: &raf_rdf::Graph,
     base: raf_rdf::Node<'_>,
@@ -3078,6 +3315,10 @@ impl LedgerExtension for QueryOwner {
     }
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn query_ledger(owner: Option<&str>, max_file_bytes: Option<u32>) -> String {
     let mut graph = ledger_graph(raf_census::NORMAL_FORM);
     put(&mut graph, "", "minTokens", Term::integer(1));
@@ -3127,6 +3368,10 @@ fn query_gate(gate: Gate) -> Gate {
     gate.extensions([Box::new(QueryOwner) as Box<dyn LedgerExtension>])
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn registered_query(
     root: &Path,
     words: &[&str],
@@ -3148,6 +3393,11 @@ fn registered_query(
 /// Registered queries keep the stock report bytes and require accepted policy
 /// before publishing a result. Argument refusal precedes Gate configuration.
 #[test]
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn registered_queries_share_cli_bytes_and_refuse_before_output() {
     let target = Path::new(env!("CARGO_TARGET_TMPDIR"));
     let scratch = purrdf_testkit::TempDir::new_in(target).unwrap();
@@ -3215,6 +3465,10 @@ fn registered_queries_share_cli_bytes_and_refuse_before_output() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn native_index_never_builds_or_executes_consumer_targets() {
     let scratch = fixture();
     let root = scratch.path();
@@ -3263,6 +3517,10 @@ fn native_index_never_builds_or_executes_consumer_targets() {
 
 #[cfg(target_os = "linux")]
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn embedded_report_uses_static_source_and_requires_existing_exact_debt() {
     let scratch = fixture();
     let root = scratch.path();
@@ -3336,6 +3594,10 @@ fn embedded_report_uses_static_source_and_requires_existing_exact_debt() {
 
 #[cfg(target_os = "linux")]
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn embedded_debt_publication_never_creates_a_declared_missing_rust_target() {
     for (name, arguments) in [
         (
@@ -3368,6 +3630,10 @@ fn embedded_debt_publication_never_creates_a_declared_missing_rust_target() {
 
 #[cfg(target_os = "linux")]
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn embedded_debt_publication_preserves_unowned_entries_and_busy_records() {
     use std::os::unix::fs::symlink;
 
@@ -3419,6 +3685,10 @@ fn embedded_debt_publication_preserves_unowned_entries_and_busy_records() {
 }
 
 #[cfg(target_os = "linux")]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn embedded_source(root: &Path, copies: usize) {
     let helpers = [
         "fn one(input:i32) { let a=input+1; let b=a*3; let c=b+a; consume(c,b,input,7); }\n",
@@ -3433,6 +3703,10 @@ fn embedded_source(root: &Path, copies: usize) {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn report_exports_refuse_source_existing_files_and_git_administration() {
     let scratch = fixture();
     let root = scratch.path();
@@ -3473,6 +3747,10 @@ fn report_exports_refuse_source_existing_files_and_git_administration() {
 
 #[cfg(target_os = "linux")]
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn debt_publication_never_creates_a_declared_missing_rust_target() {
     for name in [
         ".census-debt.ttl.lock",
@@ -3496,6 +3774,10 @@ fn debt_publication_never_creates_a_declared_missing_rust_target() {
 
 #[cfg(target_os = "linux")]
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn debt_publication_preserves_unowned_entries_and_busy_records() {
     use std::os::unix::fs::symlink;
 
@@ -3540,6 +3822,10 @@ fn debt_publication_preserves_unowned_entries_and_busy_records() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate() {
     let scratch = fixture();
     let root = scratch.path();
@@ -3590,6 +3876,10 @@ fn debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate()
 /// A ratcheted pattern (`builtin` false) or built-in detector (`builtin` true):
 /// the write adopts its hits as counted sites, a fourth hit is refused, and a
 /// removed hit fails the check until the record is lowered.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn ratcheted_hits_adopt_refuse_growth_and_lower(builtin: bool) {
     let ratcheted = fixture();
     let root = ratcheted.path();
@@ -3641,6 +3931,10 @@ fn ratcheted_hits_adopt_refuse_growth_and_lower(builtin: bool) {
 
 /// An enforced job whose forbidden pattern or built-in rule is ratcheted: its hits are recorded
 /// as counted sites instead of failing the gate.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn ratcheted_ledger(builtin: bool) -> String {
     let mut graph = Builder::from_graph(Ledger::from_turtle(&ledger(1)).unwrap().graph());
     let enforced = |value| Triple {
@@ -3690,6 +3984,10 @@ fn ratcheted_ledger(builtin: bool) -> String {
 }
 
 /// One drop call per name, each followed by a distinct string literal.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn ratcheted_source(root: &Path, names: &[&str], builtin: bool) {
     let hit = if builtin {
         "serde_json::to_string(&0)"
@@ -3704,6 +4002,10 @@ fn ratcheted_source(root: &Path, names: &[&str], builtin: bool) {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy() {
     let scratch = fixture();
     let root = scratch.path();
@@ -3778,6 +4080,11 @@ fn migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy()
     assert!(purrdf_testkit::text::stdout_utf8(&unmapped).contains("# unmapped:"));
 }
 
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn converted_carrier(root: &Path, name: &str, current: &str) -> String {
     let kind = match name {
         "baseline" => raf_census::ReportKind::Baseline,
@@ -3829,6 +4136,10 @@ fn converted_carrier(root: &Path, name: &str, current: &str) -> String {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn command_usage_and_bounded_input_failures_do_not_publish_a_record() {
     baseline_discovery();
     ledger_inspection();
@@ -3890,6 +4201,10 @@ fn command_usage_and_bounded_input_failures_do_not_publish_a_record() {
     assert!(!root.join("census-debt.ttl").exists());
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn ledger_inspection() {
     let scratch = fixture();
     let root = scratch.path();
@@ -3971,6 +4286,10 @@ fn ledger_inspection() {
     ledger_inspection_refusals(root, caller.path(), &original);
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn ledger_inspection_refusals(root: &Path, caller: &Path, original: &str) {
     let input = root.join("helpers-ledger.ttl");
     let destination = caller.join("policy.ttl");
@@ -4034,6 +4353,10 @@ fn ledger_inspection_refusals(root: &Path, caller: &Path, original: &str) {
     assert!(run(root, &["dump-ledger"]).status.success());
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn baseline_discovery() {
     let scratch = fixture();
     let root = scratch.path();
@@ -4081,6 +4404,10 @@ fn baseline_discovery() {
     baseline_refusals(root, caller.path());
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn baseline_refusals(root: &Path, caller: &Path) {
     let destination = caller.join("report.ttl");
     let manifest = fs::read(root.join("Cargo.toml")).unwrap();
@@ -4116,6 +4443,10 @@ fn baseline_refusals(root: &Path, caller: &Path) {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn registered_code_is_required_explicitly_without_recording_partial_debt() {
     let scratch = fixture();
     let root = scratch.path();
@@ -4181,6 +4512,10 @@ fn registered_code_is_required_explicitly_without_recording_partial_debt() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn self_test_needs_no_workspace_writes_nothing_and_prints_stable_case_lines() {
     let empty = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();
     let first = run(empty.path(), &["raf-census", "self-test"]);
@@ -4202,6 +4537,10 @@ fn self_test_needs_no_workspace_writes_nothing_and_prints_stable_case_lines() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn self_test_ignores_the_workspace_flag_even_for_a_path_that_does_not_exist() {
     let empty = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();
     let plain = run(empty.path(), &["raf-census", "self-test"]);
@@ -4226,6 +4565,10 @@ fn self_test_ignores_the_workspace_flag_even_for_a_path_that_does_not_exist() {
 /// Incomplete or conflicting reference options refuse, and a command
 /// that does not evaluate the Gate refuses them rather than ignoring them.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory() {
     let scratch = fixture();
     let root = scratch.path();
@@ -4371,6 +4714,10 @@ fn reference_option_refusals(root: &Path, repository: &str, commit: &str, plain:
 /// An unpinned run names its directory on stderr beside findings that match
 /// the pinned run, an unpinned run without reference findings says so too, a pinned run is silent,
 /// and an unpinned directory that does not exist refuses.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn unpinned_notice(root: &Path, plain: &str, outside: &Path, pinned: &Output, from_file: &Output) {
     let unpinned = run(
         root,
@@ -4443,6 +4790,10 @@ fn write_ledger(root: &Path, selectors: &[&str]) {
 
 /// [`write_ledger`], and when `job` is set also the job `number`, homed at
 /// `app::home`, so that `job` and `count` have a selector to answer.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn write_ledger_with(root: &Path, selectors: &[&str], job: bool) {
     let mut graph = Builder::new();
     put(
@@ -4547,6 +4898,10 @@ fn write_consumer(root: &Path, copy: &str, extra: &str) {
 /// with no verdict on stdout, and a ledger reference composes with a pinned
 /// external commit.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn ledger_reference_ban_fails_check_and_refuses_unusable_inputs_without_a_partial_verdict() {
     let scratch = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();
     let root = ban_workspace(scratch.path());
@@ -4588,6 +4943,10 @@ fn ledger_reference_ban_fails_check_and_refuses_unusable_inputs_without_a_partia
 
 /// The ledger's lock-selected reference and a pinned external commit are both
 /// compared in one run.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn ledger_reference_composes_with_a_pinned_commit(scratch: &Path, root: &Path) {
     let upstream = scratch.join("upstream");
     git_repo::init(&upstream);
@@ -4635,6 +4994,10 @@ fn ledger_reference_composes_with_a_pinned_commit(scratch: &Path, root: &Path) {
 
 /// A family that selects nothing and a vanished source each refuse `check`,
 /// `index` and `fingerprint` with a message and an empty stdout.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn unusable_reference_inputs_refuse_without_a_verdict(scratch: &Path, root: &Path) {
     write_reference_ledger(root, "zz-*");
     for words in [
@@ -4684,6 +5047,10 @@ const ACME_CORE: &str = "[package]\nname='acme-core'\nversion='1.0.0'\nedition='
 /// A consumer `app` below `scratch` whose registry dependency `acme-core` is
 /// locked to the checksum of `locked`, with the ledger referencing it, and an
 /// empty cache directory. Returns the consumer root and the cache directory.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn registry_workspace(scratch: &Path, locked: &[u8]) -> (std::path::PathBuf, std::path::PathBuf) {
     let root = scratch.join("ws");
     let cache = scratch.join("cache");
@@ -4706,6 +5073,10 @@ fn registry_workspace(scratch: &Path, locked: &[u8]) -> (std::path::PathBuf, std
     (root, cache)
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn sealed_words<'a>(command: &[&'a str], cache: &'a Path) -> Vec<&'a str> {
     let mut words = command.to_vec();
     words.extend([
@@ -4723,6 +5094,10 @@ fn sealed_words<'a>(command: &[&'a str], cache: &'a Path) -> Vec<&'a str> {
 /// a changed body is clean. The consumer's build script, tests and examples
 /// never run, and the cache is only read.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn registry_reference_ban_fails_check_and_every_command_reads_the_same_sealed_set() {
     let scratch = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
     let archive = acme_core_archive(ACME_CORE);
@@ -4812,6 +5187,10 @@ fn registry_reference_ban_fails_check_and_every_command_reads_the_same_sealed_se
 /// exit 1, the named refusal on stderr and an empty stdout, beside the same
 /// command with everything in order.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn registry_options_refuse_by_name_without_a_partial_verdict() {
     let scratch = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
     let featured = "[package]\nname='acme-core'\nversion='1.0.0'\nedition='2024'\n[features]\ndefault=['std']\nstd=[]\n";
@@ -4894,6 +5273,10 @@ fn registry_options_refuse_by_name_without_a_partial_verdict() {
 /// provider, by exact name or by `prefix-*` family, and is clean on a changed
 /// body; the same copy passes without the flag, since nothing is implied.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn a_sealed_registry_selector_is_a_reference_without_a_ledger_entry() {
     let scratch = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
     let archive = acme_core_archive(ACME_CORE);
@@ -4982,6 +5365,10 @@ const REGISTRY_COMMANDS: [&[&str]; 4] = [
 /// debt record. The same commands over the same lock file succeed when the
 /// ledger's references name only the sealed registry package.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn a_git_reference_is_refused_by_job_count_fingerprint_and_debt_beside_a_clean_registry_neighbour()
 {
     let scratch = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
@@ -5014,6 +5401,10 @@ fn a_git_reference_is_refused_by_job_count_fingerprint_and_debt_beside_a_clean_r
 /// `check` and `index`: exit 1, the named refusal on stderr and an empty stdout.
 /// The same options over a registry consumer with a changed body pass.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn a_git_reference_is_refused_by_the_registry_options_beside_a_clean_registry_neighbour() {
     let scratch = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
     let archive = acme_core_archive(ACME_CORE);
@@ -5065,6 +5456,10 @@ fn a_git_reference_is_refused_by_the_registry_options_beside_a_clean_registry_ne
 /// only when asked, the same workspace is clean without the option, and the
 /// debt record keeps its exact bytes either way.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn module_paths_in_package_are_required_by_the_flag_beside_a_clean_run_without_it() {
     let scratch = fixture();
     let root = scratch.path();

@@ -237,6 +237,10 @@ fn admit_inner(
     })();
     result.map_err(|error| recover(error, &mut admission))
 }
+#[expect(
+    clippy::map_err_ignore,
+    reason = "the configuration profile uses one correction for an invalid name and reserves its typed source for native TOML errors"
+)]
 fn cfg_set<S: purrdf_lex::allocation::Admission + ?Sized>(
     input: DeclaredCfg<'_>,
     meter: &Meter,

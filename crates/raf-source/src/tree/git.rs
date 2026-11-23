@@ -188,7 +188,7 @@ impl<'a> PinnedGitTree<'a> {
         meter: SealedMeter<'a>,
     ) -> Result<Self, LoadError> {
         let path = RelPath::root();
-        let commit = parse_id(revision.as_bytes(), &path)?;
+        let commit = parse_id(revision, &path)?;
         let repository = super::disk::canonical_root(repository)
             .map_err(|source| git_io(&path, "repository", source))?;
         meter.items(repository.as_os_str().len(), &path, None)?;
@@ -400,6 +400,10 @@ impl Tree for PinnedGitTree<'_> {
         let mut admission = ItemAdmission::new(&self.meter, path);
         let mut memory = Memory::new(&mut admission);
         let result = (|| {
+            #[expect(
+                clippy::map_err_ignore,
+                reason = "the public NotUtf8 refusal names the selected blob path"
+            )]
             let text = std::str::from_utf8(&bytes).map_err(|_| {
                 LoadError::tree(
                     path,
@@ -480,6 +484,10 @@ fn admit_listing(
                 validate_name(name, path)?;
             }
             meter.items(crate::cost::shared_text(entry.path.len()), path, None)?;
+            #[expect(
+                clippy::map_err_ignore,
+                reason = "unsupported repository paths use the Git inventory refusal at the exact selected commit"
+            )]
             let checked = RelPath::new(&entry.path)
                 .map_err(|_| refused(path, "unsupported committed path"))?;
             if checked.as_str() != entry.path {
@@ -496,7 +504,7 @@ fn admit_listing(
             let record = Record {
                 path: memory.string(&entry.path).map_err(native)?,
                 kind,
-                id: parse_id(entry.id.as_bytes(), path)?,
+                id: parse_id(&entry.id, path)?,
                 size: entry.size,
             };
             memory.push(&mut records, record).map_err(native)?;
@@ -518,16 +526,21 @@ fn git_io(path: &RelPath, operation: &'static str, source: std::io::Error) -> Lo
     LoadError::new(path, None, LoadErrorKind::GitIo { operation, source })
 }
 
-fn parse_id(bytes: &[u8], path: &RelPath) -> Result<[u8; 20], LoadError> {
-    if bytes.len() != 40 {
+fn parse_id(text: &str, path: &RelPath) -> Result<[u8; 20], LoadError> {
+    if text.len() != 40 {
         return Err(refused(
             path,
             "Git source requires complete SHA-1 object IDs",
         ));
     }
     let mut id = [0; 20];
-    let text = std::str::from_utf8(bytes).map_err(|_| refused(path, "invalid Git object ID"))?;
-    hex::decode_to_slice(text, &mut id).map_err(|_| refused(path, "invalid Git object ID"))?;
+    #[expect(
+        clippy::map_err_ignore,
+        reason = "malformed object IDs use the Git source refusal without echoing the offending bytes"
+    )]
+    let decoded =
+        hex::decode_to_slice(text, &mut id).map_err(|_| refused(path, "invalid Git object ID"));
+    decoded?;
     Ok(id)
 }
 fn validate_name(name: &str, path: &RelPath) -> Result<(), LoadError> {

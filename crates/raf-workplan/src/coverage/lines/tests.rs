@@ -37,6 +37,13 @@ const PER_ENTRY: usize = 8;
 /// functions beside a bound `run`, under `exceptions` exceptions of items
 /// that are no units, with every kind of work held to `ceiling`; and the
 /// units the report swept.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn work(modules: usize, exceptions: usize, ceiling: usize) -> (usize, usize) {
     let mut lib = String::from("pub fn run() {}\n");
     for m in 0..modules {
@@ -131,6 +138,13 @@ fn every_kind_of_work_is_held_to_a_ceiling_linear_in_the_units_and_the_exception
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn the_default_check_sweeps_each_counted_line_unit() {
     let tree = |files: Vec<(&'static str, String)>| -> MemoryTree {
         files
@@ -154,6 +168,13 @@ fn the_default_check_sweeps_each_counted_line_unit() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn a_percent_is_compared_as_whole_numbers_without_division_or_overflow() {
     let percent = |text: &str| CeilingLimit::Percent(Number::parse(text).expect("a number"));
     // 1 of 3 is 33.33...%.
@@ -179,6 +200,13 @@ fn a_percent_is_compared_as_whole_numbers_without_division_or_overflow() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn a_path_that_may_name_what_a_macro_generates_is_a_run_and_a_method_a_field_or_a_declared_name_is_not()
  {
     let wanted: BTreeSet<String> = ["made".to_string()].into();
@@ -207,6 +235,13 @@ fn a_path_that_may_name_what_a_macro_generates_is_a_run_and_a_method_a_field_or_
 }
 
 /// Two workspaces: `demo` with one function, and `wide` with three.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn demo_and_wide() -> (Workspace, Workspace) {
     let small = Workspace::load(
         &MemoryTree::from([
@@ -239,6 +274,13 @@ fn demo_and_wide() -> (Workspace, Workspace) {
 /// The table and the JSON of the report of a failed walk, whose message is
 /// the one the walk gives.
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn a_walk_that_fails_retains_a_single_typed_error_and_the_error_table() {
     auxiliary_query_refusals();
     let (small, large) = demo_and_wide();
@@ -268,6 +310,13 @@ fn a_walk_that_fails_retains_a_single_typed_error_and_the_error_table() {
     assert_eq!(report.orphans(), []);
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn auxiliary_query_refusals() {
     let tree = MemoryTree::from([
         (
@@ -319,6 +368,13 @@ fn auxiliary_query_refusals() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn a_walk_that_fails_is_the_one_error_of_the_report_and_one_finding_under_strict() {
     let (small, large) = demo_and_wide();
     // An item of a larger workspace is no item of this one.

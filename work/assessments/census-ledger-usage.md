@@ -10,7 +10,7 @@ inputs:
     digest: 70b1982bc355efb942470020437c5e596585f983aff39016bb778a09840734a2
   - kind: symbol
     name: raf_census::Gate::assert_clean
-    digest: 45cf504b0f3a9b33934d1581934a738fd056a845e17d60f3751a2b4d7c5e8a25
+    digest: 311c08fb6e81e3c5fab51fa00e901b82571f509110ebf5694df21829a0549107
   - kind: symbol
     name: raf_census::Gate::check
     digest: 6842c6d0e43e130b46d2d4a920a36aceed6066507c15fd04b5522c0f229b2d74
@@ -31,7 +31,7 @@ inputs:
     digest: 3cf51559c3301b4f81086b1935d12e26605ab2750fb46631aa68aab70a340652
   - kind: symbol
     name: raf_census::LedgerExtensionGraph
-    digest: bb829e6f568456dd6a5be2efc1bbb11079625c5c56c5d24f0dd652f6a424fefe
+    digest: 5667944dfc14a5bee973eb20b6f93194dfc3b604410d7abda3415f17dd5fb0ab
   - kind: symbol
     name: raf_census::PreferredProvider
     digest: 7b658a1516d9e8a3ea7af76b94bc51ec1f8cb8b60f3c07775644f93c90ccec3c

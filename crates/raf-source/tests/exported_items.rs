@@ -23,17 +23,29 @@ fn tree(files: &[(&str, &str)]) -> MemoryTree {
     all.into_iter().collect()
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn load(files: &[(&str, &str)]) -> Workspace {
     Workspace::load(&tree(files), &["."]).unwrap_or_else(|e| panic!("{e}"))
 }
 
 /// The id of the first target of `kind`.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn target(ws: &Workspace, kind: TargetKind) -> TargetId {
     ws.target_ids()
         .find(|id| ws.target(*id).is_some_and(|target| target.kind == kind))
         .unwrap_or_else(|| panic!("no {kind:?} target"))
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn exports(ws: &Workspace, kind: TargetKind, include_hidden: bool) -> Exports {
     let mut options = ExportOptions::default();
     options.include_hidden = include_hidden;
@@ -43,6 +55,10 @@ fn exports(ws: &Workspace, kind: TargetKind, include_hidden: bool) -> Exports {
 
 /// Each exported item as its exported path and the path of the item that
 /// defines it.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn surface(ws: &Workspace) -> Vec<(String, String)> {
     exports(ws, TargetKind::Lib, false)
         .items
@@ -73,6 +89,10 @@ fn strings(list: &[&str]) -> Vec<String> {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_pub_function_is_exported_beside_private_and_restricted_ones_which_are_not() {
     let ws = load(&[(
         "src/lib.rs",
@@ -220,6 +240,10 @@ fn a_restricted_or_private_re_export_is_not_exported_beside_a_pub_one_that_is() 
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_re_export_of_another_crate_is_a_re_export_and_not_an_item() {
     let mut manifest = DEMO.to_owned();
     manifest.push_str("[dependencies]\nserde = \"1\"\np_one = { path = \"p_one\" }\n");
@@ -491,6 +515,10 @@ fn an_exported_macro_is_exported_and_a_local_or_generated_one_is_not() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_binary_lists_its_own_pub_items_and_a_test_target_is_refused() {
     let ws = load(&[
         ("src/lib.rs", "pub fn f() {}\n"),
@@ -551,6 +579,10 @@ fn a_module_reached_by_two_pub_paths_is_listed_under_each_and_read_under_the_fir
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_surface_is_the_same_in_every_load_and_in_every_order_of_the_declarations() {
     let decls = [
         "pub mod a { pub fn f() {} pub struct S; impl S { pub fn m() {} } }",
@@ -595,6 +627,10 @@ fn the_surface_is_the_same_in_every_load_and_in_every_order_of_the_declarations(
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_ambiguous_a_cyclic_or_an_unresolved_public_name_fails_beside_a_neighbour_that_lists() {
     let ambiguous = load(&[(
         "src/lib.rs",
@@ -643,6 +679,11 @@ fn an_ambiguous_a_cyclic_or_an_unresolved_public_name_fails_beside_a_neighbour_t
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_surface_over_the_item_budget_left_by_the_load_is_refused_beside_one_within_it() {
     let mut lib = String::new();
     for n in 0..200 {
@@ -688,6 +729,11 @@ fn a_surface_over_the_item_budget_left_by_the_load_is_refused_beside_one_within_
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn twenty_thousand_chained_re_exports_are_listed_on_a_two_mib_thread() {
     let mut lib = String::from("mod m { pub struct T; }\npub use m::T as A0;\n");
     for n in 1..20_000 {
@@ -709,6 +755,11 @@ fn twenty_thousand_chained_re_exports_are_listed_on_a_two_mib_thread() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_chain_of_twenty_thousand_pub_globs_is_listed_on_a_two_mib_thread() {
     let mut lib = String::from("pub use m0::*;\n");
     for n in 0..20_000 {
@@ -1103,6 +1154,10 @@ fn cells(ws: &Workspace) -> Vec<(String, bool)> {
 /// from the reader through `depth` private modules of `pub` globs, with a
 /// binder, a `#[doc(hidden)]` and an extra hidden route placed as the
 /// parameters say.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn carried_case(
     carrier: &str,
     depth: usize,
@@ -1188,6 +1243,10 @@ fn carried_case(
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_carried_re_export_is_listed_hidden_or_absent_exactly_as_an_item_of_the_same_shape() {
     let mut cases = 0;
     for depth in 0..=2 {
@@ -1306,6 +1365,10 @@ fn in_random_small_crates_a_carried_re_export_is_listed_hidden_or_absent_as_the_
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_re_export_two_globs_carry_is_written_as_the_first_glob_that_carries_it() {
     let mut manifest = DEMO.to_owned();
     manifest.push_str("[dependencies]\np_one = { path = \"p_one\" }\n");
@@ -1390,6 +1453,10 @@ fn orders(items: &[String]) -> Vec<Vec<String>> {
 /// The surface of the crate made of `outer` and of `mod m` holding `inner`,
 /// in every order of both, which is the same in each. Returns it and the
 /// number of loads.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn surface_in_every_order(outer: &[&str], inner: &[&str]) -> (Vec<(String, String)>, usize) {
     let mut found: Option<Vec<(String, String)>> = None;
     let mut loads = 0;
@@ -1523,6 +1590,11 @@ fn a_name_two_globs_bring_in_as_different_items_one_through_a_private_glob_is_re
 /// the candidates its surface is refused as ambiguous with, asserting that
 /// the surface is refused, with the same candidates, in each. Returns them
 /// and the number of loads.
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn ambiguous_candidates_in_every_order(
     outer: &[&str],
     header: &str,

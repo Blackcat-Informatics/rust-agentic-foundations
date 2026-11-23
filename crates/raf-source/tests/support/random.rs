@@ -19,6 +19,10 @@ impl Draw {
     }
 
     /// A number below `bound`.
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     pub(crate) fn below(&mut self, bound: usize) -> usize {
         let bound = u64::try_from(bound).expect("a small bound");
         usize::try_from(self.next() % bound).expect("below a small bound")
@@ -35,6 +39,10 @@ impl Draw {
 /// carrier, cycles allowed, binders of `Cell` by a private struct or a
 /// private import, hidden modules and a hidden carrier, and a reader at the
 /// root or in a `pub` module, sometimes hidden.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub(crate) fn random_crate(draw: &mut Draw, carrier: &str) -> String {
     let modules = 1 + draw.below(6);
     let target = |draw: &mut Draw, from: Option<usize>| loop {

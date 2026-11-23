@@ -75,9 +75,11 @@ pub fn publish_repository(
 ) -> Result<PathBuf, DiagramError> {
     let root = Root::from_tree(opened.shared_tree()).map_err(DiagramError::data)?;
     let output = std::path::absolute(output).map_err(DiagramError::data)?;
-    let prefix = output.strip_prefix(root.path()).map_err(|_| {
-        refused("repository-linked output must lie beneath the opened canonical workspace".into())
-    })?;
+    let Ok(prefix) = output.strip_prefix(root.path()) else {
+        return Err(refused(
+            "repository-linked output must lie beneath the opened canonical workspace".into(),
+        ));
+    };
     let prefix = relative(prefix.to_str().ok_or_else(|| {
         refused("repository-linked output must be representable as UTF-8".into())
     })?)?;

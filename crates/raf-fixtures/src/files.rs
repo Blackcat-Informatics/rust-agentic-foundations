@@ -7,6 +7,10 @@ use std::path::Path;
 
 /// Writes `files` below `dir`, creating each file and its directories in
 /// the order given.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub fn write<'a>(dir: &Path, files: impl IntoIterator<Item = &'a (&'a str, &'a str)>) {
     for (path, text) in files {
         let path = dir.join(path);

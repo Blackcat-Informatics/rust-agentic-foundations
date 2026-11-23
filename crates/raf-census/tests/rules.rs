@@ -37,11 +37,19 @@ impl Rule for Flagged {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn the_rule_runs_its_positive_and_negative_source_cases() {
     Flagged.fixtures().validate(&Flagged).unwrap();
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn empty_source_sets_are_refused_with_a_passing_neighbour() {
     let valid = Flagged.fixtures();
     for invalid in [
@@ -66,6 +74,10 @@ fn empty_source_sets_are_refused_with_a_passing_neighbour() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn positive_misses_and_negative_hits_are_refused() {
     for (invalid, reason) in [
         (
@@ -95,6 +107,10 @@ fn positive_misses_and_negative_hits_are_refused() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn invalid_rust_is_a_parse_failure_and_does_not_count_as_a_negative_case() {
     let invalid = RuleFixtures {
         positive: vec!["fn flagged() {}"],

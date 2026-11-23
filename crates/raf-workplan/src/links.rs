@@ -185,6 +185,14 @@ impl<'t> LinkContext<'t> {
         self
     }
 
+    /// Check the links of an already parsed body against this file inventory.
+    #[must_use]
+    pub fn check_links(&self, file: &str, body: &Body) -> Vec<Finding> {
+        let mut findings = Vec::new();
+        check_body(file, body, self, &mut findings);
+        findings
+    }
+
     fn universe(&self) -> &Universe {
         self.universe.get_or_init(|| Universe::walk(self.tree))
     }

@@ -7,11 +7,19 @@ use raf_okf::{Body, Document, ErrorKind, Index, Span, SpliceError};
 
 const TEXT: &str = "intro\n\n<!-- raf:generated:one -->\nold one\n<!-- raf:generated:end -->\n\nmiddle\n\n<!-- raf:generated:two -->\nold two\n<!-- raf:generated:end -->\n\ntail\n";
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn body() -> Body {
     Body::parse(TEXT).expect("body")
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn two_generated_blocks_change_only_their_byte_ranges() {
     let mut parsed = body();
     let blocks = parsed.generated_blocks().to_vec();
@@ -36,6 +44,10 @@ fn two_generated_blocks_change_only_their_byte_ranges() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn edits_given_out_of_order_apply_in_one_pass() {
     let mut parsed = body();
     let blocks = parsed.generated_blocks().to_vec();
@@ -50,17 +62,21 @@ fn edits_given_out_of_order_apply_in_one_pass() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_second_call_uses_spans_read_from_the_rebuilt_model() {
     let mut parsed = body();
     let first = parsed.generated_blocks()[0].content().clone();
     parsed
-        .replace_spans(&[(first.clone(), "a much longer replacement\nover two lines\n")])
+        .replace_spans(&[(first, "a much longer replacement\nover two lines\n")])
         .expect("first");
     let after = parsed.generated_blocks().to_vec();
     assert_ne!(after[1].content(), body().generated_blocks()[1].content());
     assert_eq!(
-        &parsed.text()[after[1].content().bytes.clone()],
-        "old two\n"
+        parsed.text().get(after[1].content().bytes.clone()),
+        Some("old two\n")
     );
     parsed
         .replace_spans(&[(after[1].content().clone(), "second\n")])
@@ -76,13 +92,17 @@ fn a_second_call_uses_spans_read_from_the_rebuilt_model() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn overlapping_spans_are_refused_and_the_body_is_unchanged() {
     let mut parsed = body();
     let before = parsed.clone();
     let outer = parsed.generated_blocks()[0].outer().clone();
     let content = parsed.generated_blocks()[0].content().clone();
     let error = parsed
-        .replace_spans(&[(outer.clone(), "x"), (content.clone(), "y")])
+        .replace_spans(&[(outer, "x"), (content.clone(), "y")])
         .expect_err("overlap");
     assert_eq!(
         error,
@@ -102,6 +122,14 @@ fn overlapping_spans_are_refused_and_the_body_is_unchanged() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_malformed_result_is_refused_and_the_body_is_unchanged() {
     let mut parsed = body();
     let before = parsed.text().to_string();
@@ -121,6 +149,10 @@ fn a_malformed_result_is_refused_and_the_body_is_unchanged() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn spans_outside_the_body_or_inside_a_character_are_refused() {
     let text = "---\ntype: Architecture\n---\n\ncaf\u{e9} text\n";
     let document = Document::parse(text).expect("document");
@@ -164,6 +196,10 @@ fn spans_outside_the_body_or_inside_a_character_are_refused() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_empty_edit_list_leaves_the_body_equal() {
     let mut parsed = body();
     let before = parsed.clone();
@@ -173,11 +209,15 @@ fn an_empty_edit_list_leaves_the_body_equal() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_document_delegates_and_renders_the_edit_with_its_frontmatter() {
     let text = "---\nid: arch:x\ntype: Architecture\n---\n\n<!-- raf:generated:list -->\nold\n<!-- raf:generated:end -->\n";
     let mut document = Document::parse(text).expect("document");
     let content = document.body().generated_blocks()[0].content().clone();
-    assert_eq!(&text[content.bytes.clone()], "old\n");
+    assert_eq!(text.get(content.bytes.clone()), Some("old\n"));
     document
         .replace_spans(&[(content, "new\nrows\n")])
         .expect("splice");
@@ -188,7 +228,7 @@ fn a_document_delegates_and_renders_the_edit_with_its_frontmatter() {
     // After an edit the spans are in the coordinates of render().
     let rendered = document.render();
     let again = document.body().generated_blocks()[0].content().clone();
-    assert_eq!(&rendered[again.bytes.clone()], "new\nrows\n");
+    assert_eq!(rendered.get(again.bytes), Some("new\nrows\n"));
 
     let before = document.clone();
     let outer = document.body().generated_blocks()[0].outer().clone();
@@ -203,6 +243,10 @@ fn a_document_delegates_and_renders_the_edit_with_its_frontmatter() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_document_whose_closing_fence_has_no_line_ending_gains_one_for_a_body() {
     let mut document = Document::parse("---\ntype: Architecture\n---").expect("document");
     let at = document.body().span().bytes.clone();
@@ -223,11 +267,19 @@ fn a_document_whose_closing_fence_has_no_line_ending_gains_one_for_a_body() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn the_catalogue_of_an_index_is_replaced_through_the_index() {
     let text = "<!--\nSPDX-FileCopyrightText: 2026 Example\nSPDX-License-Identifier: CC-BY-4.0\n-->\n\n<!-- raf:generated:catalogue -->\n| old |\n<!-- raf:generated:end -->\n";
     let mut index = Index::parse(text).expect("index");
     let content = index.generated_blocks()[0].content().clone();
-    assert_eq!(&text[content.bytes.clone()], "| old |\n");
+    assert_eq!(text.get(content.bytes.clone()), Some("| old |\n"));
     index
         .replace_spans(&[(content, "| alpha |\n| beta |\n")])
         .expect("splice");
@@ -257,6 +309,14 @@ fn the_catalogue_of_an_index_is_replaced_through_the_index() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_document_edit_with_a_malformed_result_is_refused_and_the_document_is_unchanged() {
     let text = "---\ntype: Architecture\n---\n\n<!-- raf:generated:list -->\nold\n<!-- raf:generated:end -->\n";
     let mut document = Document::parse(text).expect("document");
@@ -286,6 +346,14 @@ fn a_document_edit_with_a_malformed_result_is_refused_and_the_document_is_unchan
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_document_edit_over_one_mebibyte_is_refused_and_the_document_is_unchanged() {
     let text = "---\ntype: Architecture\n---\n\n<!-- raf:generated:list -->\nold\n<!-- raf:generated:end -->\n";
     let mut document = Document::parse(text).expect("document");

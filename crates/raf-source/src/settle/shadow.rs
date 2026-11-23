@@ -57,6 +57,10 @@ impl Routes {
 impl Index {
     /// Marked cuts preserve their real shadow and repeat the actual proof.
     #[cfg(debug_assertions)]
+    #[expect(
+        clippy::expect_used,
+        reason = "rechecking an admitted preserved shadow repeats its finite resident cut proof"
+    )]
     pub(super) fn check_preserved_shadows(&self) {
         for (position, states) in self.use_read_state.iter().enumerate() {
             for (at, state) in states.iter().enumerate() {
@@ -72,7 +76,7 @@ impl Index {
                 let meter = Meter::new(&crate::options::LoadOptions::default());
                 assert!(
                     self.preserved_shadow(position, at, &meter, Steps::Load)
-                        .expect("a resident actual-cut proof fits its load budget")
+                        .expect("INVARIANT: a resident actual-cut proof fits its load budget")
                 );
             }
         }
@@ -230,10 +234,12 @@ impl Index {
         let local = self
             .read_lookup(source.module, source.ns, &source.name, None, None, steps)
             .map_err(storage_failure)?;
-        let Some((bound, true)) = local.as_ref().filter(|(bound, _)| bound.len() == 1) else {
+        let Some((bound, true)) = local.as_ref() else {
             return Ok(None);
         };
-        let (id, origin) = bound.iter().next().expect("unique actual local candidate");
+        let Some((id, origin)) = bound.sole() else {
+            return Ok(None);
+        };
         if origin.companion
             || self
                 .origin_visible(origin, source.module, viewer, steps)

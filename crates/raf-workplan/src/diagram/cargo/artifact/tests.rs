@@ -10,11 +10,26 @@ use std::fs;
 
 const HTML: &[u8] = b"<!doctype html><title>selected output</title>";
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_in_result,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn admit(selection: &Selection, messages: &[Value]) -> Result<Vec<LibraryArtifact>, DiagramError> {
     let disk = DiskTree::new(&selection.target_directory).unwrap();
     super::admit(&disk, selection, messages)
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn fixture() -> (purrdf_testkit::TempDir, Selection, PathBuf) {
     let scratch = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();
     let root = scratch.path().canonicalize().unwrap();
@@ -54,6 +69,13 @@ fn string_set(values: &[String]) -> Value {
 }
 
 /// Cargo's documented compiler-artifact shape with fixture-local locators.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn receipt(library: &Library, path: &Path) -> Value {
     Value::from(
         Object::new()
@@ -79,6 +101,13 @@ fn receipt(library: &Library, path: &Path) -> Value {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn reported_html_requires_exact_selected_receipts_and_contained_files() {
     let (_scratch, mut selection, path) = fixture();
     let valid = receipt(&selection.libraries[0], &path);
@@ -134,6 +163,13 @@ fn reported_html_requires_exact_selected_receipts_and_contained_files() {
 }
 
 // The companion refuses both an identical replacement file and an in-place edit.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn assert_companion_observation_requires_identity_and_bytes(
     selection: &Selection,
     entry: &LibraryArtifact,
@@ -153,6 +189,13 @@ fn assert_companion_observation_requires_identity_and_bytes(
     target.verify_entry(entry).unwrap();
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn assert_identity_refusals(selection: &Selection, valid: &Value) {
     for (key, value) in [
         ("name", Value::from("other")),
@@ -185,6 +228,13 @@ fn assert_identity_refusals(selection: &Selection, valid: &Value) {
     }
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn assert_reported_features(selection: &Selection, valid: &Value) {
     let mut requested = selection.clone();
     requested.options = CargoDocOptions::new(&["demo"], &["demo/required"], false, None).unwrap();
@@ -209,6 +259,13 @@ fn assert_reported_features(selection: &Selection, valid: &Value) {
     );
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn assert_output_refusals(selection: &Selection, valid: &Value, path: &Path) {
     assert!(admit(selection, &[]).is_err());
     assert!(admit(selection, &[valid.clone(), valid.clone()]).is_err());
@@ -234,6 +291,13 @@ fn assert_output_refusals(selection: &Selection, valid: &Value, path: &Path) {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn imported_metadata_and_messages_are_bounded_data_with_explicit_roots() {
     use crate::diagram::cargo::{MAX_METADATA_BYTES, read_artifacts, read_metadata};
     assert_request_bounds();
@@ -284,6 +348,13 @@ fn imported_metadata_and_messages_are_bounded_data_with_explicit_roots() {
     );
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn assert_request_bounds() {
     let packages: Vec<_> = (0..257).map(|index| format!("package{index}")).collect();
     let packages: Vec<_> = packages.iter().map(String::as_str).collect();
@@ -299,6 +370,13 @@ fn assert_request_bounds() {
     assert!(error.to_string().contains("at most 256 qualified features"));
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn metadata(selection: &Selection, path: &Path) -> Value {
     let library = &selection.libraries[0];
     let artifact = receipt(library, path);

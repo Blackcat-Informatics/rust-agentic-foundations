@@ -23,6 +23,10 @@ fn load(files: &[(&str, &str)]) -> Result<Workspace, LoadError> {
     Workspace::load(&tree, &["."])
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn ok(files: &[(&str, &str)]) -> Workspace {
     load(files).unwrap_or_else(|e| panic!("{e}"))
 }
@@ -89,6 +93,11 @@ fn a_non_mod_file_keeps_its_children_in_a_directory_of_its_own_name() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_module_with_both_name_rs_and_name_mod_rs_is_an_error_naming_both_files() {
     let error = load(&[
         ("src/lib.rs", "mod both;"),
@@ -121,6 +130,10 @@ fn a_module_with_both_name_rs_and_name_mod_rs_is_an_error_naming_both_files() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_unresolved_mod_names_the_declaring_file_and_line() {
     let error = load(&[("src/lib.rs", "// one\n// two\nmod missing;\n")]).expect_err("missing");
     assert!(matches!(&error.kind, LoadErrorKind::UnresolvedMod { module } if module == "missing"));
@@ -131,6 +144,10 @@ fn an_unresolved_mod_names_the_declaring_file_and_line() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn inline_modules_add_directory_components_for_their_file_children() {
     let ws = ok(&[
         ("src/lib.rs", "mod outer { mod inner { mod leaf; } }"),
@@ -157,6 +174,10 @@ fn inline_modules_add_directory_components_for_their_file_children() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_inline_module_inside_a_non_mod_file_nests_below_the_files_own_directory() {
     let ws = ok(&[
         ("src/lib.rs", "mod a;"),
@@ -170,6 +191,10 @@ fn an_inline_module_inside_a_non_mod_file_nests_below_the_files_own_directory() 
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_path_attribute_in_a_mod_rs_file_is_relative_to_that_files_directory() {
     let ws = ok(&[
         ("src/lib.rs", "#[path = \"elsewhere/x.rs\"] mod x;"),
@@ -182,6 +207,10 @@ fn a_path_attribute_in_a_mod_rs_file_is_relative_to_that_files_directory() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_path_attribute_in_a_non_mod_file_is_relative_to_the_files_directory_not_its_module_directory()
 {
     let ws = ok(&[
@@ -210,6 +239,10 @@ fn a_path_attribute_in_a_non_mod_file_is_relative_to_the_files_directory_not_its
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_path_attribute_inside_an_inline_module_is_relative_to_the_module_directory() {
     // In a mod-rs file.
     let ws = ok(&[
@@ -233,6 +266,10 @@ fn a_path_attribute_inside_an_inline_module_is_relative_to_the_module_directory(
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_path_attribute_on_an_inline_module_replaces_its_directory_component() {
     let ws = ok(&[
         (
@@ -257,6 +294,10 @@ fn a_path_attribute_on_an_inline_module_replaces_its_directory_component() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_file_named_by_a_path_attribute_is_a_mod_rs_file_for_its_children() {
     let ws = ok(&[
         ("src/lib.rs", "#[path = \"sub/explicit.rs\"] mod explicit;"),
@@ -279,6 +320,10 @@ fn a_file_named_by_a_path_attribute_is_a_mod_rs_file_for_its_children() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn two_unconditional_path_attributes_are_an_error_beside_one() {
     let error = load(&[
         (
@@ -303,6 +348,10 @@ fn two_unconditional_path_attributes_are_an_error_beside_one() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn every_cfg_attr_path_alternative_is_followed_carrying_its_predicate() {
     let ws = ok(&[
         (
@@ -325,6 +374,10 @@ fn every_cfg_attr_path_alternative_is_followed_carrying_its_predicate() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_default_file_is_also_followed_beside_cfg_attr_alternatives_when_it_exists() {
     let ws = ok(&[
         (
@@ -353,6 +406,10 @@ fn the_default_file_is_also_followed_beside_cfg_attr_alternatives_when_it_exists
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_cfg_attr_test_path_is_tagged_test_and_nothing_is_dropped() {
     let ws = ok(&[
         (
@@ -374,6 +431,10 @@ fn a_cfg_attr_test_path_is_tagged_test_and_nothing_is_dropped() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_raw_identifier_module_reads_the_plain_file_name() {
     let ws = ok(&[("src/lib.rs", "mod r#match;"), ("src/match.rs", "")]);
     assert_eq!(
@@ -392,6 +453,11 @@ fn a_raw_identifier_module_reads_the_plain_file_name() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_module_cycle_is_an_error_naming_both_files() {
     let error = load(&[("src/lib.rs", "#[path = \"lib.rs\"]\nmod again;")]).expect_err("cycle");
     match &error.kind {
@@ -418,6 +484,10 @@ fn a_module_cycle_is_an_error_naming_both_files() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_file_reached_twice_without_a_cycle_is_parsed_once_and_recorded_under_each_path() {
     let ws = ok(&[
         (
@@ -444,6 +514,10 @@ fn a_file_reached_twice_without_a_cycle_is_parsed_once_and_recorded_under_each_p
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn module_nesting_beyond_the_depth_budget_is_refused_and_the_budget_itself_loads() {
     let nest = |levels: usize| {
         // The file-level module path counts as a level of its own.
@@ -495,6 +569,10 @@ fn module_nesting_beyond_the_depth_budget_is_refused_and_the_budget_itself_loads
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_path_that_leaves_the_tree_is_refused_naming_module_and_attribute_without_reading_it() {
     for escape in ["../../x.rs", "/etc/x.rs", "../../../x.rs"] {
         let lib = format!("#[path = \"{escape}\"]\nmod outside;");
@@ -542,6 +620,10 @@ fn a_path_that_leaves_the_tree_is_refused_naming_module_and_attribute_without_re
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_cfg_test_module_tags_every_item_reached_only_through_it() {
     let ws = ok(&[
         (
@@ -564,6 +646,10 @@ fn a_cfg_test_module_tags_every_item_reached_only_through_it() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_cfg_test_matrix_tags_items_and_leaves_their_neighbours_alone() {
     let ws = ok(&[(
         "src/lib.rs",
@@ -619,6 +705,10 @@ fn the_cfg_test_matrix_tags_items_and_leaves_their_neighbours_alone() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_unparseable_cfg_is_an_error_naming_file_and_line_beside_a_parseable_one() {
     for bad in [
         "#[cfg(foo(bar))]",
@@ -639,6 +729,10 @@ fn an_unparseable_cfg_is_an_error_naming_file_and_line_beside_a_parseable_one() 
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn one_file_spelled_two_ways_is_one_file_recorded_under_both_module_paths() {
     let ws = ok(&[
         (
@@ -660,6 +754,10 @@ fn one_file_spelled_two_ways_is_one_file_recorded_under_both_module_paths() {
 }
 
 /// Files `m0.rs` .. `m{n}.rs`, where each declares the next `fan` times.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn chain(fan: usize, n: usize) -> Vec<(String, String)> {
     let mut files = vec![(
         "src/lib.rs".to_owned(),
@@ -697,6 +795,10 @@ fn load_counted(
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_chain_of_files_that_each_declare_the_next_twice_is_refused_by_the_module_path_budget_opening_each_file_once_beside_a_small_diamond()
  {
     let files = chain(2, 30);
@@ -745,6 +847,10 @@ fn a_chain_of_files_that_each_declare_the_next_twice_is_refused_by_the_module_pa
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn module_depth_of_exactly_the_budget_loads_and_one_more_is_refused() {
     let nested = |depth: usize| {
         let mut files = vec![(
@@ -778,6 +884,10 @@ fn module_depth_of_exactly_the_budget_loads_and_one_more_is_refused() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_path_attribute_on_an_inline_module_in_a_non_mod_file_replaces_its_directory_component() {
     let ws = ok(&[
         ("src/lib.rs", "mod a;"),
@@ -799,6 +909,10 @@ fn a_path_attribute_on_an_inline_module_in_a_non_mod_file_replaces_its_directory
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_nested_cfg_attr_path_is_flattened_with_the_combined_predicate() {
     let ws = ok(&[
         (
@@ -824,6 +938,10 @@ fn a_nested_cfg_attr_path_is_flattened_with_the_combined_predicate() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_malformed_cfg_path_or_test_attribute_is_an_error_naming_its_line() {
     for bad in [
         "#[cfg = \"x\"]",
@@ -849,6 +967,10 @@ fn alternatives(levels: usize) -> String {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn inline_modules_with_path_alternatives_are_bounded_by_the_module_path_budget() {
     let (tree, result) = load_counted(&[("src/lib.rs", &alternatives(40))], 200);
     let error = result.expect_err("3^40 walks");
@@ -955,6 +1077,10 @@ fn a_file_module_declared_inside_an_inline_module_is_placed_under_the_inline_mod
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_children_of_a_path_attribute_file_are_placed_under_its_module_whatever_their_names() {
     // `a` and `ga` sort before `generated.rs` and `z` after it.
     let children = ["a", "ga", "z"];
@@ -989,7 +1115,7 @@ fn the_children_of_a_path_attribute_file_are_placed_under_its_module_whatever_th
         ];
         in_generated.sort();
         let mut files = vec![
-            (child_file.clone(), vec![thing.clone()]),
+            (child_file, vec![thing.clone()]),
             ("src/gen/generated.rs".to_owned(), in_generated),
             (
                 "src/lib.rs".to_owned(),
@@ -1081,6 +1207,10 @@ fn an_item_is_found_only_under_its_own_module_path() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_file_reached_under_two_spellings_is_read_once_and_keeps_the_spelling_that_sorts_first() {
     // `src/z` is no directory, so `z/../b.rs` stays as written and names the
     // same file as `b.rs`; the walk reaches it under that spelling first.
@@ -1119,6 +1249,10 @@ fn a_file_reached_under_two_spellings_is_read_once_and_keeps_the_spelling_that_s
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_non_literal_path_attribute_is_reported_as_such_from_the_attribute() {
     for (attribute, predicate) in [
         (
@@ -1174,6 +1308,11 @@ fn a_non_literal_path_attribute_is_reported_as_such_from_the_attribute() {
 /// file, line and resolved spelling; one that stays in its own package is
 /// not, and a package nested below another owns its own directory.
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn foreign_module_paths_name_only_attributes_that_leave_their_package() {
     const SHARED: &str = "#[path = \"../../q/src/shared.rs\"]\nmod shared;";
     let tree: MemoryTree = [
@@ -1275,6 +1414,10 @@ fn foreign_module_paths_name_only_attributes_that_leave_their_package() {
 /// Without a root package, a module `path` attribute that leads outside every
 /// member is reported with no owner.
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_module_path_outside_every_package_is_reported_without_an_owner() {
     let tree: MemoryTree = [
         ("Cargo.toml", "[workspace]\nmembers = [\"p\"]\n"),
@@ -1299,6 +1442,11 @@ fn a_module_path_outside_every_package_is_reported_without_an_owner() {
 /// The module path of a block-local module `name` declared at the first
 /// occurrence of `marker` in `source`: the path ends in the name and the byte
 /// where the name starts, after the attributes and the `mod` keyword.
+#[expect(
+    clippy::expect_used,
+    clippy::string_slice,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn block_path(parent: &str, name: &str, source: &str, marker: &str) -> String {
     let start = source.find(marker).expect("the marker is in the source");
     let keyword = source[start..]
@@ -1352,6 +1500,10 @@ fn a_path_module_declared_in_a_block_is_followed_and_indexed_apart_from_the_modu
 /// as in an item list, and the module directory of a non-`mod.rs` file is not
 /// consulted.
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_block_local_path_attribute_is_relative_to_the_declaring_files_directory() {
     let a = "pub fn f() {\n    #[path = \"x.rs\"]\n    mod x;\n}\n";
     let ws = ok(&[
@@ -1383,6 +1535,10 @@ fn a_block_local_path_attribute_is_relative_to_the_declaring_files_directory() {
 /// the directory of the declaring file, never in the module directory the
 /// file would own for a module of its item list.
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_plain_block_local_module_is_found_beside_the_declaring_file_not_in_its_module_directory() {
     let a = "pub fn f() {\n    mod m;\n}\n";
     let ws = ok(&[
@@ -1434,6 +1590,10 @@ fn a_plain_block_local_module_is_found_beside_the_declaring_file_not_in_its_modu
 /// for the plain modules it declares, and a `path` on it, or on a module
 /// inside it, resolves as in an item list.
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_inline_module_in_a_block_resolves_its_children_without_the_files_module_directory() {
     let a = "fn f() {\n    mod inner {\n        mod q;\n        #[path = \"p.rs\"]\n        mod p;\n    }\n}\n";
     let ws = ok(&[
@@ -1471,6 +1631,10 @@ fn an_inline_module_in_a_block_resolves_its_children_without_the_files_module_di
 /// carries the test role to the file it names; the same declaration in code
 /// that is no test does not.
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_block_local_module_in_a_test_function_or_constant_is_tagged_test_beside_plain_ones() {
     let ws = ok(&[
         (
@@ -1499,6 +1663,11 @@ fn a_block_local_module_in_a_test_function_or_constant_is_tagged_test_beside_pla
 /// module-path check with the declaring file and line; one that stays inside
 /// the package is not.
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_block_local_path_that_leaves_its_package_is_reported_beside_one_that_stays() {
     let tree: MemoryTree = [
         (
@@ -1552,6 +1721,11 @@ fn a_block_local_path_that_leaves_its_package_is_reported_beside_one_that_stays(
 /// not an error, and the guard of a neighbour in the module list still
 /// decides.
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn the_platform_guard_of_an_item_in_a_block_local_module_is_unknown_beside_a_decided_one() {
     let ws = ok(&[
         (
@@ -1580,6 +1754,10 @@ fn the_platform_guard_of_an_item_in_a_block_local_module_is_unknown_beside_a_dec
 /// A test function inside a block-local module is no test the harness
 /// collects, so it is not listed, and a test of the module list is.
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn test_fns_list_a_test_of_the_module_list_and_not_one_inside_a_block() {
     let ws = ok(&[(
         "src/lib.rs",
@@ -1598,6 +1776,10 @@ fn test_fns_list_a_test_of_the_module_list_and_not_one_inside_a_block() {
 /// declaring file, never one below the module directory of a non-`mod.rs`
 /// file, and the plain module inside it is found there.
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_path_on_an_inline_module_in_a_block_names_a_directory_beside_the_declaring_file() {
     let a = "fn f() {\n    #[path = \"dir\"]\n    mod inner {\n        mod q;\n    }\n}\n";
     let ws = ok(&[
@@ -1628,6 +1810,10 @@ fn a_path_on_an_inline_module_in_a_block_names_a_directory_beside_the_declaring_
 /// An edit inside the body of a block module does not rename it, and an edit
 /// above it does: the segment follows the start of the name.
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_block_module_keeps_its_path_when_its_body_changes_and_moves_with_an_edit_above() {
     let path_of_g = |source: &str| {
         let ws = ok(&[("src/lib.rs", source)]);

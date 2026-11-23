@@ -29,6 +29,11 @@ fn fixture() -> Scratch {
     scratch
 }
 
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_in_result,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn load(scratch: &Scratch) -> Result<Workspace, LoadError> {
     let tree = DiskTree::new(scratch.path("root")).expect("tree");
     Workspace::load(&tree, &["."])
@@ -39,6 +44,10 @@ fn outside_root(error: &LoadError) -> bool {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_symlinked_module_file_to_outside_is_refused_naming_the_module_beside_an_in_root_link() {
     let scratch = fixture();
     scratch.file("root/src/lib.rs", "mod inner;");
@@ -62,6 +71,10 @@ fn a_symlinked_module_file_to_outside_is_refused_naming_the_module_beside_an_in_
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_path_attribute_through_an_outside_directory_symlink_with_a_parent_segment_is_refused() {
     let scratch = fixture();
     scratch.dir("outside/inner");
@@ -90,6 +103,10 @@ fn a_path_attribute_through_an_outside_directory_symlink_with_a_parent_segment_i
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_manifest_target_path_that_leaves_the_root_is_refused_naming_the_key() {
     for path in ["../outside.rs", "/tmp/outside.rs"] {
         let scratch = fixture();
@@ -115,6 +132,10 @@ fn a_manifest_target_path_that_leaves_the_root_is_refused_naming_the_key() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_target_file_that_is_a_symlink_to_outside_is_refused_naming_the_key() {
     let scratch = fixture();
     scratch.file(
@@ -131,6 +152,10 @@ fn a_target_file_that_is_a_symlink_to_outside_is_refused_naming_the_key() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_symlinked_manifest_to_outside_is_refused_beside_one_to_a_file_inside() {
     let scratch = Scratch::new();
     scratch.dir("root/pkg");
@@ -155,6 +180,10 @@ fn a_symlinked_manifest_to_outside_is_refused_beside_one_to_a_file_inside() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_directory_symlink_loop_ends_with_an_error_and_a_plain_directory_symlink_is_refused() {
     let scratch = fixture();
     scratch.dir("root/crates");
@@ -188,6 +217,10 @@ fn a_directory_symlink_loop_ends_with_an_error_and_a_plain_directory_symlink_is_
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_fifo_named_as_a_module_file_is_refused_without_blocking() {
     let scratch = fixture();
     scratch.file("root/src/lib.rs", "mod pipe;");
@@ -204,6 +237,10 @@ fn a_fifo_named_as_a_module_file_is_refused_without_blocking() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_target_root_that_is_a_fifo_is_refused_without_blocking() {
     let scratch = fixture();
     std::fs::remove_file(scratch.path("root/src/lib.rs")).expect("remove");
@@ -216,6 +253,10 @@ fn a_target_root_that_is_a_fifo_is_refused_without_blocking() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_missing_explicit_target_file_is_a_target_error_on_disk_too() {
     let scratch = fixture();
     scratch.file(
@@ -230,6 +271,10 @@ fn a_missing_explicit_target_file_is_a_target_error_on_disk_too() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn disk_and_memory_trees_give_the_same_workspace_for_regular_files() {
     use raf_source::MemoryTree;
     let files = [
@@ -261,6 +306,10 @@ fn disk_and_memory_trees_give_the_same_workspace_for_regular_files() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_link_to_a_symlink_that_points_outside_is_refused_naming_the_module() {
     let scratch = fixture();
     scratch.file("root/src/lib.rs", "mod inner;");
@@ -282,6 +331,11 @@ fn a_link_to_a_symlink_that_points_outside_is_refused_naming_the_module() {
 }
 
 /// Load `crates/` of a scratch tree that holds one good package and `link`.
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_in_result,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn discover_with(link: impl FnOnce(&Scratch)) -> Result<Workspace, LoadError> {
     let scratch = fixture();
     scratch.dir("root/crates/real");
@@ -294,6 +348,10 @@ fn discover_with(link: impl FnOnce(&Scratch)) -> Result<Workspace, LoadError> {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn discovery_classifies_a_symlink_by_what_it_resolves_to() {
     // A regular file, inside the root: left alone.
     assert!(
@@ -342,6 +400,10 @@ fn discovery_classifies_a_symlink_by_what_it_resolves_to() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn symlink_aliases_of_one_directory_parse_it_once() {
     // `l` and `m` lead back to `src`, so each level doubles the spellings of
     // the next file: eighteen levels spell the last one 2^17 ways and the walk
@@ -383,6 +445,10 @@ fn symlink_aliases_of_one_directory_parse_it_once() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_file_reached_through_a_directory_symlink_is_one_file_under_the_spelling_that_sorts_first() {
     let scratch = fixture();
     scratch.link("root/src/z", ".");
@@ -408,6 +474,10 @@ fn a_file_reached_through_a_directory_symlink_is_one_file_under_the_spelling_tha
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_module_that_reaches_its_own_file_through_a_directory_symlink_is_a_cycle() {
     let scratch = fixture();
     scratch.link("root/src/l", ".");
@@ -429,6 +499,10 @@ fn a_module_that_reaches_its_own_file_through_a_directory_symlink_is_a_cycle() {
 /// Names that Windows reserves for devices are refused there, before the
 /// path is canonicalised; elsewhere they are ordinary names.
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_tree_with_windows_device_names_loads_off_windows() {
     let scratch = fixture();
     scratch.file("root/src/lib.rs", "mod aux;\n");

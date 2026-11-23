@@ -51,9 +51,11 @@ impl purrdf_lex::control::Progress for Work<'_> {
     type Error = Refusal;
 
     fn charge(&mut self, units: u64) -> Result<(), Refusal> {
-        let units = usize::try_from(units).map_err(|_| Refusal::Work {
-            limit: self.meter.work_limit,
-        })?;
+        let Ok(units) = usize::try_from(units) else {
+            return Err(Refusal::Work {
+                limit: self.meter.work_limit,
+            });
+        };
         self.meter.work(units)
     }
 }
@@ -146,6 +148,10 @@ impl Meter {
     }
 
     /// Refund a distinct prepaid envelope after its native payload has died.
+    #[expect(
+        clippy::expect_used,
+        reason = "the paired prepayment remains in the original account until the worker joins"
+    )]
     pub(super) fn refund_native(&self, bytes: usize) {
         let mut native = Native {
             meter: self,
@@ -155,7 +161,7 @@ impl Meter {
         // The paired prepayment remains in the original total until this join.
         native
             .resize(0)
-            .expect("a joined native envelope refunds its original admitted amount");
+            .expect("INVARIANT: a joined native envelope refunds its original admitted amount");
     }
 
     /// Start a fresh subaccount without resetting the original run's budgets.
@@ -229,11 +235,15 @@ impl Meter {
             .map_err(|error| admission.failure.unwrap_or(Refusal::Storage(error)))
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "the vector retains the checked layout and exact charge from admission until it is released"
+    )]
     pub(super) fn release_buffer<T>(&self, values: Vec<T>) {
         let bytes = values
             .capacity()
             .checked_mul(size_of::<T>())
-            .expect("an admitted vector retains its checked layout");
+            .expect("INVARIANT: an admitted vector retains its checked layout");
         let mut admission = Native {
             meter: self,
             live: bytes,
@@ -241,7 +251,7 @@ impl Meter {
         };
         Memory::resume(&mut admission, bytes)
             .release_vec(values)
-            .expect("an admitted vector has a valid layout and infallible refund");
+            .expect("INVARIANT: an admitted vector has a valid layout and infallible refund");
     }
 }
 
@@ -257,11 +267,12 @@ impl Admission for Native<'_> {
     }
 
     fn checkpoint(&mut self, units: u64) -> Result<(), StorageError> {
-        let result = usize::try_from(units)
-            .map_err(|_| Refusal::Work {
+        let result = match usize::try_from(units) {
+            Ok(units) => self.meter.work(units),
+            Err(_) => Err(Refusal::Work {
                 limit: self.meter.work_limit,
-            })
-            .and_then(|units| self.meter.work(units));
+            }),
+        };
         result.map_err(|error| {
             let first = *self.failure.get_or_insert(error);
             self.meter.capture().set(Some(first));
@@ -353,11 +364,15 @@ impl<'m> Grant<'m> {
 }
 
 impl Drop for Grant<'_> {
+    #[expect(
+        clippy::expect_used,
+        reason = "this grant still owns the exact charge being refunded to its original meter"
+    )]
     fn drop(&mut self) {
         // Every payload precedes its grant, so the refund follows destruction.
         self.native
             .resize(0)
-            .expect("original grant refunds cannot fail");
+            .expect("INVARIANT: original grant refunds cannot fail");
     }
 }
 
@@ -539,6 +554,13 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn simultaneous_proof_scratch_shares_the_original_grant_until_deallocation() {
         let probe = Meter::new(10, usize::MAX);
         let mut measured = Scratch::new(&probe);

@@ -7,6 +7,10 @@
 use raf_source::{MemoryTree, ResolveError, Workspace};
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_path_attribute_with_terminal_escapes_is_shown_escaped() {
     let lib = "#[path = \"../../../\\u{1b}]0;pwned\\u{7}\\u{1b}[2J\\u{1b}[31mfake.rs\"] mod m;\n";
     let tree: MemoryTree = [
@@ -26,6 +30,10 @@ fn a_path_attribute_with_terminal_escapes_is_shown_escaped() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_manifest_with_control_characters_in_a_value_is_shown_escaped() {
     let tree: MemoryTree = [
         (
@@ -48,6 +56,11 @@ fn a_manifest_with_control_characters_in_a_value_is_shown_escaped() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_resolved_path_or_package_with_control_characters_is_shown_escaped() {
     let tree: MemoryTree = [
         (

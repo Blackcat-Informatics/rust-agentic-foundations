@@ -340,9 +340,9 @@ impl Directory {
     pub(crate) fn relative_path(&self) -> io::Result<RelPath> {
         self.verify()?;
         let path = native::root_path(&self.file)?;
-        let relative = path
-            .strip_prefix(self.root.path())
-            .map_err(|_| refused("metadata directory is outside its retained root"))?;
+        let Ok(relative) = path.strip_prefix(self.root.path()) else {
+            return Err(refused("metadata directory is outside its retained root"));
+        };
         let relative = RelPath::new(
             relative
                 .to_str()

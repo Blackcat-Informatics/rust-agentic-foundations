@@ -203,6 +203,13 @@ mod tests {
     use crate::work::{self, Work};
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn a_segment_is_matched_in_at_most_pattern_times_name_steps() {
         const NAME: usize = 40;
         let name = "a".repeat(NAME);

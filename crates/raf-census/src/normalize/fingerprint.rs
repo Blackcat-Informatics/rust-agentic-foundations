@@ -16,11 +16,15 @@ use purrdf_hash::blake3;
 pub const ENCODING: &str = "tokens-len-u32le-utf8/blake3/hex64";
 
 /// The BLAKE3 digest of a form under [`ENCODING`].
+#[expect(
+    clippy::expect_used,
+    reason = "form tokens originate in the lexer, which refuses lengths above the fingerprint format bound"
+)]
 pub(crate) fn digest(form: &Form) -> [u8; 32] {
     let mut hasher = blake3::Hasher::new();
     for token in form.tokens() {
         let length = u32::try_from(token.text.len())
-            .expect("the lexer refuses a token longer than u32::MAX bytes");
+            .expect("INVARIANT: the lexer refuses a token longer than u32::MAX bytes");
         hasher.update(&length.to_le_bytes());
         hasher.update(token.text.as_bytes());
     }

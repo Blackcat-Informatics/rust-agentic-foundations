@@ -8,6 +8,10 @@ use raf_okf::Body;
 const TOKEN: &str = concat!("t", "bd");
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn reports_each_token_in_prose_with_its_line() {
     let text = format!("# Notes\n\nStill {TOKEN} here.\n\nT.B.D. and {TOKEN}s.\n");
     let body = Body::parse(&text).expect("parses");
@@ -15,6 +19,10 @@ fn reports_each_token_in_prose_with_its_line() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn does_not_read_code_or_comments() {
     let text = format!(
         "# Notes\n\n`{TOKEN}` and <!-- {TOKEN} -->\n\n```text\n{TOKEN}\n```\n\n<!--\n{TOKEN}\n-->\n"

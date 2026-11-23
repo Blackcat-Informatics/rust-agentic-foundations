@@ -7,6 +7,13 @@ use super::*;
 use crate::{Budget, LoadOptions, MemoryTree, Workspace};
 use std::fmt::Write;
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn workspace(source: &str) -> Workspace {
     let tree: MemoryTree = [
         (
@@ -20,6 +27,13 @@ fn workspace(source: &str) -> Workspace {
     Workspace::load(&tree, &["."]).expect("source fixture")
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn admitted_nominal(
     index: &Index,
     name: &str,
@@ -53,6 +67,13 @@ fn admitted_nominal(
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn missing_impl_head_admits_pending_glob_spill_and_keeps_the_missing_neighbor() {
     let mut source = String::from("pub struct Base;\n");
     for n in 0..9 {
@@ -97,6 +118,13 @@ fn missing_impl_head_admits_pending_glob_spill_and_keeps_the_missing_neighbor() 
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn alternate_aliases_spill_the_nominal_stack_under_its_original_grant() {
     let mut source = String::from("pub struct Base;\n");
     for n in 0..9 {

@@ -572,7 +572,7 @@ fn scan(stream: TokenStream, text: &str, base: usize, edition: u16) -> Lexed {
                 let span = (base + range.start, base + range.end);
                 // A span's ends are character boundaries of the lexed text:
                 // the lexer counts characters and gives their byte offsets.
-                if ident == text[span.0..span.1] {
+                if text.get(span.0..span.1).is_some_and(|word| ident == word) {
                     open = scan_ident(&mut lexed, level, open, &ident, span, edition, &mut method);
                 } else {
                     open = None;
@@ -684,24 +684,20 @@ fn scan_ident(
 /// mark and a first line that is a shebang, as `syn` reads them, are left
 /// out, and offsets stay those of `text`.
 fn lex_text(text: &str, edition: u16) -> Result<Lexed, LexFailure> {
-    let mut base = 0;
-    let mut body = text;
-    if let Some(rest) = body.strip_prefix('\u{feff}') {
-        base += '\u{feff}'.len_utf8();
-        body = rest;
-    }
+    let mut body = text.strip_prefix('\u{feff}').unwrap_or(text);
     if let Some(after) = body.strip_prefix("#!")
         && !after.trim_start().starts_with('[')
     {
         let cut = body.find('\n').unwrap_or(body.len());
-        base += cut;
-        body = &body[cut..];
+        body = body.split_at(cut).1;
     }
+    let base = text.len() - body.len();
     let stream = TokenStream::from_str(body).map_err(|error| {
         let start = error.span().start();
         LexFailure {
             message: error.to_string(),
-            line: start.line + text[..base].matches('\n').count(),
+            // The omitted prefix ends before the first newline.
+            line: start.line,
             column: start.column + 1,
         }
     })?;
@@ -924,7 +920,7 @@ fn trait_segments(written: &str) -> Option<(bool, Vec<String>)> {
     if written.starts_with('!') {
         return None;
     }
-    let path = &written[..written.find(['<', '(']).unwrap_or(written.len())];
+    let path = written.split(['<', '(']).next().unwrap_or_default();
     let (leading_colon, path) = match path.strip_prefix("::") {
         Some(rest) => (true, rest),
         None => (false, path),
@@ -1182,6 +1178,10 @@ impl<'a> Walk<'a> {
             }
             work::add(Work::ReachSteps, 1);
             let segs = &runs.segs[run.first..run.first + run.len];
+            #[expect(
+                clippy::string_slice,
+                reason = "the runs retain validated identifier boundaries in this exact source"
+            )]
             let word = |at: usize| &text[segs[at].0..segs[at].1];
             let (ctx, key) = match (run.kind, unit.owner) {
                 (RunKind::Path, _) => {
@@ -1661,6 +1661,14 @@ mod tests {
     /// The runs of `text` in `edition` as their text and the byte where each
     /// starts: a path as written without spaces, a run that `Self` starts as
     /// `Self::...`, and a method called on `self` as `.name`.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::panic,
+            clippy::string_slice,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn runs_in(edition: u16, text: &str) -> Vec<(String, usize)> {
         let lexed = lex_text(text, edition).unwrap_or_else(|failure| panic!("{}", failure.message));
         lexed
@@ -1825,6 +1833,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn a_name_called_on_self_is_a_method_run_and_a_field_of_self_is_not() {
         assert_eq!(
             texts("self.helper(); self.field; self.turbo::<u8>(); other.method(); self.0.x()"),
@@ -1852,6 +1867,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn a_byte_order_mark_and_a_shebang_are_left_out_and_offsets_are_those_of_the_text() {
         let text = "\u{feff}fn f() { g() }";
         assert_eq!(runs(text), [("g".to_owned(), text.find('g').expect("g"))]);
@@ -1869,6 +1891,14 @@ mod tests {
     /// read as a segment, whatever character ends it; a written `#[doc]`
     /// is a run as any attribute is.
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            clippy::panic,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn a_doc_comment_is_no_run_whatever_character_ends_it() {
         let text = "//! Crate §\n/// Calls abc\n/// See §1,\n/** Block ß */\n\
                     #[doc = \"x\"]\npub fn f() { a::b() }\nfn abc() {}\n";
@@ -1927,6 +1957,13 @@ mod tests {
 
     const MANIFEST: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n";
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::panic,
+            reason = "the assertion reports the unexpected outcome and terminates the test"
+        )
+    )]
     fn load_with(text: &str, options: &LoadOptions) -> Workspace {
         let tree = MemoryTree::from([("Cargo.toml", MANIFEST), ("src/lib.rs", text)]);
         Workspace::load_with(&tree, &["."], options).unwrap_or_else(|e| panic!("{e}"))
@@ -1938,6 +1975,13 @@ mod tests {
 
     /// A library of `items` public functions, each calling its own private
     /// helper `references` times.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn fan(items: usize, references: usize) -> Workspace {
         let mut text = String::new();
         for i in 0..items {
@@ -1959,6 +2003,13 @@ mod tests {
 
     /// The work of reaching `roots` in `ws`, by kind, and how many nodes
     /// were reached.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::panic,
+            reason = "the assertion reports the unexpected outcome and terminates the test"
+        )
+    )]
     fn work_of(ws: &Workspace, roots: &[Node]) -> ([usize; 6], usize) {
         let (reached, tally) = work::measure(usize::MAX, || ws.reachable(roots));
         let reached = reached.unwrap_or_else(|e| panic!("{e}")).reached.len();
@@ -1967,6 +2018,13 @@ mod tests {
 
     /// The work of reaching every public function of `fan(items,
     /// references)`.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn fan_work(items: usize, references: usize) -> ([usize; 6], usize) {
         let ws = fan(items, references);
         let roots: Vec<Node> = (0..items)
@@ -2027,6 +2085,13 @@ mod tests {
     /// its next sibling through `Self::`, through `self.` and names the
     /// constant and the static; each trait method calls its inherent
     /// namesake on `self`.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn kinds(types: usize, members: usize) -> String {
         let mut text = String::from("pub trait Tr {\n");
         for j in 0..members {
@@ -2066,6 +2131,13 @@ mod tests {
     }
 
     /// The work of reaching the module `top` of `kinds(types, members)`.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn kinds_work(types: usize, members: usize) -> ([usize; 6], usize) {
         let ws = load(&kinds(types, members));
         let top = ws
@@ -2120,6 +2192,14 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            clippy::panic,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn a_path_of_fifty_thousand_segments_is_walked_once_and_not_once_for_each_prefix() {
         const SEGMENTS: usize = 50_000;
         let text = format!(
@@ -2151,6 +2231,14 @@ mod tests {
 
     /// The least item-bytes limit under which the walk from `demo::f` of
     /// `text` is given, less what the load holds: what the walk charges.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            clippy::panic,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn walk_charge(text: &str) -> usize {
         let ws = load(text);
         let held = ws.usage().item_bytes;
@@ -2210,6 +2298,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn format_candidates_charge_owned_bytes_and_return_worker_work_to_the_caller() {
         let source = |calls| {
             format!(
@@ -2245,6 +2340,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn code_prefix_reads_share_one_query_account_and_refuse_one_less() {
         let tree = MemoryTree::from([
             (
@@ -2296,6 +2398,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn a_shared_files_edition_caches_are_each_counted_and_charged_once() {
         let tree = MemoryTree::from([
             ("Cargo.toml", "[workspace]\nmembers = [\"old\", \"new\"]\n"),

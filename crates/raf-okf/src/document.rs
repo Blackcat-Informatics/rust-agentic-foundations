@@ -51,7 +51,7 @@ impl Document {
         let mut head = read_head(text)?;
         sort_tags(&mut head.frontmatter);
         let origin = Origin::after_fences(&head.fences);
-        let body = Body::parse_at(&text[origin.byte..], origin)?;
+        let body = Body::parse_at(head.fences.body(text), origin)?;
         Ok(Self {
             frontmatter: head.frontmatter,
             body,
@@ -111,7 +111,7 @@ impl Document {
             // An early closing fence makes part of the rendered head into
             // Markdown. Preserve a parse error in that shifted body.
             rendered.push_str(self.body.text());
-            Body::parse_at(&rendered[origin.byte..], origin)?;
+            Body::parse_at(head.fences.body(&rendered), origin)?;
             return Ok(false);
         }
         sort_tags(&mut head.frontmatter);

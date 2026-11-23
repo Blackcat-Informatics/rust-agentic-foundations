@@ -20,6 +20,10 @@ fn load(files: &[(&str, &str)]) -> Result<Workspace, LoadError> {
     Workspace::load(&tree, &["."])
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn ok(files: &[(&str, &str)]) -> Workspace {
     load(files).unwrap_or_else(|e| panic!("{e}"))
 }
@@ -29,6 +33,10 @@ fn lib(text: &str) -> Workspace {
 }
 
 #[test]
+#[expect(
+    clippy::string_slice,
+    reason = "the test requires a valid UTF-8 span from the fixture or checked operation"
+)]
 fn module_macros_are_unexpanded_occurrences_with_exact_reaches_and_no_definitions() {
     let text = "macro_rules! make { () => { pub struct Generated; } }\n\
                 make!();\n\
@@ -57,7 +65,10 @@ fn module_macros_are_unexpanded_occurrences_with_exact_reaches_and_no_definition
         assert_eq!(copies.len(), 6);
         let root = &copies[0];
         assert_eq!(root.invoked.as_str(), "make");
-        assert_eq!(&text[root.span.start_byte..root.span.end_byte], "make!();");
+        assert_eq!(
+            text.get(root.span.start_byte..root.span.end_byte),
+            Some("make!();")
+        );
         assert_eq!(root.span.lines, 2..3);
         assert_eq!(root.test, TestRole::None);
         let inner = &copies[1];
@@ -98,6 +109,10 @@ fn module_macros_are_unexpanded_occurrences_with_exact_reaches_and_no_definition
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn unexpanded_payloads_obey_original_fact_and_item_allowances() {
     let tree = MemoryTree::from([
         ("Cargo.toml", DEMO),
@@ -143,6 +158,10 @@ fn unexpanded_payloads_obey_original_fact_and_item_allowances() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn read_only_resolution_keeps_workspace_equality_and_distinguishes_changed_definitions() {
     let text = "pub mod api { pub fn run() {} } pub use api::*;";
     let left = lib(text);
@@ -164,6 +183,11 @@ fn read_only_resolution_keeps_workspace_equality_and_distinguishes_changed_defin
     assert_ne!(left, changed, "actual definitions still determine equality");
 }
 
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn item<'a>(ws: &'a Workspace, path: &str, namespace: Namespace) -> &'a Item {
     let resolution = ws
         .resolve_in(path, namespace)
@@ -334,6 +358,10 @@ fn kind_cases() -> Vec<KindCase> {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn every_kind_is_indexed_with_its_kind_line_file_and_visibility() {
     let ws = lib(KINDS);
     let file = RelPath::new("src/lib.rs").expect("path");
@@ -371,6 +399,10 @@ fn unit_and_tuple_structs_are_also_values_and_named_structs_are_not() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_module_a_function_and_a_macro_of_one_name_coexist_and_each_selects_by_namespace() {
     let ws = lib("pub mod select {}\npub fn select() {}\nmacro_rules! select { () => {} }\n");
     for (namespace, kind) in [
@@ -504,6 +536,10 @@ fn impl_members_are_recorded_under_the_type_or_under_the_trait_by_the_shape_of_t
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_inherent_impl_on_a_type_the_index_cannot_see_is_indexed_under_its_written_self_path() {
     for (written, path) in [
         ("impl Missing { pub fn f() {} }", "demo::Missing"),
@@ -554,6 +590,10 @@ fn an_inherent_impl_on_a_type_the_index_cannot_see_is_indexed_under_its_written_
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_super_path_above_the_root_in_an_unresolved_self_type_is_still_an_error() {
     let error = load(&[("src/lib.rs", "impl super::Missing {}\n")]).expect_err("above");
     assert!(
@@ -570,6 +610,10 @@ fn a_super_path_above_the_root_in_an_unresolved_self_type_is_still_an_error() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_bitflags_style_macro_type_with_an_impl_loads_with_its_members_marked_unresolved() {
     let ws = ok(&[
         (
@@ -675,6 +719,10 @@ fn an_impl_of_a_local_trait_object_loads_with_its_members_marked_unresolved() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_glob_of_enum_variants_beside_an_impl_loads() {
     // `http` writes `use self::Inner::*;` beside `impl PartialEq<Method> for
     // str`: the glob brings in the enum's variants, none of which is a trait.
@@ -707,6 +755,10 @@ fn a_glob_of_enum_variants_beside_an_impl_loads() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_glob_of_a_local_path_the_index_cannot_see_is_a_candidate_that_cannot_be_confirmed() {
     // `nix` globs an enum that `libc_enum!` generates; `zellij-utils` globs a
     // module that `include!` generates.
@@ -770,6 +822,10 @@ fn a_method_in_another_file_than_its_type_is_recorded_under_the_type() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn cfg_twins_are_one_symbol_with_two_sorted_sites() {
     let ws = lib("#[cfg(unix)]\npub fn a() {}\n#[cfg(windows)]\npub fn a() {}\n");
     let resolution = ws.resolve("demo::a").expect("twins resolve");
@@ -793,6 +849,10 @@ fn cfg_twins_are_one_symbol_with_two_sorted_sites() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn files_items_in_and_item_at_answer_by_position() {
     let ws = ok(&[
         ("src/lib.rs", "mod inner;\npub fn first() {}\n"),
@@ -824,6 +884,10 @@ fn files_items_in_and_item_at_answer_by_position() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn shipping_is_the_target_and_not_a_test_role() {
     let ws = ok(&[
         (
@@ -844,6 +908,10 @@ fn shipping_is_the_target_and_not_a_test_role() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn test_functions_carry_the_package_target_and_crate_relative_name() {
     let ws = ok(&[
         ("src/lib.rs", "#[test]\nfn in_lib() {}\n"),
@@ -874,6 +942,11 @@ fn test_functions_carry_the_package_target_and_crate_relative_name() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_first_party_test_crate_module_and_a_test_target_are_ambiguous_only_where_their_paths_meet() {
     let files = [
         ("src/lib.rs", "mod test_crate;\n"),
@@ -1016,6 +1089,10 @@ fn items_under_matches_whole_path_segments() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_file_reached_by_targets_of_two_packages_belongs_to_the_first_target_in_target_order() {
     let tree: MemoryTree = [
         ("Cargo.toml", "[workspace]\nmembers = [\"p1\", \"p2\"]\n"),
@@ -1064,6 +1141,10 @@ fn test_roles_follow_the_module_tree_and_the_item() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_item_the_index_does_not_model_is_a_typed_error_naming_file_and_line() {
     let error =
         load(&[("src/lib.rs", "pub fn ok() {}\ntrait Alias = Send;\n")]).expect_err("unmodelled");
@@ -1077,6 +1158,10 @@ fn an_item_the_index_does_not_model_is_a_typed_error_naming_file_and_line() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn items_that_share_a_source_item_are_grouped_by_its_identity() {
     let ws = ok(&[
         ("src/lib.rs", ""),
@@ -1155,6 +1240,10 @@ fn crate_roots_have_no_source_group_even_when_the_first_item_starts_at_byte_zero
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn items_on_one_long_line_of_wide_characters_get_exact_byte_offsets() {
     // Twenty thousand functions on one line, each name holding a character of
     // two bytes, so a column is not a byte offset.
@@ -1179,6 +1268,10 @@ fn items_on_one_long_line_of_wide_characters_get_exact_byte_offsets() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn bodiless_functions_and_types_of_attribute_macros_are_indexed_where_they_are_written() {
     // The input of an attribute macro that syn has no node for: a function
     // with no body, at item level and in an impl block, and a type with no
@@ -1226,6 +1319,11 @@ fn bodiless_functions_and_types_of_attribute_macros_are_indexed_where_they_are_w
 /// A disabled opaque declaration has a location in each reach and binds no
 /// name. A declaration without the same proof retains the typed refusal.
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::string_slice,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn disabled_opaque_declarations_keep_reach_spans_and_unproved_forms_refuse() {
     let text = "pub fn kept() {}\n\
         #[cfg(any())] const C: u8;\n\
@@ -1319,6 +1417,10 @@ fn disabled_opaque_declarations_keep_reach_spans_and_unproved_forms_refuse() {
 /// What the tests of `Workspace::impls` read of each block, as a line: its
 /// line, its lines, its module, its written self type and trait (`-` for
 /// none), the paths of its self type key and of its members.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn block_rows(ws: &Workspace) -> Vec<String> {
     let paths = |ids: &[raf_source::ItemId]| {
         ids.iter()
@@ -1343,6 +1445,10 @@ fn block_rows(ws: &Workspace) -> Vec<String> {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn every_impl_block_is_listed_in_file_order_with_its_span_module_self_type_key_and_members() {
     let text = "pub struct Foo;\n\
          pub type Alias = Foo;\n\
@@ -1463,6 +1569,10 @@ fn parameter_bindings_are_every_bound_name_in_signature_order_beside_a_function_
 }
 
 #[test]
+#[expect(
+    clippy::string_slice,
+    reason = "the test requires a valid UTF-8 span from the fixture or checked operation"
+)]
 fn an_initializer_is_the_text_between_the_equals_and_the_semicolon_beside_a_required_constant() {
     let text = "#[allow(dead_code)]\n\
                 pub const N: [u8; 0x10000] = [0; 4];\n\

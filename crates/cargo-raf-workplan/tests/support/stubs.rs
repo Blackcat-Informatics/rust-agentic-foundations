@@ -26,6 +26,11 @@ pub(crate) fn serial() -> MutexGuard<'static, ()> {
 }
 
 /// The first `name` on `PATH` that is a file.
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 pub(crate) fn which(name: &str) -> PathBuf {
     let path = std::env::var_os("PATH").expect("a PATH");
     std::env::split_paths(&path)
@@ -40,6 +45,10 @@ pub(crate) fn real_cargo() -> PathBuf {
 }
 
 /// Write an executable script.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub(crate) fn script(path: &Path, body: &str) {
     fs::create_dir_all(path.parent().expect("a directory")).expect("a directory");
     let mut file = fs::OpenOptions::new()
@@ -111,6 +120,10 @@ impl Stubs {
     }
 
     /// `PATH` with the stubs in front.
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     pub(crate) fn path(&self) -> OsString {
         let mut dirs = vec![self.bin()];
         dirs.extend(std::env::split_paths(

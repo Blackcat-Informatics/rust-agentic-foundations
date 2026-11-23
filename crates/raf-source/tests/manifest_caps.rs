@@ -38,6 +38,10 @@ impl Counted {
 
 /// A workspace manifest whose `members` and `exclude` hold the given quoted
 /// entries, and one package `p`, loaded through a counting tree.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn load(members: &[String], exclude: &[String]) -> Counted {
     let quoted = |entries: &[String]| {
         let mut text = String::new();
@@ -94,6 +98,10 @@ fn with(mut list: Vec<String>, entry: &str) -> Vec<String> {
     list
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn refused_key(result: Result<Workspace, LoadError>, key: &str, count: usize) {
     let error = result.expect_err("over the cap");
     assert!(
@@ -117,6 +125,10 @@ fn refused_key(result: Result<Workspace, LoadError>, key: &str, count: usize) {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn exclude_at_the_cap_loads_and_one_over_is_refused() {
     let at = load(&["p".to_owned()], &globs(CAP, "q"));
     at.result
@@ -132,6 +144,10 @@ fn exclude_at_the_cap_loads_and_one_over_is_refused() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn members_at_the_cap_loads_and_one_over_is_refused() {
     let reference = plain();
     let at = load(&with(globs(CAP - 1, "m"), "p"), &[]);
@@ -165,6 +181,11 @@ fn the_duplicate_pattern_probe_is_refused_before_any_pattern_is_expanded() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn duplicate_patterns_within_the_caps_load_with_the_tree_calls_of_one_of_each() {
     let members = vec!["p".to_owned(); CAP];
     let exclude = vec!["q*".to_owned(); CAP];
@@ -179,6 +200,11 @@ fn duplicate_patterns_within_the_caps_load_with_the_tree_calls_of_one_of_each() 
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn distinct_patterns_at_both_caps_load_with_no_tree_calls_for_the_excludes() {
     // Every literal member is tested against every wildcard exclude, and the
     // only exclude that matches comes last. The tests are made in memory, so
@@ -196,6 +222,11 @@ fn distinct_patterns_at_both_caps_load_with_no_tree_calls_for_the_excludes() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn exclude_still_removes_literal_wildcard_and_nested_members() {
     let tree: MemoryTree = [
         (

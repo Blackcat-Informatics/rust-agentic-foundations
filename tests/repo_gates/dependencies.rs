@@ -21,22 +21,17 @@ fn table<'a>(
         .iter()
         .map(|id| {
             let child = &document.nodes()[*id];
-            (
-                child
-                    .key
-                    .as_ref()
-                    .expect("native table member key")
-                    .decoded
-                    .as_str(),
-                child,
-            )
+            let key = child.key.as_ref().ok_or_else(|| {
+                format!("{section}: field at byte {} has no key", child.span.start)
+            })?;
+            Ok::<_, String>((key.decoded.as_str(), child))
         })
-        .collect();
+        .collect::<Result<_, _>>()?;
     // Preserve the dependency and target order of the original manifest gate.
     purrdf_lex::walk::try_sort_unstable_by(&mut fields, |a, b| {
         Ok::<_, std::convert::Infallible>(a.0.cmp(b.0))
     })
-    .expect("infallible field ordering");
+    .unwrap_or_else(|never| match never {});
     Ok(fields)
 }
 
@@ -124,8 +119,10 @@ pub(super) fn read_manifest(manifest: &str) -> Result<Manifest, String> {
         if matches!(
             node.kind,
             Kind::Scalar(Scalar::Float(Float::Infinity { .. }))
-        ) && !["inf", "+inf", "-inf"].contains(&&manifest[node.span.clone()])
-        {
+        ) && !matches!(
+            manifest.get(node.span.clone()),
+            Some("inf" | "+inf" | "-inf")
+        ) {
             return Err(format!(
                 "invalid Cargo manifest at byte {}: floating-point overflow; explicit inf is required",
                 node.span.start
@@ -172,6 +169,14 @@ pub(super) fn read_manifest(manifest: &str) -> Result<Manifest, String> {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn rdf_first_party_manifests_have_no_json_result_dependency() {
     let root = gate_root();
     let manifests: Vec<_> = tracked_paths()
@@ -188,6 +193,10 @@ fn rdf_first_party_manifests_have_no_json_result_dependency() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn rdf_dependency_refusal_covers_aliases_targets_workspace_and_every_dependency_class() {
     for manifest in [
         "[dependencies]\nserde_json='1'\n",
@@ -238,6 +247,14 @@ fn rdf_dependency_refusal_covers_aliases_targets_workspace_and_every_dependency_
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn rdf_dependency_scan_refuses_malformed_manifests_instead_of_skipping_them() {
     for invalid in [
         "[dependencies\n",

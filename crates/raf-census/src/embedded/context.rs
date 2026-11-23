@@ -27,28 +27,20 @@ pub(super) fn for_file<'source>(
     workspace: &'source Workspace,
     file: &'source SourceFile,
 ) -> Result<(Analysis<'source>, Prelude), SourceFailure<'source>> {
-    let declared = Prelude::declared_for_file(workspace, file, analysis.meter())
-        .map_err(|cause| located(&file.path, 0, cause))?;
+    let at_file = |cause| located(&file.path, 0, cause);
+    let declared =
+        Prelude::declared_for_file(workspace, file, analysis.meter()).map_err(at_file)?;
     let mut selected = None;
     for reach in &file.reached {
-        analysis
-            .meter()
-            .work(1)
-            .map_err(|cause| located(&file.path, 0, cause))?;
+        analysis.meter().work(1).map_err(at_file)?;
         if reach.predicate.is_some() {
-            return Err(located(
-                &file.path,
-                0,
-                Refusal::Unsupported("a conditional source reach needs admitted active selection"),
-            ));
+            return Err(at_file(Refusal::Unsupported(
+                "a conditional source reach needs admitted active selection",
+            )));
         }
-        let target = workspace.target(reach.target).ok_or_else(|| {
-            located(
-                &file.path,
-                0,
-                Refusal::Invariant("source reach lost its target"),
-            )
-        })?;
+        let target = workspace
+            .target(reach.target)
+            .ok_or_else(|| at_file(Refusal::Invariant("source reach lost its target")))?;
         let mut current = root_file(
             workspace,
             reach.target,
@@ -60,27 +52,25 @@ pub(super) fn for_file<'source>(
         let mut file_module = target.crate_path.as_str();
         (analysis, profile) = inspect(analysis, current, None, declared, file_module, true)?;
         let path = reach.module_path.as_str();
-        let suffix = reach_suffix(path, &target.crate_path, analysis.meter())
-            .map_err(|cause| located(&file.path, 0, cause))?;
+        let suffix = reach_suffix(path, &target.crate_path, analysis.meter()).map_err(at_file)?;
         let mut offset = path.len() - suffix.len();
         while offset < path.len() {
-            let tail = &path[offset + 2..];
-            analysis
-                .meter()
-                .work(tail.len())
-                .map_err(|cause| located(&file.path, 0, cause))?;
+            let tail = path
+                .get(offset + 2..)
+                .ok_or_else(|| at_file(Refusal::Invariant("invalid source reach tail")))?;
+            analysis.meter().work(tail.len()).map_err(at_file)?;
             let width = tail.find("::").unwrap_or(tail.len());
             if width == 0 {
-                return Err(located(
-                    &file.path,
-                    0,
-                    Refusal::Invariant("source reach has an empty module segment"),
-                ));
+                return Err(at_file(Refusal::Invariant(
+                    "source reach has an empty module segment",
+                )));
             }
             offset += width + 2;
-            let prefix = &path[..offset];
-            let module = declaration(workspace, reach.target, prefix, analysis.meter())
-                .map_err(|cause| located(&file.path, 0, cause))?;
+            let prefix = path
+                .get(..offset)
+                .ok_or_else(|| at_file(Refusal::Invariant("invalid source reach prefix")))?;
+            let module =
+                declaration(workspace, reach.target, prefix, analysis.meter()).map_err(at_file)?;
             if module.file != current.path {
                 return Err(located(
                     &module.file,
@@ -101,28 +91,19 @@ pub(super) fn for_file<'source>(
             }
         }
         if !std::ptr::eq(current, file) {
-            return Err(located(
-                &file.path,
-                0,
-                Refusal::Invariant("module ancestry ended at a different actual source file"),
-            ));
+            return Err(at_file(Refusal::Invariant(
+                "module ancestry ended at a different actual source file",
+            )));
         }
         if selected.is_some_and(|known| known != profile) {
-            return Err(located(
-                &file.path,
-                0,
-                Refusal::Unsupported("source reaches disagree on their inherited prelude policy"),
-            ));
+            return Err(at_file(Refusal::Unsupported(
+                "source reaches disagree on their inherited prelude policy",
+            )));
         }
         selected = Some(profile);
     }
-    let profile = selected.ok_or_else(|| {
-        located(
-            &file.path,
-            0,
-            Refusal::Invariant("source file has no actual reach"),
-        )
-    })?;
+    let profile =
+        selected.ok_or_else(|| at_file(Refusal::Invariant("source file has no actual reach")))?;
     Ok((analysis, profile))
 }
 

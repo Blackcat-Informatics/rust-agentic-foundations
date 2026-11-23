@@ -8,6 +8,13 @@ use crate::embedded::{pairing, resource::Meter};
 use crate::report::shape;
 use raf_rdf::{Builder, Format, Graph, Node, TermValue as Term, Triple, Value};
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 pub(in crate::embedded) fn key(kind: &str, parts: &[String]) -> String {
     let mut account = purrdf_lex::allocation::Resident;
     super::super::key_with_memory(
@@ -18,6 +25,13 @@ pub(in crate::embedded) fn key(kind: &str, parts: &[String]) -> String {
     .unwrap()
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 pub(in crate::embedded) fn graph(matches: &pairing::Matches<'_>) -> Graph {
     Claims::produce(matches, |outcome| {
         outcome.unwrap().to_text_admitted(
@@ -29,10 +43,25 @@ pub(in crate::embedded) fn graph(matches: &pairing::Matches<'_>) -> Graph {
     })
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 pub(super) fn accepts(graph: &Graph) -> bool {
     roundtrip(&graph.to_text(Format::Turtle).unwrap(), Format::Turtle).is_some()
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 pub(super) fn exhausted_report(matches: &pairing::Matches<'_>, limit: usize) {
     use crate::embedded::{OutputFailureKind, RefusalKind};
 
@@ -48,6 +77,13 @@ pub(super) fn exhausted_report(matches: &pairing::Matches<'_>, limit: usize) {
     assert_eq!(meter.usage().0, limit);
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 pub(super) fn roundtrip(text: &str, format: Format) -> Option<String> {
     let meter = Meter::new(100_000_000, 10_000_000);
     Claims::from_text(text, format, &meter, |outcome| match outcome {

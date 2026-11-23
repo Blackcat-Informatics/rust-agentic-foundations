@@ -13,6 +13,13 @@ use raf_source::{LoadOptions, MemoryTree, RelPath, Workspace};
 const MANIFEST: &str = "[package]\nname='fixture'\nversion='0.1.0'\nedition='2024'\n";
 const CORE: &str = "let x = input + 1; let y = x * 3; sink(y, x, input, 7);";
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn load(source: &str) -> Workspace {
     Workspace::load(
         &MemoryTree::from([("Cargo.toml", MANIFEST), ("src/lib.rs", source)]),
@@ -21,6 +28,13 @@ fn load(source: &str) -> Workspace {
     .unwrap()
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn analyze(workspace: &Workspace) -> Matches<'_> {
     pairing::find(
         workspace::collect(workspace, 100_000_000, 10_000_000).unwrap(),
@@ -42,6 +56,13 @@ fn repeated(count: usize) -> String {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn adoption_preserves_line_shifts_counts_repetition_and_refuses_growth_after_exact_shrink() {
     public_run_preserves_verified_pairs_and_explicit_shrink();
     let original = load(&repeated(3));
@@ -122,6 +143,14 @@ fn adoption_preserves_line_shifts_counts_repetition_and_refuses_growth_after_exa
 
 // The shipped facade must reach the same source proof, independent RDF and
 // shrink-only allowance path as the controlled production fixture above.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn public_run_preserves_verified_pairs_and_explicit_shrink() {
     use crate::embedded::{Comparison as PublicComparison, Error, Options, Run};
     let workspace = load(&repeated(3));
@@ -200,6 +229,13 @@ fn public_run_preserves_verified_pairs_and_explicit_shrink() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn complete_owner_descriptors_separate_traits_generic_self_types_and_physical_aliases() {
     for (declarations, first, second) in [
         (
@@ -279,6 +315,13 @@ fn complete_owner_descriptors_separate_traits_generic_self_types_and_physical_al
     );
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn external_workspace(reverse: bool) -> Workspace {
     use raf_source::{LockedCatalog, LockedManifest, ReferencePackageRoots, ReferenceTree};
     let source = format!(
@@ -353,6 +396,13 @@ fn external_workspace(reverse: bool) -> Workspace {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn checked_external_sources_survive_catalog_reordering_while_unbound_roots_refuse() {
     let before = external_workspace(false);
     let after = external_workspace(true);
@@ -397,6 +447,14 @@ fn checked_external_sources_survive_catalog_reordering_while_unbound_roots_refus
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn imported_allowances_refuse_unknown_policy_zero_counts_orphans_and_total_overflow() {
     let original = load(&repeated(4));
     let observed = analyze(&original);
@@ -484,6 +542,13 @@ fn imported_allowances_refuse_unknown_policy_zero_counts_orphans_and_total_overf
     );
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn refuse_nested_descriptors(descriptor: &str, meter: &Meter) {
     // Outer framing stays canonical while nested records become malformed.
     // Exercise the production descriptor boundary without a stale RDF name.
@@ -619,7 +684,21 @@ fn corrupt_repository_descriptor(
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn descriptors_and_debt_tables_share_exact_grants_and_release_failed_projection_storage() {
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn project<'m>(
         meter: &'m Meter,
         lexical: &[&str],
@@ -706,6 +785,13 @@ fn descriptors_and_debt_tables_share_exact_grants_and_release_failed_projection_
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn debt_requires_the_selected_run_and_import_restores_exact_comparison() {
     let workspace = load(&repeated(2));
     let first = analyze(&workspace);

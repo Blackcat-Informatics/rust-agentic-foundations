@@ -20,6 +20,11 @@ use support::{Repo, line_of};
 const AUXILIARY: &str = "docs/capabilities/auxiliary.md";
 
 /// The text between the markers of the first block of `kind` in `text`.
+#[expect(
+    clippy::panic,
+    clippy::string_slice,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn block(text: &str, kind: &str) -> String {
     let open = format!("<!-- raf:generated:{kind} -->\n");
     let start = text
@@ -33,6 +38,10 @@ fn block(text: &str, kind: &str) -> String {
 }
 
 /// `repo` with the first `from` of `path` replaced by `to`.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn replaced(repo: &Repo, path: &str, from: &str, to: &str) -> Repo {
     let mut next = repo.clone();
     let text = next
@@ -407,6 +416,10 @@ fn a_catalogue_block_is_valid_only_in_the_capability_index() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_matrix_or_a_relationship_table_in_the_index_is_misplaced() {
     for block_text in [MATRIX, RELATIONSHIPS] {
         let mut repo = base();
@@ -422,6 +435,10 @@ fn a_matrix_or_a_relationship_table_in_the_index_is_misplaced() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn blocks_in_a_change_record_or_an_architecture_page_are_misplaced_and_never_rewritten() {
     for (file, anchor, text) in [
         (OVERVIEW, "Body text.\n", MATRIX),
@@ -469,6 +486,11 @@ fn a_generated_block_does_not_make_a_section_non_empty() {
 // --- marker errors -------------------------------------------------------------
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_marker_fixture_for_each_error_nested_unclosed_orphan_end_and_unknown_kind() {
     let anchor = "Text for Purpose of beta.\n";
     let cases: [(&str, &str, &str); 5] = [
@@ -547,6 +569,10 @@ fn stale(repo: &Repo, file: &str, kind: &str) -> Vec<Finding> {
 
 /// Require that `broken` is stale for `kind` in `file`, that nothing else is
 /// stale, and that one sync makes `fixed` out of it, with nothing left.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn assert_stale_and_repaired(broken: &Repo, file: &str, kind: &str, fixed: &Repo) {
     let found = stale(broken, file, kind);
     assert_eq!(found.len(), 1, "{file} {kind}: {:#?}", check_all(broken));
@@ -711,6 +737,10 @@ fn outside(text: &str) -> String {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn text_outside_a_block_is_never_changed_and_a_file_without_blocks_is_untouched() {
     let marker = "DISTINCT outside text, `code`, tabs\tand  double  spaces, é, <b>&amp;";
     let mut repo = unsynced();
@@ -752,6 +782,11 @@ fn text_outside_a_block_is_never_changed_and_a_file_without_blocks_is_untouched(
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::string_slice,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn the_frontmatter_of_a_rewritten_document_is_kept_byte_for_byte() {
     // Comments, quoting and key order that the writer would normalise.
     let repo = replaced(
@@ -774,6 +809,11 @@ fn crlf(text: &str) -> String {
 }
 
 /// `text` with the frontmatter and the body each in the given ending.
+#[expect(
+    clippy::expect_used,
+    clippy::string_slice,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn endings(text: &str, head_crlf: bool, body_crlf: bool) -> String {
     let split = text.find("\n---\n").expect("a closing fence") + "\n---\n".len();
     let part = |part: &str, to_crlf: bool| {
@@ -804,6 +844,10 @@ fn with_endings(repo: &Repo, head_crlf: bool, body_crlf: bool) -> Repo {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_crlf_document_stays_all_crlf_and_an_lf_document_all_lf() {
     let good = base();
     // LF in, LF out.
@@ -820,6 +864,11 @@ fn a_crlf_document_stays_all_crlf_and_an_lf_document_all_lf() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::string_slice,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_crlf_frontmatter_over_an_lf_body_gets_lf_blocks_and_stays_clean() {
     let good = base();
     let repo = synced(&with_endings(&unsynced(), true, false));
@@ -848,6 +897,10 @@ fn an_lf_frontmatter_over_a_crlf_body_gets_crlf_blocks() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_body_that_mixes_line_endings_is_refused_by_sync_and_reported_by_check() {
     let mixed = replaced(
         &unsynced(),
@@ -902,6 +955,10 @@ fn the_sync_of_a_crlf_document_is_idempotent_and_stale_in_crlf_is_repaired_in_cr
 // --- the index ------------------------------------------------------------------------
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_missing_index_is_a_finding_and_sync_creates_it_with_the_spdx_lines() {
     let mut repo = base();
     repo.remove(INDEX);
@@ -923,6 +980,10 @@ fn a_missing_index_is_a_finding_and_sync_creates_it_with_the_spdx_lines() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn the_spdx_text_of_a_new_index_is_required_and_must_fit_one_comment_line() {
     let mut repo = base();
     repo.remove(INDEX);
@@ -954,6 +1015,10 @@ fn the_spdx_text_of_a_new_index_is_required_and_must_fit_one_comment_line() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn an_index_with_text_outside_its_blocks_is_rejected_whatever_else_it_holds() {
     for text in [
         "Hand-written navigation.\n",
@@ -1017,6 +1082,10 @@ fn an_existing_index_keeps_its_own_header_and_a_stale_catalogue_is_rewritten_in_
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_repository_without_capabilities_needs_no_index() {
     // Two architecture pages that link each other, and no capability.
     let mut repo = Repo::new();
@@ -1067,6 +1136,10 @@ fn the_kinds_the_crate_owns_are_the_three_documented_ones() {
 // --- blocks do not count as prose, rows are sound ------------------------------------
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_block_in_a_section_other_than_verification_converges_in_one_sync() {
     // A matrix and a relationship table in Usage: the rows the matrix writes
     // name `demo::real`, and must not make Usage a section that names it.
@@ -1133,6 +1206,10 @@ fn a_relation_listed_twice_is_one_row() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_backtick_in_a_binding_path_does_not_break_the_code_span() {
     let repo = replaced(
         &unsynced(),

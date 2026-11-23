@@ -17,6 +17,10 @@ use raf_source::{
 use std::fmt::Write as _;
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn reference_observations_verify_manifests_without_admitting_provider_routes() {
     let options = LoadOptions::default();
     let tree = MemoryTree::from([
@@ -100,6 +104,11 @@ fn reference_observations_verify_manifests_without_admitting_provider_routes() {
     structural_reference_resolution_uses_actual_directories(&catalog, owner, observed.row());
 }
 
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn unresolved_routes_preserve_target_identity_and_query_grants(workspace: &Workspace) {
     for (path, expected) in [
         ("app::unavailable", vec!["app", "helper"]),
@@ -162,6 +171,10 @@ fn unresolved_routes_preserve_target_identity_and_query_grants(workspace: &Works
     }
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn structural_reference_resolution_uses_actual_directories(
     catalog: &LockedCatalog,
     owner: LockedPackageId,
@@ -263,6 +276,10 @@ fn structural_reference_resolution_uses_actual_directories(
     );
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn structural_reference_directories() -> (
     purrdf_testkit::TempDir,
     raf_source::DiskTree,
@@ -298,6 +315,11 @@ fn structural_reference_directories() -> (
 }
 
 #[cfg(unix)]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn parent_path_directory_context_neighbors(request: &ReferenceRequest<'_>) {
     use raf_source::Tree as _;
     let parent = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("reference-path-context");
@@ -339,14 +361,18 @@ fn parent_path_directory_context_neighbors(request: &ReferenceRequest<'_>) {
     )
     .unwrap();
     let refused = ReferenceObservation::load(request, &tree, &original, &LoadOptions::default())
-        .err()
-        .expect("hardlinked manifests cannot authorize a different package directory");
+        .expect_err("hardlinked manifests cannot authorize a different package directory");
     assert!(
         refused.to_string().contains("directory symlink"),
         "{refused}"
     );
 }
 
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn reference_selection_and_source_use_one_work_allowance(
     request: &ReferenceRequest<'_>,
     catalog: &LockedCatalog,
@@ -359,8 +385,7 @@ fn reference_selection_and_source_use_one_work_allowance(
     ReferenceObservation::local_root(catalog, tree, manifest, &bounded).unwrap();
     request.select(&bounded).unwrap();
     let refused = ReferenceObservation::load(request, tree, manifest, &bounded)
-        .err()
-        .expect("selection and source cannot each spend the original grant");
+        .expect_err("selection and source cannot each spend the original grant");
     assert!(
         matches!(
             refused.kind,
@@ -374,6 +399,11 @@ fn reference_selection_and_source_use_one_work_allowance(
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn local_reference_owner_selection_spends_its_original_work_allowance() {
     let tree = MemoryTree::from([
         (
@@ -400,8 +430,7 @@ fn local_reference_owner_selection_spends_its_original_work_allowance() {
     options.max_work = admitted.workspace().usage().work;
     ReferenceObservation::local_root(&minimal, &tree, &manifest, &options).unwrap();
     let refused = ReferenceObservation::local_root(&catalog, &tree, &manifest, &options)
-        .err()
-        .expect("additional catalog comparisons exceed the original grant");
+        .expect_err("additional catalog comparisons exceed the original grant");
     assert!(
         matches!(
             refused.kind,
@@ -415,6 +444,10 @@ fn local_reference_owner_selection_spends_its_original_work_allowance() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn registry_reference_observations_match_selected_manifest_identity() {
     let source = "registry+https://example.test/index";
     let lock = format!(
@@ -470,6 +503,11 @@ fn registry_reference_observations_match_selected_manifest_identity() {
     assert!(ReferenceObservation::load(&request, &wrong, &manifest, &options).is_err());
 }
 
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn committed_reference_neighbors() -> usize {
     let fixture = Fixture::new();
     let tree = fixture.consumer("");
@@ -489,8 +527,7 @@ fn committed_reference_neighbors() -> usize {
     .unwrap();
     let refused =
         ReferenceObservation::load(&request, &committed, &manifest, &LoadOptions::default())
-            .err()
-            .expect("generic Tree cannot admit otherwise valid committed bytes");
+            .expect_err("generic Tree cannot admit otherwise valid committed bytes");
     assert!(
         refused.to_string().contains("sealed committed Tree"),
         "{refused}"
@@ -525,6 +562,11 @@ fn committed_reference_neighbors() -> usize {
     observed.workspace().usage().work
 }
 
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn committed_reference_budget_neighbor(work: usize) {
     let fixture = Fixture::with_padding(512);
     let consumer = fixture.consumer("");
@@ -550,8 +592,7 @@ fn committed_reference_budget_neighbor(work: usize) {
         &RelPath::new("kit/Cargo.toml").unwrap(),
         &options,
     )
-    .err()
-    .expect("extra native Git listing work exceeds the original observation allowance");
+    .expect_err("extra native Git listing work exceeds the original observation allowance");
     assert!(
         matches!(
             refused.kind,
@@ -565,6 +606,11 @@ fn committed_reference_budget_neighbor(work: usize) {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn explicit_first_party_roots_require_every_discovered_manifest_association() {
     let tree = MemoryTree::from([
         ("Cargo.toml", "[workspace]\nmembers=['one','two']\n"),
@@ -644,6 +690,10 @@ impl Fixture {
         Self::with_padding(0)
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     fn with_padding(padding: usize) -> Self {
         let mut objects = Objects::default();
         let workspace = objects.insert(GitObjectKind::Blob, b"[workspace]\nmembers=['kit','core']\n[workspace.package]\nversion='3.0.1'\nedition='2024'\n[workspace.dependencies]\ncorekit={path='core',version='3.0.1'}\n".to_vec());
@@ -711,6 +761,10 @@ impl Fixture {
         }
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     fn row(&self, name: &str, source: Option<&str>) -> LockedPackageId {
         self.catalog
             .packages()
@@ -748,6 +802,11 @@ impl Fixture {
         })
     }
 
+    #[expect(
+        clippy::expect_used,
+        clippy::unwrap_in_result,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )]
     fn load_with(
         &self,
         consumer: &MemoryTree,
@@ -815,6 +874,10 @@ impl Fixture {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn exact_sources_versions_and_path_edges_resolve_aliases_to_the_actual_package() {
     let fixture = Fixture::new();
     let tree = fixture.consumer("");
@@ -855,6 +918,10 @@ fn exact_sources_versions_and_path_edges_resolve_aliases_to_the_actual_package()
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn checked_contents_do_not_let_wrong_manifest_names_or_versions_acquire_a_row() {
     let fixture = Fixture::new();
     let tree = fixture.consumer("");
@@ -878,6 +945,10 @@ fn checked_contents_do_not_let_wrong_manifest_names_or_versions_acquire_a_row() 
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_nested_same_name_and_version_cannot_replace_the_root_workspace_package() {
     let fixture = Fixture::new();
     let tree = fixture.consumer("");
@@ -900,6 +971,10 @@ fn a_nested_same_name_and_version_cannot_replace_the_root_workspace_package() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn requested_missing_and_optional_edges_refuse_and_unrequested_edges_never_borrow_a_name() {
     let fixture = Fixture::new();
     let edges = [LockedEdge::new("dependencies.absent", None)];
@@ -955,6 +1030,10 @@ fn requested_missing_and_optional_edges_refuse_and_unrequested_edges_never_borro
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn all_snapshots_catalog_and_walker_use_one_original_resource_grant() {
     let fixture = Fixture::new();
     let tree = fixture.consumer("");
@@ -1018,6 +1097,10 @@ fn all_snapshots_catalog_and_walker_use_one_original_resource_grant() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn actual_version_evidence_is_required_without_changing_ordinary_missing_version_loading() {
     let fixture = Fixture::new();
     for version in [
@@ -1052,6 +1135,10 @@ fn actual_version_evidence_is_required_without_changing_ordinary_missing_version
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn another_checked_repository_cannot_supply_an_expected_source_by_name_or_authority() {
     let fixture = Fixture::new();
     let other = CommittedGitTree::open(

@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+set -euo pipefail
+manifest=${1:?provide the workspace Cargo.toml}
+mkdir -p .stage
+targets=$(mktemp .stage/format-targets.XXXXXXXX)
+trap 'rm -f -- "$targets"' EXIT
+
+# Cargo supplies the workspace membership, target roots and effective editions.
+cargo metadata --locked --no-deps --format-version=1 --manifest-path "$manifest" |
+    jq -je '
+        [.workspace_members[] as $id | .packages[] | select(.id == $id)
+            | .targets[] | {edition, src_path}] | unique | sort_by(.edition) |
+        if length == 0 then error("workspace has no formatting targets")
+        else .[] | .edition, "\u0000", .src_path, "\u0000" end
+    ' > "$targets"
+
+edition=
+paths=()
+while IFS= read -r -d '' next && IFS= read -r -d '' path; do
+    if [[ $next != "$edition" && ${#paths[@]} -gt 0 ]]; then
+        rustfmt --check --edition "$edition" "${paths[@]}"
+        paths=()
+    fi
+    edition=$next
+    paths+=("$path")
+done < "$targets"
+rustfmt --check --edition "$edition" "${paths[@]}"

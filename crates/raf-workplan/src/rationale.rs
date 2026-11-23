@@ -194,17 +194,15 @@ fn has_item(body: &Body, lines: &Range<usize>) -> bool {
 /// not a list item, or whose text holds no letter and no digit.
 fn list_item_text(line: &str) -> Option<&str> {
     let line = line.trim_start();
-    let digits = line.bytes().take_while(u8::is_ascii_digit).count();
-    let marker = match line.as_bytes().first()? {
-        b'-' | b'*' | b'+' => 1,
-        _ if (1..=9).contains(&digits)
-            && matches!(line.as_bytes().get(digits), Some(b'.' | b')')) =>
-        {
-            digits + 1
+    let rest = if let Some(rest) = line.strip_prefix(['-', '*', '+']) {
+        rest
+    } else {
+        let digits = line.bytes().take_while(u8::is_ascii_digit).count();
+        if !(1..=9).contains(&digits) {
+            return None;
         }
-        _ => return None,
+        line.get(digits..)?.strip_prefix(['.', ')'])?
     };
-    let rest = &line[marker..];
     if !rest.starts_with([' ', '\t']) {
         return None;
     }
@@ -343,6 +341,13 @@ mod tests {
     }
 
     /// A capability whose Explanation holds `explanation`.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn capability(explanation: &str) -> String {
         let mut sections = String::new();
         for name in [
@@ -371,6 +376,13 @@ mod tests {
     /// The findings of loading `files`, and the work the load counted, which
     /// runs the rules of current rationale. A rule that does work per pair of
     /// headings stops at `ceiling` at once instead of running to the end.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn judged(files: &[(&str, &str)], ceiling: usize) -> (Vec<crate::Finding>, Tally) {
         let source = Workspace::load(
             &MemoryTree::from([

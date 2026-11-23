@@ -42,6 +42,13 @@ fn load(lib: &str, max_work: usize) -> Result<Workspace, LoadError> {
 }
 
 /// Load `lib` with the work of each query limited to `max_query_work`.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )
+)]
 fn queried(lib: &str, max_query_work: usize) -> Workspace {
     load_with(
         lib,
@@ -114,6 +121,14 @@ fn refused_at(error: &LoadError, limit: usize) {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        clippy::panic,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn the_lookups_of_many_named_imports_through_many_globs_are_charged_and_refused_by_a_small_limit_at_the_first_checkpoint_past_it()
  {
     // The n named imports of `t` each look `X` up in what the n globs of
@@ -163,6 +178,14 @@ fn the_lookups_of_many_named_imports_through_many_globs_are_charged_and_refused_
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        clippy::panic,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn every_limit_below_the_work_of_the_lookups_shape_is_refused_by_the_work_budget_and_by_nothing_else()
  {
     // The lookups answer as they always do until the checkpoint refuses,
@@ -187,6 +210,13 @@ fn every_limit_below_the_work_of_the_lookups_shape_is_refused_by_the_work_budget
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )
+)]
 fn every_glob_read_a_lookup_of_the_load_looks_at_is_charged_once() {
     // Each read and view a lookup of the load looks at is a step charged
     // at a checkpoint, once: what the tallies saw the lookups look at, the
@@ -231,6 +261,13 @@ const fn query_steps(n: usize) -> usize {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn a_query_after_the_load_is_charged_its_own_lookup_steps_against_the_limit_of_one_query() {
     for n in [8, 16] {
         let lib = lookups(n);
@@ -331,6 +368,14 @@ fn every_query_counts_the_lookups_of_its_walks_and_of_the_views_it_looks_at_to_f
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        clippy::panic,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn every_way_of_resolving_a_path_is_a_query_with_its_own_limit() {
     let ws = queried(&lookups(8), 0);
     let package = ws.packages().first().expect("one package").name.clone();
@@ -366,6 +411,14 @@ fn every_way_of_resolving_a_path_is_a_query_with_its_own_limit() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        clippy::panic,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn the_public_surface_is_one_query_whose_lookups_and_those_of_the_paths_it_resolves_share_its_limit()
  {
     // Listing the surface walks the path of `u`'s glob, one step, and
@@ -387,6 +440,13 @@ fn the_public_surface_is_one_query_whose_lookups_and_those_of_the_paths_it_resol
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn queries_on_other_threads_each_count_from_zero() {
     let lib = lookups(8);
     let steps = query_steps(8);

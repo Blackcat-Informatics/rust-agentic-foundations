@@ -56,7 +56,7 @@ pub(super) fn first_pair<'a>(
 
 fn next_field(mut rest: &str) -> Option<(&str, &str)> {
     while let Some(open) = rest.find('{') {
-        rest = &rest[open + 1..];
+        rest = rest.get(open + 1..)?;
         if let Some(escaped) = rest.strip_prefix('{') {
             rest = escaped;
             continue;

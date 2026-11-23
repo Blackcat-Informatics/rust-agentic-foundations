@@ -37,8 +37,9 @@ impl FromStr for TypeId {
     fn from_str(text: &str) -> Result<Self, Self::Err> {
         let digits = text.strip_prefix("0x").ok_or(InvalidTypeId)?;
         let mut bytes = [0; 8];
-        purrdf_hash::hex::decode_canonical_to_slice(digits, &mut bytes)
-            .map_err(|_| InvalidTypeId)?;
+        if purrdf_hash::hex::decode_canonical_to_slice(digits, &mut bytes).is_err() {
+            return Err(InvalidTypeId);
+        }
         let id = u64::from_be_bytes(bytes);
         if id & (1 << 63) == 0 {
             return Err(InvalidTypeId);

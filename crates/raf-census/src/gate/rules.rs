@@ -92,6 +92,14 @@ pub(super) struct Collected {
     pub(super) enum_usage: Vec<String>,
 }
 
+impl Collected {
+    fn rule_hits(&mut self, id: &str) -> Result<&mut BTreeMap<UnitKey, Vec<RuleHit>>, Error> {
+        self.hits
+            .get_mut(id)
+            .ok_or_else(|| refused(id, "detector hit has no admitted rule entry"))
+    }
+}
+
 pub(super) struct JobHits<'a> {
     pub(super) shared: &'a Hits,
     pub(super) contextual: Hits,
@@ -277,9 +285,7 @@ fn registered_hits(
                 record_line(collected, (id, owners::key(owner)), &source.text, &hit);
             }
             collected
-                .hits
-                .get_mut(id)
-                .expect("admitted rule")
+                .rule_hits(id)?
                 .entry(owners::key(owner))
                 .or_default()
                 .push(hit);
@@ -389,9 +395,7 @@ fn fact_hits(
                 record_line(collected, (hit.rule, owners::key(unit)), text, &found);
             }
             collected
-                .hits
-                .get_mut(hit.rule)
-                .expect("implemented fact detector")
+                .rule_hits(hit.rule)?
                 .entry(owners::key(unit))
                 .or_default()
                 .push(found);
@@ -648,11 +652,11 @@ pub(super) fn record_hit(
         .filter_map(|item| owners.get(&(file.clone(), item.span.start_byte)))
         .map(|unit| (owners::key(unit), *unit))
         .collect();
-    if physical.len() != 1 {
-        if physical.is_empty() {
-            source_hit(workspace, file, collected, hit)?;
-            return Ok(());
-        }
+    let mut physical = physical.into_iter();
+    let Some((key, unit)) = physical.next() else {
+        return source_hit(workspace, file, collected, hit);
+    };
+    if physical.next().is_some() {
         return Err(refused(
             hit.rule,
             &format!(
@@ -661,7 +665,6 @@ pub(super) fn record_hit(
             ),
         ));
     }
-    let (key, unit) = physical.into_iter().next().expect("one physical owner");
     if unit.shipping || !crate::detectors::shipping_only(hit.rule) {
         collected
             .offsets
@@ -676,9 +679,7 @@ pub(super) fn record_hit(
                 call_reaches: hit.call_reaches,
             });
         collected
-            .hits
-            .get_mut(hit.rule)
-            .expect("implemented detector")
+            .rule_hits(hit.rule)?
             .entry(key)
             .or_default()
             .push(RuleHit {
@@ -710,13 +711,13 @@ fn source_hit(
             .or_insert_with(Vec::new)
             .push(item);
     }
-    if by_location.len() != 1 {
+    let mut locations = by_location.into_values();
+    let (Some(mut sites), None) = (locations.next(), locations.next()) else {
         return Err(refused(
             hit.rule,
             "detector hit requires one physical source item",
         ));
-    }
-    let mut sites = by_location.into_values().next().expect("one source item");
+    };
     sites.sort_by(|a, b| {
         (!workspace.is_shipping(a), &a.path).cmp(&(!workspace.is_shipping(b), &b.path))
     });
@@ -759,9 +760,7 @@ fn source_hit(
             call_reaches: hit.call_reaches,
         });
     collected
-        .hits
-        .get_mut(hit.rule)
-        .expect("implemented detector")
+        .rule_hits(hit.rule)?
         .entry(key)
         .or_default()
         .push(RuleHit {

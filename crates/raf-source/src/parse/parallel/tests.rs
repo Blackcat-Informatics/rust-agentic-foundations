@@ -50,6 +50,13 @@ pub(super) struct Probe {
 }
 
 impl Probe {
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn new(pair: bool, worker_panic: bool) -> Shared<Self> {
         let mut resident = Resident;
         Memory::new(&mut resident)
@@ -64,10 +71,24 @@ impl Probe {
         .expect("allocate the admitted per-load fixture owner")
     }
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     pub(super) fn started(&self) {
         self.observed.lock().expect("probe lock").started += 1;
     }
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     pub(super) fn joined(&self) {
         self.observed.lock().expect("probe lock").joined += 1;
     }
@@ -98,6 +119,13 @@ pub(crate) struct Preparation {
     probe: Shared<Probe>,
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 pub(crate) fn preparing() -> Option<Preparation> {
     let probe = current()?;
     {
@@ -114,6 +142,13 @@ pub(crate) fn preparing() -> Option<Preparation> {
 }
 
 impl Drop for Preparation {
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn drop(&mut self) {
         let measured = self.window.take().expect("one preparation window").close();
         let mut state = self.probe.observed.lock().expect("probe lock");
@@ -126,11 +161,26 @@ impl Drop for Preparation {
 pub(in crate::parse) struct Parsing(Shared<Probe>);
 
 impl Drop for Parsing {
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn drop(&mut self) {
         self.0.observed.lock().expect("probe lock").active_parsers -= 1;
     }
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        clippy::panic,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 pub(in crate::parse) fn parsing(file: &RelPath) -> Option<Parsing> {
     let probe = current()?;
     if probe.worker_panic && file.as_str() == "src/a.rs" {
@@ -163,6 +213,13 @@ pub(in crate::parse) fn parsing(file: &RelPath) -> Option<Parsing> {
     Some(Parsing(probe))
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 pub(super) fn parsed(file: &RelPath) {
     if let Some(probe) = current()
         && file.as_str() == "src/b.rs"
@@ -172,6 +229,13 @@ pub(super) fn parsed(file: &RelPath) {
     }
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 pub(super) fn extracting(file: &RelPath) {
     if let Some(probe) = current() {
         probe
@@ -186,6 +250,13 @@ pub(super) fn extracting(file: &RelPath) {
 const MANIFEST: &str = "[package]\nname=\"demo\"\nversion=\"0.1.0\"\nedition=\"2021\"\n";
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn native_parser_activations_overlap_and_the_head_advances_with_a_parked_sibling() {
     let tree = MemoryTree::from([
         ("Cargo.toml", MANIFEST),
@@ -216,6 +287,13 @@ fn native_parser_activations_overlap_and_the_head_advances_with_a_parked_sibling
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn configured_target_parses_siblings_concurrently_and_extracts_in_canonical_order() {
     // Selected siblings overlap in native syntax; their facts still follow the
     // serial module walk and only include active declarations.
@@ -266,6 +344,14 @@ fn configured_target_parses_siblings_concurrently_and_extracts_in_canonical_orde
 
 /// Run one parallel worker body on a fresh thread. The released control makes a
 /// parsed file end its body without extraction, so `Ok(None)` is a parse.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        clippy::unwrap_in_result,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn run_worker(file: &RelPath) -> Result<bool, crate::LoadError> {
     let text = "pub fn f() {}\n".to_owned();
     let scan = crate::prescan::prescan_file(file, &text, usize::MAX).expect("prescan");
@@ -288,6 +374,13 @@ fn run_worker(file: &RelPath) -> Result<bool, crate::LoadError> {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn a_parallel_worker_whose_registry_a_host_callback_populated_is_refused_before_it_parses() {
     let file = RelPath::new("src/parallel_occupied.rs").expect("path");
     let error = crate::parse::entry::tests::with_host(
@@ -303,6 +396,13 @@ fn a_parallel_worker_whose_registry_a_host_callback_populated_is_refused_before_
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn a_parallel_worker_with_a_fresh_registry_parses() {
     let file = RelPath::new("src/parallel_fresh.rs").expect("path");
     let parsed = crate::parse::entry::tests::with_host(&file, || {}, || run_worker(&file))
@@ -330,6 +430,13 @@ impl fmt::Display for DisposalWitness {
 impl std::error::Error for DisposalWitness {}
 
 impl Drop for DisposalWitness {
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn drop(&mut self) {
         let mut state = self.0.observed.lock().expect("probe lock");
         state.disposed += 1;
@@ -351,6 +458,13 @@ impl Tree for FailureTree {
         self.tree.read(file, maximum)
     }
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::panic,
+            reason = "the assertion reports the unexpected outcome and terminates the test"
+        )
+    )]
     fn read_unseen(
         &self,
         file: &RelPath,
@@ -374,6 +488,13 @@ impl Tree for FailureTree {
         self.tree.list(file)
     }
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::panic,
+            reason = "the assertion reports the unexpected outcome and terminates the test"
+        )
+    )]
     fn entry(&self, file: &RelPath) -> Result<Option<EntryKind>, TreeError> {
         if self.coordinator_panic && file.as_str() == "src/a.rs" {
             panic::panic_any(SelectedPanic);
@@ -385,6 +506,13 @@ impl Tree for FailureTree {
 impl ParallelTree for FailureTree {}
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn every_worker_is_joined_before_unselected_opaque_errors_or_panics_are_destroyed() {
     // Each case selects a different owning exit: typed failure, worker panic,
     // then coordinator unwinding. Both opaque disposal carriers are exercised.
@@ -449,6 +577,14 @@ impl Tree for PreparationTree<'_> {
         self.tree.read(path, maximum)
     }
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            clippy::unwrap_in_result,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn read_unseen(
         &self,
         path: &RelPath,
@@ -475,6 +611,13 @@ impl Tree for PreparationTree<'_> {
 impl ParallelTree for PreparationTree<'_> {}
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn candidate_preparation_is_bounded_before_materializing_a_long_borrowed_path() {
     let name = "p".repeat(64 * 1024);
     let path = format!("src/{name}.rs");

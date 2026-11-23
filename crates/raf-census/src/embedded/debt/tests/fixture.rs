@@ -10,10 +10,24 @@ use crate::embedded::{
 };
 use raf_rdf::{AdmittedGraph, Format};
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 pub(super) fn text(record: &Record<'_>, format: Format) -> String {
     record.to_text(format, |outcome| outcome.unwrap().to_string())
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 pub(super) fn read<'m>(text: &str, format: Format, meter: &'m Meter) -> Record<'m> {
     Record::from_text(text, format, meter, |outcome| outcome.unwrap())
 }
@@ -22,6 +36,13 @@ pub(super) fn resource(cause: &Failure<'_>) -> RefusalKind {
     resource_output(&OutputFailure::failure(cause))
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )
+)]
 fn resource_output(cause: &OutputFailure<'_>) -> RefusalKind {
     cause
         .refusal()

@@ -19,6 +19,11 @@ pub(crate) struct Integer<'a> {
 /// Reads `text` as an integer literal by syntax: any spelling of an integer
 /// (`0xcbf2_9ce4_8422_2325`, `14695981039346656037`, `0o17u8`, `0b1010`),
 /// whatever its size. `None` for floats and everything that is not a number.
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_in_result,
+    reason = "the bounded scan admits only native decimal digits or exactly 64 padded hexadecimal digits"
+)]
 pub(crate) fn parse_integer(text: &str) -> Option<Integer<'_>> {
     let (radix, digits) = if let Some(rest) = text.strip_prefix("0x") {
         (16, rest)
@@ -67,20 +72,21 @@ pub(crate) fn parse_integer(text: &str) -> Option<Integer<'_>> {
             None
         } else if radix == 10 {
             let text = std::str::from_utf8(&buffer[..significant.max(1)])
-                .expect("validated decimal bytes");
+                .expect("INVARIANT: validated decimal bytes");
             purrdf_xsd::numeric::parse_integer_typed(
                 text,
                 purrdf_xsd::XsdDatatype::NonNegativeInteger,
             )
-            .expect("validated bounded decimal digits must reach native integer parsing")
+            .expect("INVARIANT: bounded decimal digits reach native integer parsing")
             .into_bigint()
             .unsigned_abs_u128()
         } else {
             buffer.copy_within(..significant, 64 - significant);
             buffer[..64 - significant].fill(b'0');
-            let text = std::str::from_utf8(&buffer).expect("validated hexadecimal bytes");
+            let text =
+                std::str::from_utf8(&buffer).expect("INVARIANT: validated hexadecimal bytes");
             let bytes = purrdf_hash::hex::decode_32(text)
-                .expect("validated padded hexadecimal digits must reach native decoding");
+                .expect("INVARIANT: padded hexadecimal digits reach native decoding");
             Some(u128::from_be_bytes(bytes.as_chunks::<16>().0[1]))
         };
         return Some(Integer { value, suffix });
@@ -89,6 +95,10 @@ pub(crate) fn parse_integer(text: &str) -> Option<Integer<'_>> {
 }
 
 /// Rust binary/octal grammar around the native bounded scalar radix reader.
+#[expect(
+    clippy::panic,
+    reason = "the scanner admits only radix two or eight digits and supplies a nonempty range; overflow has its own result"
+)]
 fn based<'a>(digits: &str, suffix: &'a str, radix: u8) -> Option<Integer<'a>> {
     let limit = if radix == 2 { 128 } else { 43 };
     let mut scalar = [b'0'; 128];
@@ -118,7 +128,9 @@ fn based<'a>(digits: &str, suffix: &'a str, radix: u8) -> Option<Integer<'a>> {
         Err(purrdf_lex::integer_text::RadixError::Overflow) => None,
         // The caller selects radix 2 or 8, the scan validated every digit,
         // and the zero-filled buffer supplies one digit for all-zero input.
-        Err(error) => panic!("validated Rust radix digits violated native parsing: {error}"),
+        Err(error) => {
+            panic!("INVARIANT: validated Rust radix digits violated native parsing: {error}")
+        }
     };
     Some(Integer { value, suffix })
 }
@@ -185,6 +197,14 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            clippy::unwrap_used,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn an_integer_beyond_u128_is_still_an_int() {
         let huge = "340282366920938463463374607431768211456";
         let parsed = parse_integer(huge).expect("an integer by syntax");
@@ -233,6 +253,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn binary_and_octal_native_values_keep_exact_width_and_syntax_neighbors() {
         let maximum = u128::MAX.to_string();
         for (prefix, digits, overflow, invalid) in [

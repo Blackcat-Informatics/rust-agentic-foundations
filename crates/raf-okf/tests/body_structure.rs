@@ -5,10 +5,18 @@
 
 use raf_okf::{Body, Document, ErrorKind, MAX_BLOCK_NESTING};
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn body(text: &str) -> Body {
     Body::parse(text).unwrap_or_else(|error| panic!("{error} in {text:?}"))
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn refused(text: &str) -> raf_okf::ParseError {
     match Body::parse(text) {
         Ok(_) => panic!("expected a refusal for {text:?}"),
@@ -27,14 +35,14 @@ fn sections_carry_heading_slug_and_content_up_to_the_next_second_level_heading()
     assert_eq!(sections[0].line(), 5);
     let first = sections[0].content();
     assert_eq!(
-        &text[first.bytes.clone()],
-        "\nwhy\n\n### Detail\n\nmore\n\n"
+        text.get(first.bytes.clone()),
+        Some("\nwhy\n\n### Detail\n\nmore\n\n")
     );
     assert_eq!(first.lines, 6..13);
     assert_eq!(sections[1].heading(), "Contract Terms");
     assert_eq!(sections[1].slug(), "contract-terms");
     let second = sections[1].content();
-    assert_eq!(&text[second.bytes.clone()], "\nwhat\n");
+    assert_eq!(text.get(second.bytes.clone()), Some("\nwhat\n"));
     assert_eq!(second.lines, 14..16);
 }
 
@@ -43,25 +51,32 @@ fn a_section_that_ends_the_body_without_a_final_newline_reaches_the_end() {
     let text = "## A\nline one\nline two";
     let parsed = body(text);
     let content = parsed.sections()[0].content();
-    assert_eq!(&text[content.bytes.clone()], "line one\nline two");
+    assert_eq!(text.get(content.bytes.clone()), Some("line one\nline two"));
     assert_eq!(content.lines, 2..4);
     let empty = body("## A\n## B\n");
     assert_eq!(empty.sections()[0].content().bytes, 5..5);
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn spans_are_in_whole_text_coordinates_when_frontmatter_precedes_the_body() {
     let text = "---\ntype: Architecture\n---\n\n## One\n\nfirst\n\n## Two\n\nsecond\n";
     let document = Document::parse(text).expect("document");
     let sections = document.body().sections();
-    assert_eq!(&text[sections[0].content().bytes.clone()], "\nfirst\n\n");
+    assert_eq!(
+        text.get(sections[0].content().bytes.clone()),
+        Some("\nfirst\n\n")
+    );
     assert_eq!(sections[0].line(), 5);
     assert_eq!(sections[0].content().lines, 6..9);
     // Body::parse over the same whole text gives the same coordinates.
     let direct = body(text);
     assert_eq!(direct.sections()[1].content(), sections[1].content());
     assert_eq!(direct.text(), document.body().text());
-    assert_eq!(&text[direct.span().bytes.clone()], direct.text());
+    assert_eq!(text.get(direct.span().bytes.clone()), Some(direct.text()));
 }
 
 #[test]
@@ -220,8 +235,10 @@ fn a_fenced_block_exposes_its_content_and_whether_it_is_closed() {
     let crlf = body("~~~\r\na\r\n~~~\r\n");
     assert_eq!(crlf.fenced_blocks()[0].content(), "a\r\n");
     for block in blocks {
-        let inside = &text[block.span().bytes.clone()];
-        assert!(inside.contains(block.content()));
+        assert!(
+            text.get(block.span().bytes.clone())
+                .is_some_and(|inside| inside.contains(block.content()))
+        );
     }
 
     // Inside a quote the prefix of each line is part of the content.
@@ -316,6 +333,10 @@ fn a_thematic_break_is_not_a_run_of_list_markers() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_hundred_thousand_quote_markers_are_refused_on_a_small_stack() {
     let result = std::thread::Builder::new()
         .stack_size(2 * 1024 * 1024)
@@ -400,6 +421,10 @@ fn indented_code_is_ordinary_text_so_links_and_markers_in_it_count() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn section_text_is_the_content_of_the_section() {
     let text = "---\ntype: Architecture\n---\n\n## One\n\nfirst\n\n## Two\n\nsecond\n";
     let document = Document::parse(text).expect("document");
@@ -434,6 +459,14 @@ fn a_body_of_exactly_one_mebibyte_parses_and_one_more_byte_is_refused() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_document_built_with_a_malformed_body_reports_the_line_in_the_rendered_text() {
     use raf_okf::{ConstructError, Entry, Frontmatter, Map, Scalar, Value};
     let frontmatter = || {

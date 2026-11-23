@@ -5,6 +5,13 @@
 
 use super::*;
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn printed(report: &Report, format: Format, quiet: bool) -> (String, String) {
     let (mut out, mut diagnostics) = (Vec::new(), Vec::new());
     report
@@ -25,6 +32,13 @@ fn rewritten() -> Record {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn diagnostic_write_failure_is_propagated_and_quiet_does_not_write_notes() {
     struct Refuse;
     impl Write for Refuse {
@@ -55,6 +69,13 @@ fn diagnostic_write_failure_is_propagated_and_quiet_does_not_write_notes() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn diagnostic_flush_failure_propagates_and_quiet_never_touches_that_sink() {
     #[derive(Default)]
     struct RefuseFlush {
@@ -98,6 +119,13 @@ fn diagnostic_flush_failure_propagates_and_quiet_never_touches_that_sink() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn quiet_filters_results_without_changing_exit_and_machine_output_stays_a_graph() {
     let refusal = Record::finding(
         CommandResult::Refused {

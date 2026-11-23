@@ -108,6 +108,13 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn canonical_equivalence_uses_native_ordering_with_exact_work_and_storage_refusals() {
         let first = "café";
         let second = "cafe\u{301}";
@@ -130,6 +137,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn native_unicode_seventeen_decompositions_fit_the_admitted_scalar_work_certificate() {
         assert_eq!(UNICODE_VERSION, (17, 0, 0));
         for value in (0..=0x10_ffff).filter_map(char::from_u32) {

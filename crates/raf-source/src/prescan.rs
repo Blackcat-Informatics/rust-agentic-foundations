@@ -338,8 +338,16 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    #[expect(
+        clippy::string_slice,
+        reason = "token boundaries are ASCII delimiters or advances by a complete UTF-8 code point"
+    )]
+    fn remaining(&self) -> &'a str {
+        &self.text[self.at..]
+    }
+
     fn whitespace_width(&self) -> Option<usize> {
-        self.text[self.at..]
+        self.remaining()
             .chars()
             .next()
             .filter(|ch| is_whitespace(*ch))
@@ -466,14 +474,14 @@ impl<'a> Cursor<'a> {
     }
 
     fn ident(&mut self) -> &'a str {
-        let start = self.at;
-        let width = self.text[start..]
+        let rest = self.remaining();
+        let width = rest
             .chars()
             .take_while(|ch| is_ident_continue(*ch))
             .map(char::len_utf8)
             .sum();
         self.bump_by(width);
-        &self.text[start..self.at]
+        rest.split_at(width).0
     }
 }
 
@@ -488,23 +496,36 @@ pub(crate) struct Scan {
 
 /// The language-ignored first-line header, excluding an optional leading BOM
 /// and the terminating newline. This is prefix recognition, not another lexer.
-pub(crate) fn shebang(text: &str) -> Option<std::ops::Range<usize>> {
-    let start = if text.starts_with('\u{feff}') {
+pub(crate) struct Shebang<'a> {
+    pub(crate) bom: &'a str,
+    pub(crate) header: &'a str,
+    pub(crate) remainder: &'a str,
+}
+
+fn bom_width(text: &str) -> usize {
+    if text.starts_with('\u{feff}') {
         '\u{feff}'.len_utf8()
     } else {
         0
-    };
-    if !text[start..].starts_with("#!") {
-        return None;
     }
-    let mut cursor = Cursor::new(text);
-    cursor.at = start + 2;
+}
+
+pub(crate) fn shebang(text: &str) -> Option<Shebang<'_>> {
+    let (bom, rest) = text.split_at(bom_width(text));
+    rest.strip_prefix("#!")?;
+    let mut cursor = Cursor::new(rest);
+    cursor.at = 2;
     cursor.skip_header_trivia();
     if cursor.peek(0) == Some(b'[') {
         return None;
     }
-    let end = text[start..].find('\n').map_or(text.len(), |at| start + at);
-    Some(start..end)
+    let end = rest.find('\n').unwrap_or(rest.len());
+    let (header, remainder) = rest.split_at(end);
+    Some(Shebang {
+        bom,
+        header,
+        remainder,
+    })
 }
 
 /// File parsing ignores its BOM and language-recognized shebang. Fragment
@@ -515,14 +536,8 @@ pub(crate) fn prescan_file(
     max_tokens: usize,
 ) -> Result<Scan, LoadError> {
     let at = shebang(text).map_or_else(
-        || {
-            if text.starts_with('\u{feff}') {
-                '\u{feff}'.len_utf8()
-            } else {
-                0
-            }
-        },
-        |range| range.end,
+        || bom_width(text),
+        |header| text.len() - header.remainder.len(),
     );
     prescan_from(file, text, max_tokens, at)
 }
@@ -718,7 +733,6 @@ fn punctuation<'a>(cursor: &mut Cursor<'_>, byte: u8) -> Token<'a> {
 /// prefixed string, a raw string or a raw identifier. The cursor is on the
 /// first identifier character.
 fn word<'a>(cursor: &mut Cursor<'a>) -> Token<'a> {
-    let start = cursor.at;
     let word = cursor.ident();
     match (word, cursor.peek(0)) {
         ("b" | "c", Some(b'"')) => {
@@ -741,7 +755,7 @@ fn word<'a>(cursor: &mut Cursor<'a>) -> Token<'a> {
                 cursor.bump();
                 Token::Ident(cursor.ident())
             } else {
-                Token::Ident(&cursor.text[start..cursor.at])
+                Token::Ident(word)
             }
         }
         _ => Token::Ident(word),
@@ -753,7 +767,7 @@ fn word<'a>(cursor: &mut Cursor<'a>) -> Token<'a> {
 /// second `.` of `0.0.0` end it before the dot.
 fn number(cursor: &mut Cursor<'_>) -> bool {
     let mut dotted = false;
-    while let Some(ch) = cursor.text[cursor.at..].chars().next() {
+    while let Some(ch) = cursor.remaining().chars().next() {
         if ch == '.' {
             if dotted || !cursor.peek(1).is_some_and(|byte| byte.is_ascii_digit()) {
                 break;

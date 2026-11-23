@@ -71,6 +71,10 @@ fn directory_flags() -> OFlags {
 }
 
 /// Reach the original root through directory descriptions, never its locator.
+#[expect(
+    clippy::map_err_ignore,
+    reason = "failed descriptor probes cannot certify ancestry and use the same OutsideRoot refusal as a disconnected walk"
+)]
 pub(super) fn climb(mut current: OwnedFd, root: &Root, shown: &str) -> Result<(), TreeError> {
     let mut status = fstat(&current).map_err(|_| outside(shown))?;
     for _ in 0..CLIMB_LIMIT {

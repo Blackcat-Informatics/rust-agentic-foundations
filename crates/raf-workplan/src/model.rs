@@ -36,6 +36,10 @@ pub struct Loaded<T> {
 
 impl<T> Loaded<T> {
     /// A loaded document and the original file text used to read it.
+    #[expect(
+        clippy::string_slice,
+        reason = "the profiled document's body starts immediately after the closing fence in this original text"
+    )]
     pub(crate) fn new(profiled: ProfiledDocument, value: T, text: &str) -> Self {
         let head = text[..profiled.document().body().span().bytes.start].to_string();
         Self {

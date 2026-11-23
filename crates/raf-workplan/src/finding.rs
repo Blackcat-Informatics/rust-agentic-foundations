@@ -902,6 +902,13 @@ mod tests {
         );
     }
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn native_operational_refusals_keep_typed_messages_and_actionable_kinds() {
         let text = "native";
         let source = purrdf_markdown::replace_code_spans(

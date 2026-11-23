@@ -52,6 +52,10 @@ fn fixture_workspace(workspace: &str, manifest: &str, source: &str) -> MemoryTre
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn nested_cfg_attr_boolean_guards_escaped_values_and_test_builds_select_actual_declarations() {
     let source = "#[cfg(all(unix,any(target_os=\"linux\",not(unix))))] pub struct Active;\n#[cfg_attr(unix,cfg_attr(target_os=\"linux\",cfg(not(unix))))] pub struct Hidden;\n#[cfg(test)] pub struct TestsOnly;\n#[test] fn unit() {}\n#[cfg(custom=\"a\\\"b\")] pub struct Escaped;";
     let tree = fixture(MANIFEST, source);
@@ -125,6 +129,10 @@ fn nested_cfg_attr_boolean_guards_escaped_values_and_test_builds_select_actual_d
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn forwarding_default_and_inherited_feature_requirements_are_validated_at_the_actual_destination() {
     let manifest = MANIFEST.replace("features=['api']", "features=[]").replace(
         "native=['dep:renamed']",
@@ -230,6 +238,11 @@ const MANIFEST: &str = "[package]\nname='consumer'\nversion='1.0.0'\n[dependenci
 const SOURCE: &str = "pub mod reader {#[cfg(feature=\"native\")] pub use renamed::Native as Alias;}\n#[cfg(feature=\"native\")] pub mod chosen;\n#[cfg(not(feature=\"native\"))] mod never_opened;\n#[cfg_attr(target_os=\"linux\",path=\"linux.rs\")] pub mod platform;";
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::string_slice,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn unexpanded_occurrences_follow_the_exact_declared_syntax() {
     let tree = fixture(
         MANIFEST,
@@ -311,6 +324,11 @@ fn unexpanded_occurrences_follow_the_exact_declared_syntax() {
     );
 }
 
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_in_result,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn load(
     tree: &MemoryTree,
     consumer: Option<DeclaredConfiguration<'_>>,
@@ -359,11 +377,19 @@ fn load(
     };
     Workspace::load_locked_sources(&catalog, tree, &[own, native], &[], options)
 }
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn package(ws: &Workspace, name: &str) -> PackageId {
     ws.package_ids()
         .find(|id| ws.package(*id).expect("package").name == name)
         .expect("package")
 }
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn active<'a>(ws: &'a Workspace, name: &str) -> &'a ActiveConfiguration {
     ws.locked_binding(package(ws, name))
         .and_then(raf_source::LockedBinding::configuration)
@@ -371,6 +397,10 @@ fn active<'a>(ws: &'a Workspace, name: &str) -> &'a ActiveConfiguration {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn configured_aliases_resolve_only_active_real_definitions_and_paths() {
     exact_target_keeps_unobserved_packages_and_targets_out();
     let tree = fixture(MANIFEST, SOURCE);
@@ -417,6 +447,11 @@ fn configured_aliases_resolve_only_active_real_definitions_and_paths() {
     );
 }
 
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn exact_target_keeps_unobserved_packages_and_targets_out() {
     let tree = MemoryTree::from([
         (
@@ -513,6 +548,10 @@ fn exact_target_keeps_unobserved_packages_and_targets_out() {
     );
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn exact_target_required_features(tree: &MemoryTree, manifest: &RelPath, atoms: &[CfgAtom<'_>]) {
     for features in [&[][..], &["shown"][..]] {
         let selection = DeclaredConfiguration::new(
@@ -543,6 +582,10 @@ fn exact_target_required_features(tree: &MemoryTree, manifest: &RelPath, atoms: 
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn distinct_declared_sets_change_definitions_and_keep_their_exact_receipt() {
     let tree = fixture(MANIFEST, "pub struct Local;");
     let on = load(
@@ -595,6 +638,10 @@ fn distinct_declared_sets_change_definitions_and_keep_their_exact_receipt() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn missing_unknown_inactive_or_incomplete_configuration_refuses_beside_valid_selection() {
     let tree = fixture(MANIFEST, "pub use renamed::Native;");
     for (own, provider) in [
@@ -642,6 +689,10 @@ fn missing_unknown_inactive_or_incomplete_configuration_refuses_beside_valid_sel
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn target_and_host_conditions_use_the_selected_compilation_role() {
     let manifest = "[package]\nname='consumer'\nversion='1.0.0'\n[target.'cfg(unix)'.build-dependencies]\nrenamed={package='provider',path='../provider',version='1',default-features=false,features=['api']}";
     let tree = fixture(manifest, "pub struct Local;");
@@ -720,6 +771,10 @@ fn target_and_host_conditions_use_the_selected_compilation_role() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn configured_syntax_and_feature_work_spend_the_original_combined_grant() {
     let tree = fixture(MANIFEST, SOURCE);
     let own = Some(context(&["native"], "consumer"));
@@ -757,6 +812,10 @@ fn configured_syntax_and_feature_work_spend_the_original_combined_grant() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn cargo_feature_names_use_rust_unicode_xid_with_actual_cargo_punctuation() {
     let manifest = format!("{MANIFEST}\n\"δelta+api\"=[]\n\"0feature\"=[]\n");
     let tree = fixture(
@@ -811,6 +870,10 @@ fn cargo_feature_names_use_rust_unicode_xid_with_actual_cargo_punctuation() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_physical_file_cannot_silently_merge_different_active_package_contexts() {
     let build = |root: &str| {
         let provider = format!(
@@ -858,6 +921,10 @@ fn a_physical_file_cannot_silently_merge_different_active_package_contexts() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn raw_cfg_identifiers_have_one_logical_identity_and_cannot_bypass_feature_separation() {
     let source = "#[r#cfg(r#custom)] pub struct RawFlag;\n#[cfg(r#custom_value=\"yes\")] pub struct RawValue;\n#[cfg(r#feature=\"native\")] pub struct RawFeature;\n#[cfg_attr(r#custom,r#path=\"linux.rs\")] pub mod platform;";
     let tree = fixture(MANIFEST, source);
@@ -946,6 +1013,10 @@ fn raw_cfg_identifiers_have_one_logical_identity_and_cannot_bypass_feature_separ
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn configured_predicates_refuse_qualified_paths_beside_unqualified_names() {
     for predicate in [
         "::custom",
@@ -994,6 +1065,10 @@ fn configured_predicates_refuse_qualified_paths_beside_unqualified_names() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn empty_cfg_attr_requires_its_comma_and_boolean_literals_are_not_raw_flags() {
     let source = "#[cfg_attr(true,)] pub struct EmptyTrue;\n#[cfg_attr(false,)] pub struct EmptyFalse;\n#[cfg(true)] pub struct LiteralTrue;\n#[cfg(false)] pub struct LiteralFalse;\n#[cfg(r#true)] pub struct RawTrue;\n#[cfg(r#false)] pub struct RawFalse;";
     for enabled in [false, true] {
@@ -1046,6 +1121,10 @@ fn empty_cfg_attr_requires_its_comma_and_boolean_literals_are_not_raw_flags() {
 /// selects those of an item list: an inactive one is not followed, and an
 /// inactive `cfg_attr` path is not read as a live file, beside an active one.
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn block_local_modules_are_selected_by_the_configuration_beside_an_active_one() {
     let source = "#[cfg(windows)]\n#[path = \"missing.rs\"]\nmod listed;\n\
         pub fn f() {\n    \
@@ -1081,6 +1160,10 @@ fn block_local_modules_are_selected_by_the_configuration_beside_an_active_one() 
 /// before it reads the modules inside it, beside an active statement whose
 /// module is followed.
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn modules_inside_inactive_statements_are_not_followed_beside_an_active_one() {
     let source = "pub struct S { a: u8, b: u8 }\n\
         pub fn f() {\n    \
@@ -1105,6 +1188,10 @@ fn modules_inside_inactive_statements_are_not_followed_beside_an_active_one() {
     );
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn declared_load(tree: &MemoryTree) -> Workspace {
     load(
         tree,
@@ -1144,6 +1231,11 @@ fn modules_inside_inactive_list_elements_and_nested_types_are_not_followed() {
 /// configured load, even when the configuration removes the `cfg_attr` that
 /// starts it.
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_block_module_has_the_same_path_in_a_structural_and_a_configured_load() {
     let source = "pub fn f() {\n    #[cfg_attr(windows, path = \"platform.rs\")]\n    \
         #[path = \"chosen.rs\"]\n    mod m;\n}\n";

@@ -66,6 +66,10 @@ fn a_decision_page_linked_from_a_capability_with_its_conditions_passes() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_unlinked_page_is_reported_by_name_and_a_link_to_itself_does_not_count() {
     let repo = unlinked();
     let finding = only(
@@ -96,6 +100,10 @@ fn an_unlinked_page_is_reported_by_name_and_a_link_to_itself_does_not_count() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_link_from_a_capability_a_change_or_another_page_links_the_page() {
     // A capability section other than the Explanation, with an anchor.
     let mut from_usage = unlinked();
@@ -307,6 +315,10 @@ fn headings_match_exactly_at_their_level() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_explanation_decision_without_conditions_is_reported_and_with_them_passes() {
     let decided = "### Decision\n\nGamma reads the whole input.\n";
     let conditions = "### Conditions to revisit\n\n- Input arrives in chunks.\n";
@@ -378,6 +390,10 @@ fn an_explanation_decision_without_conditions_is_reported_and_with_them_passes()
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn headings_and_list_items_in_fenced_code_or_proposed_blocks_do_not_count() {
     // A decision in fenced code, closed or running to the end of the body.
     for fenced in [
@@ -437,6 +453,10 @@ fn headings_and_list_items_in_fenced_code_or_proposed_blocks_do_not_count() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_capability_link_to_a_missing_page_or_heading_fails_the_link_check() {
     let missing_page = mutate(
         GAMMA,
@@ -491,6 +511,10 @@ fn a_capability_link_to_a_missing_page_or_heading_fails_the_link_check() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_findings_are_the_same_on_every_run_in_file_and_line_order() {
     let mut repo = unlinked();
     let page = repo.get_mut(OVERVIEW).expect("the page");
@@ -539,6 +563,10 @@ fn the_findings_are_the_same_on_every_run_in_file_and_line_order() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_hundred_thousand_headings_and_an_unterminated_fence_are_judged() {
     // A decision page with a hundred thousand headings under its decision,
     // its conditions at the end.
@@ -571,6 +599,10 @@ fn a_hundred_thousand_headings_and_an_unterminated_fence_are_judged() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn this_repository_links_each_architecture_page_from_a_capability() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let opened = Gate::workspace(&root).open().expect("the repository opens");

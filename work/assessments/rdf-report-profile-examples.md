@@ -13,7 +13,7 @@ inputs:
     digest: 2a65f107bcd081697c27749bda6dbb1a6fc866372516a95d0a059f200fea9ec3
   - kind: symbol
     name: cargo_raf_workplan::bin_crate::cargo_raf_workplan::result_graph
-    digest: 02c262bd9fc9f8f99932436142226c737d6e97cb37330f9008c516f28278c148
+    digest: 3c4fcd8057f6f530836d57ff77648cf4509e49da9c6f85cc815b9f5dafe88394
   - kind: symbol
     name: raf_census::Baseline::to_ntriples
     digest: 1920b9c5ca3c3355766a338a27dce1589427cbe5da7d42b9c288327b75b77544
@@ -34,13 +34,13 @@ inputs:
     digest: 23d7db79d4c61927c044dfd5969a347ace2d38a390ce2ab14738b599c89aa592
   - kind: symbol
     name: raf_rdf::AdmittedGraph
-    digest: 99441828432404062d2d82fc05df1dc5ee90a23e6b4c96bc85af651a1960c974
+    digest: 69dc6a380394ee62c471e1b81f5e877e27de6a9e147166d912ffb00dffca19f2
   - kind: symbol
     name: raf_rdf::AdmittedNode
-    digest: e2559e31d2287211d6b7b3a210a45fd68ed10faab708c6c1eef41cd79afaadc6
+    digest: 66769891a35d5e3b1575e7691d01d0bab13cfbf89d6ec1397d3fa56caac17d8f
   - kind: symbol
     name: raf_rdf::AdmittedValue
-    digest: 4fa6405bb4bc639cd85bdbc246bad4675b788182668347957b569eead12eaee5
+    digest: 27f8822670d9200730499a288f57ab9170a16fb44cf0fbc70d16d9fcaf43d196
   - kind: symbol
     name: raf_rdf::BuildCause
     digest: 5c73d10e6eee262d5ee0f835ceb1939483c57e6f76f7d6fac8017b42cd9e6224
@@ -58,7 +58,7 @@ inputs:
     digest: 41775664617163dfeb560cc04f903e4fa180e347ff78f4fb625e0257b4f6b1b8
   - kind: symbol
     name: raf_rdf::ConstructionExit
-    digest: 9c3bc6458f36ef1808d5b006190073c472477e90d91bb66831ec2d0b7e598d54
+    digest: cc772a7314561543de59ee79c9d8471b0b2e09abd2ee97ed681ee26274d47741
   - kind: symbol
     name: raf_rdf::ConstructionFailure
     digest: a1ca8c27e5b552f6a1ada4625d830b09d4cfd33064355deafcfdf73230ffee69
@@ -91,22 +91,22 @@ inputs:
     digest: 8a1c21bf5d2b16ed72893ae09283a01ddb0af1e798bb379084b5736d49e0b9ae
   - kind: symbol
     name: raf_rdf::graph
-    digest: e3423b5e9f7ac9326cf8305542ad56ec957359568d0a276246e8f7218dafc0d0
+    digest: 01c4051bf6f6667f4a5b30fd836c976b8276203e60b0986ce04320f89cc0b8f2
   - kind: symbol
     name: raf_rdf::read
-    digest: 8c7cc56a145c9801c80cde7e05aa922883e64f7fe4b08270605f72486a53071c
+    digest: 1f588d6ccf77423bbd4e52d2be136606aae13ef8dcb8a835c315b603ea74953b
   - kind: symbol
     name: raf_rdf::term
-    digest: 98d93287130a4270651b39a6319caeb7dba176089c0c94f04cb913c2c754ec34
+    digest: 6d30515096ac405b18b67cf0430ed527bd54f6c5f9180121f608544dc3a4bfd6
   - kind: symbol
     name: raf_rdf::vocab
     digest: 0026d4964ba3d687594782f98f05a89b1cd7e9d29bd10a8a66c51a017a119ab3
   - kind: symbol
     name: raf_rdf::write
-    digest: 6e32fbd8fbce23e106cb8965e52f414bf11feb0f664f05b1d716652f2a57dc2d
+    digest: 203394b9b1956dc052f9d3bb16c1894dc426c1e05a2d462d6f1e63f34786d121
   - kind: symbol
     name: raf_workplan::report
-    digest: cbd569a94bdf933dcdecadcc9cbd6edb948995904f4d9b684c87f436850de83f
+    digest: 3243b0f487c6dc6944be4ca7185c4d9fd5c325666c866b716fe502898b53e0e4
 verdict: accepted
 by: agent
 ---

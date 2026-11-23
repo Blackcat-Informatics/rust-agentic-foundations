@@ -49,12 +49,20 @@ const TOKENS: [&str; 40] = [
     "\t",
 ];
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn next(state: &mut u64) -> usize {
     let value = purrdf_hash::mix::lcg64_next(state, purrdf_hash::mix::LCG64_MMIX_INCREMENT);
     usize::try_from(value >> 33).expect("fits")
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn random_token_soup_never_panics_and_parsed_spans_lie_in_the_text() {
     let mut state = 0x5eed_u64;
     for _ in 0..20_000 {
@@ -65,7 +73,7 @@ fn random_token_soup_never_panics_and_parsed_spans_lie_in_the_text() {
         for candidate in [text.clone(), format!("---\na: b\n---\n{text}")] {
             if let Ok(body) = Body::parse(&candidate) {
                 let whole = body.span().bytes.clone();
-                assert_eq!(&candidate[whole], body.text());
+                assert_eq!(candidate.get(whole), Some(body.text()));
                 for section in body.sections() {
                     let span = section.content();
                     assert!(span.bytes.end <= candidate.len(), "{candidate:?}");
@@ -73,15 +81,26 @@ fn random_token_soup_never_panics_and_parsed_spans_lie_in_the_text() {
                     assert!(candidate.is_char_boundary(span.bytes.end));
                 }
                 for block in body.generated_blocks() {
-                    let inner = &candidate[block.content().bytes.clone()];
-                    let outer = &candidate[block.outer().bytes.clone()];
+                    let inner = candidate
+                        .get(block.content().bytes.clone())
+                        .expect("generated block content has a valid byte span");
+                    let outer = candidate
+                        .get(block.outer().bytes.clone())
+                        .expect("generated block has a valid byte span");
                     assert!(outer.contains(inner));
                 }
                 // Replacing every section content with itself is the identity.
                 let edits: Vec<_> = body
                     .sections()
                     .iter()
-                    .map(|s| (s.content().clone(), &candidate[s.content().bytes.clone()]))
+                    .map(|s| {
+                        (
+                            s.content().clone(),
+                            candidate
+                                .get(s.content().bytes.clone())
+                                .expect("section content has a valid byte span"),
+                        )
+                    })
                     .collect();
                 let mut again = body.clone();
                 again.replace_spans(&edits).expect("identity edit");

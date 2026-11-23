@@ -124,6 +124,10 @@ pub(crate) fn record_path(id: &str) -> String {
     format!("{}/{slug}.md", DocType::Evidence.directory())
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "callers pass a claim parsed from this body, whose statement endpoints are its UTF-8 boundaries"
+)]
 pub(crate) fn statement_text<'a>(body: &'a Body, claim: &Claim) -> &'a str {
     let base = body.span().bytes.start;
     let span = &claim.statement().bytes;

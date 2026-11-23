@@ -16,7 +16,7 @@ inputs:
     digest: 49f626817760b07fbe7afaafe97572109be37839609006150d1faae79f2fe61d
   - kind: symbol
     name: raf_workplan::debt
-    digest: 3846f3b004f0531aef9b76ba65f49b16b31364d1d5c0cd4c0aa2590217bfe0fa
+    digest: bffe7dfe36dc62a85a2a4f399bb70fe8c979cf4f43f00b9f3e81d2f76f375b02
 verdict: accepted
 by: agent
 ---

@@ -271,8 +271,9 @@ impl<'a> Macros<'a> {
         let mut names = BTreeMap::new();
         if let Some(body) = &module.body {
             let slice = self.source.source(&module.file).and_then(|text| {
-                let slice = text.get(body.start_byte..body.end_byte)?;
-                Some((slice, text[..body.start_byte].matches('\n').count()))
+                let (prefix, rest) = text.split_at_checked(body.start_byte)?;
+                let slice = rest.get(..body.end_byte.checked_sub(body.start_byte)?)?;
+                Some((slice, prefix.matches('\n').count()))
             });
             if let Some((slice, base)) = slice {
                 self.lexes += 1;
@@ -355,6 +356,13 @@ mod tests {
 
     /// Many bindings through one large module lex it once.
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn the_invocations_of_a_module_are_listed_once_however_many_bindings_miss() {
         let mut lib = String::from("macro_rules! make { ($n:ident) => { pub fn $n() {} }; }\n");
         for index in 0..2000 {

@@ -838,9 +838,10 @@ fn check_items(
             check.key("items", shape);
             return None;
         };
-        let keys = keys
-            .next()
-            .expect("INVARIANT: header validation covers every map before the first non-map item");
+        let Some(keys) = keys.next() else {
+            check.key("items", shape);
+            return None;
+        };
         for key in &keys.unknown {
             check.key(
                 "items",
@@ -1159,6 +1160,13 @@ mod native_tests {
     use std::error::Error as _;
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn decoded_scalar_native_refusal_is_reported_with_its_original_cause() {
         let text = concat!("`t", "bd`");
         let mut valid = Check {

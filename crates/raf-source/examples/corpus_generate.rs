@@ -30,6 +30,10 @@ mod oracle;
 #[path = "../tests/support/corpus_writer.rs"]
 mod corpus_writer;
 
+#[expect(
+    clippy::print_stdout,
+    reason = "this executable writes its results to the caller's standard output"
+)]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<_> = std::env::args_os().skip(1).collect();
     match args.as_slice() {

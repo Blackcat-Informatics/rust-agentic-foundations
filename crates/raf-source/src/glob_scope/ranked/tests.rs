@@ -15,6 +15,13 @@ const STAR: &str = "pub mod a { pub struct X; pub struct Unique; }
         use crate::hidden::*; pub use crate::relay::*; }
     pub mod relay { pub use crate::hub::*; }";
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn load(source: &str) -> Workspace {
     let tree: MemoryTree = [
         (
@@ -28,6 +35,13 @@ fn load(source: &str) -> Workspace {
     Workspace::load(&tree, &["."]).expect("literal source loads")
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn resident_meter(index: &Index, options: &LoadOptions) -> Meter {
     let meter = Meter::new(options);
     let decl = &index.uses[index.glob_imports[0]];
@@ -37,6 +51,14 @@ fn resident_meter(index: &Index, options: &LoadOptions) -> Meter {
     meter
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        clippy::panic,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn name_inputs<'a>(
     proof: &Ranked<'a, '_>,
     name: &str,
@@ -79,6 +101,13 @@ fn payload(index: &Index) -> Payload {
         .collect()
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn compare_replay(ws: &Workspace) {
     let options = LoadOptions::default();
     let index = ws.index();
@@ -179,6 +208,13 @@ fn a_mixed_relay_and_a_removed_anchor_match_actual_reconstruction() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn an_impossible_aggregate_reservation_is_a_typed_layout_refusal_before_allocation() {
     let ws = load(STAR);
     let index = ws.index();
@@ -206,6 +242,13 @@ fn an_impossible_aggregate_reservation_is_a_typed_layout_refusal_before_allocati
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn public_peer_rows_are_rooted_without_a_second_table_construction() {
     let before = reference::builds()[0];
     let ws = load(STAR);
@@ -235,6 +278,13 @@ fn public_peer_rows_are_rooted_without_a_second_table_construction() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn complete_public_peer_discovery_omits_only_its_redundant_postpublication_pass() {
     let before = reference::discoveries();
     let ws = load(STAR);
@@ -294,6 +344,13 @@ fn complete_public_peer_discovery_omits_only_its_redundant_postpublication_pass(
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn roots_outside_resident_targets_still_require_the_second_discovery() {
     for definition in ["struct Private;", "pub(crate) struct Private;"] {
         let before = reference::discoveries();
@@ -321,6 +378,13 @@ fn roots_outside_resident_targets_still_require_the_second_discovery() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn named_extern_alias_and_qualified_glob_neighbors_do_not_certify_independence() {
     for source in [
         format!("{STAR} pub mod unused {{ pub use crate::a::Unique; }}"),
@@ -342,6 +406,13 @@ fn named_extern_alias_and_qualified_glob_neighbors_do_not_certify_independence()
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn discovery_independence_scans_preserve_the_original_work_refusal() {
     let ws = load(STAR);
     let index = ws.index().clone();
@@ -381,6 +452,14 @@ fn discovery_independence_scans_preserve_the_original_work_refusal() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn an_exact_empty_namespace_proves_bottom_without_any_transfer() {
     let empty = load("pub mod a { pub use crate::b::*; } pub mod b { pub use crate::a::*; }");
     assert!(
@@ -446,6 +525,13 @@ fn an_exact_empty_namespace_proves_bottom_without_any_transfer() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn a_complete_definition_and_relay_rank_is_already_its_full_closure() {
     let ws = load(
         "pub mod a { pub struct X; } pub mod relay { pub use crate::a::*; }
@@ -492,6 +578,13 @@ fn a_complete_definition_and_relay_rank_is_already_its_full_closure() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn an_incomplete_successful_rank_still_checks_its_later_complete_input() {
     let ws = load(
         "pub mod a { pub struct X; } pub mod b { pub struct X; }
@@ -582,6 +675,13 @@ fn an_incomplete_successful_rank_still_checks_its_later_complete_input() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn interior_levels_named_imports_and_glob_prefixes_keep_ordinary_reconstruction() {
     for source in [
         "pub mod a { pub struct X; } pub mod b { pub struct X; } pub mod outer { pub mod p { pub(super) use crate::b::*; } pub mod m { pub use crate::a::*; use crate::b::*; pub use super::p::*; } pub mod observer { pub use super::m::*; } }",
@@ -601,6 +701,13 @@ fn interior_levels_named_imports_and_glob_prefixes_keep_ordinary_reconstruction(
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn absent_cells_and_ungrounded_cyclic_residents_cannot_pass_closure_or_rank() {
     let ws = load(STAR);
     let mut index = ws.index().clone();
@@ -687,6 +794,13 @@ fn absent_cells_and_ungrounded_cyclic_residents_cannot_pass_closure_or_rank() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn proof_scratch_and_work_refuse_one_less_than_the_actual_original_grant() {
     let ws = load(STAR);
     let index = ws.index().clone();
@@ -730,7 +844,7 @@ fn proof_scratch_and_work_refuse_one_less_than_the_actual_original_grant() {
         (
             LoadOptions {
                 max_work: usage.work - 1,
-                ..exact.clone()
+                ..exact
             },
             Budget::Work,
             usage.work - 1,
@@ -748,6 +862,13 @@ fn proof_scratch_and_work_refuse_one_less_than_the_actual_original_grant() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn homogeneous_returning_carriers_share_an_actual_holder_retrieval() {
     let source = format!(
         "{} pub mod relay2 {{ pub use crate::hub::*; }} \
@@ -815,6 +936,13 @@ fn compare_cut_proofs(index: &Index) {
     compare_cut_proofs_for(index, &(0..=index.modules.len()));
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn compare_cut_proofs_for(index: &Index, readers: &(impl Iterator<Item = usize> + Clone)) {
     // These are load-construction APIs. Reconstruct their proofs on an owned
     // clone, preserving the completed workspace's post-load lookup guard.

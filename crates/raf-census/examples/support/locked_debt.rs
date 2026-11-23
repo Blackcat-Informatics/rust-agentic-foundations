@@ -244,6 +244,10 @@ impl Fixture {
         })
     }
 
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )]
     fn refuses(&self, previous: &[u8], cause: &str) -> Result<(), Box<dyn Error>> {
         let error = self.write().unwrap_err();
         assert!(error.to_string().contains(cause), "{error}");
@@ -258,6 +262,10 @@ struct PublicationObserver {
 }
 
 impl LedgerExtension for PublicationObserver {
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )]
     fn validate(
         &self,
         _: &str,
@@ -308,6 +316,10 @@ fn coordination(fixture: &Fixture, previous: &[u8]) -> Result<(), Box<dyn Error>
     Ok(())
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn ratchet(fixture: &Fixture) -> Result<Vec<u8>, Box<dyn Error>> {
     let ordinary = registration::registered_gate(fixture.root())
         .write_debt()
@@ -376,6 +388,10 @@ fn refusals(fixture: &Fixture, reduced: &[u8]) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+#[expect(
+    clippy::print_stdout,
+    reason = "this executable writes its results to the caller's standard output"
+)]
 pub(crate) fn exercise() -> Result<(), Box<dyn Error>> {
     let fixture = Fixture::new()?;
     let reduced = ratchet(&fixture)?;

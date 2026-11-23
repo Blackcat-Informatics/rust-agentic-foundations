@@ -18,9 +18,17 @@ mod reference;
 #[path = "support/vocabulary.rs"]
 mod vocabulary;
 const BUILTIN: &str = include_str!("fixtures/reports/example.txt");
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn builtin_census() -> Census {
     Census::load(&builtin::tree(), &["."], &CensusOptions::default()).unwrap()
 }
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn halves() -> (String, String) {
     let text = builtin::builtin().unwrap();
     let (a, b) = text
@@ -33,6 +41,10 @@ fn halves() -> (String, String) {
 fn property(name: &str) -> TermValue {
     TermValue::iri(format!("{}{name}", vocab::REPORT))
 }
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn rewrite(text: &str, mut edit: impl FnMut(Triple) -> Option<Triple>) -> String {
     let original = Graph::from_text(text, Format::Turtle).unwrap();
     let mut graph = Builder::new();
@@ -49,6 +61,10 @@ fn rewrite(text: &str, mut edit: impl FnMut(Triple) -> Option<Triple>) -> String
     );
     graph.to_text(Format::Turtle).unwrap()
 }
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn refused(result: Result<impl std::fmt::Debug, Error>, needle: &str) {
     match result {
         Err(Error::Report(error)) => assert!(error.to_string().contains(needle), "{error}"),
@@ -56,6 +72,10 @@ fn refused(result: Result<impl std::fmt::Debug, Error>, needle: &str) {
     }
 }
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn canonical_reports_preserve_golden_output_documentation_and_roundtrip() {
     the_example_output_names_the_expected_group_fingerprints();
     the_capability_examples_hold_the_example_output();
@@ -73,6 +93,10 @@ fn census_vocabulary_matches_actual_reports() {
     );
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn census_vocabulary_reports() -> Vec<String> {
     use raf_census::{DebtGroup, DebtRecord, DebtSite, GroupKind, NORMAL_FORM, SiteKey};
     use std::collections::BTreeMap;
@@ -139,6 +163,10 @@ fn census_vocabulary_reports() -> Vec<String> {
     ]
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn reference_index() -> Index {
     let tree = reference::fixture(
         "pub fn copy(value:u32)->u32 { let doubled=value*2; doubled+65536 }",
@@ -151,12 +179,20 @@ fn reference_index() -> Index {
     report.census().index(report.jobs()).unwrap()
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn reference_report() -> String {
     reference_index().to_ntriples().unwrap()
 }
 
 /// The job and fingerprint queries of the reference index, which carry its
 /// reference sources and witnesses.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn reference_queries() -> Vec<String> {
     let index = reference_index();
     [
@@ -168,6 +204,10 @@ fn reference_queries() -> Vec<String> {
     .collect()
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn shared_constant_report() -> String {
     let tree = MemoryTree::try_from_iter([
         (
@@ -196,6 +236,10 @@ fn shared_constant_report() -> String {
     report.to_ntriples().unwrap()
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn the_example_output_names_the_expected_group_fingerprints() {
     let census = builtin_census();
     let output = builtin::builtin().unwrap();
@@ -209,6 +253,10 @@ fn the_example_output_names_the_expected_group_fingerprints() {
     );
     assert!(output.contains(&format!("<{}jobId> \"sum\"", vocab::REPORT)));
 }
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn the_capability_examples_hold_the_example_output() {
     let document = std::fs::read_to_string(
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/capabilities/census-normal-form.md"),
@@ -218,6 +266,10 @@ fn the_capability_examples_hold_the_example_output() {
         assert!(document.contains(&format!("```turtle\n{text}```")));
     }
 }
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn both_reports_read_back_what_they_write() {
     let (baseline, index) = halves();
     let b = Baseline::from_turtle(&baseline).unwrap();
@@ -250,6 +302,10 @@ fn both_reports_read_back_what_they_write() {
         );
     }
 }
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn output_is_the_canonical_turtle() {
     for text in [halves().0, halves().1] {
         let graph = Graph::from_text(&text, Format::Turtle).unwrap();
@@ -261,6 +317,11 @@ fn output_is_the_canonical_turtle() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn native_scalar_readers_preserve_canonical_report_refusals_in_both_formats() {
     native_queries_retain_physical_roles_counts_and_optional_fingerprints();
     let (baseline, index) = halves();
@@ -327,6 +388,10 @@ fn native_scalar_readers_preserve_canonical_report_refusals_in_both_formats() {
     }
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn native_queries_retain_physical_roles_counts_and_optional_fingerprints() {
     use raf_census::{JobRow, Query, ReportKind};
     let (baseline, index) = halves();
@@ -405,6 +470,10 @@ fn native_queries_retain_physical_roles_counts_and_optional_fingerprints() {
     }
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn query_roundtrips(index: &Index, job: &str, symbol: &str) {
     use raf_census::{Query, QueryReport, ReportKind};
     for selector in [
@@ -451,6 +520,10 @@ fn query_roundtrips(index: &Index, job: &str, symbol: &str) {
     }
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn native_query_refusals(index: &Index, job: &str, symbol: &str) {
     use raf_census::{Query, QueryReport};
     for (query, field, replacement) in [
@@ -504,6 +577,10 @@ fn native_query_refusals(index: &Index, job: &str, symbol: &str) {
     assert!(invalid.query(Query::Count(job)).is_err());
     assert!(invalid.query(Query::Job(job)).is_err());
 }
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn unknown_terms_are_not_a_report() {
     let (baseline, index) = halves();
     for name in ["extra", "column"] {
@@ -537,6 +614,10 @@ fn unknown_terms_are_not_a_report() {
     refused(Index::from_turtle(&text), "foreign.example/owner");
 }
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn decoded_control_characters_are_escaped_in_report_diagnostics() {
     let (baseline, _) = halves();
     let edited = baseline.replacen("minTokens>", "minTokens\\u001B>", 1);
@@ -546,6 +627,10 @@ fn decoded_control_characters_are_escaped_in_report_diagnostics() {
     assert!(Baseline::from_turtle(&baseline).is_ok());
 }
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn closed_report_shapes_refuse_unknown_missing_mistyped_or_misowned_assertions() {
     unknown_terms_are_not_a_report();
     names_that_disagree_with_their_node_are_not_a_report();
@@ -631,6 +716,10 @@ fn orphan_units_and_matches_without_a_named_reifier_are_not_a_report() {
     refused(Index::from_turtle(&text), "exactly one named reifier");
 }
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn constructs_outside_the_profile_are_not_a_report() {
     let (baseline, _) = halves();
     for construct in [
@@ -682,6 +771,10 @@ fn an_edited_or_respaced_text_is_not_a_report() {
     );
 }
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn canonical_line_diagnostics_preserve_crlf_and_the_final_newline() {
     let (baseline, _) = halves();
     assert!(matches!(
@@ -710,6 +803,10 @@ fn duplicate_job_ids_are_refused() {
     ));
 }
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn a_report_of_another_report_form_is_refused_naming_both() {
     let (baseline, _) = halves();
     for version in [1, 2, 3, 4, 5, raf_census::REPORT_FORM + 1] {
@@ -732,6 +829,10 @@ fn a_report_of_another_report_form_is_refused_naming_both() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn report_form_five_conversion_checks_original_digest_and_literal_bytes() {
     use raf_census::{MigrationInput, ReportKind, upgrade_report_form};
 
@@ -791,6 +892,10 @@ fn report_form_five_conversion_checks_original_digest_and_literal_bytes() {
     }
 }
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_index_of_another_normal_form_reads_and_keeps_its_version() {
     let mut report = builtin_census().index(&[]).expect("index");
     report.normal_form = 7;
@@ -802,6 +907,10 @@ fn an_index_of_another_normal_form_reads_and_keeps_its_version() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn awkward_names_round_trip() {
     let mut report = builtin_census().index(&[]).expect("index");
     report.groups.clear();
@@ -819,6 +928,10 @@ fn awkward_names_round_trip() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn two_cfg_alternatives_on_one_line_have_distinct_unit_nodes() {
     let tree = MemoryTree::from([
         (
@@ -862,6 +975,10 @@ pub const OTHER: u32 = 7;
 ";
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_index_renders_the_classified_matches_of_every_job() {
     let tree: MemoryTree = [
         (
@@ -914,6 +1031,10 @@ fn the_index_renders_the_classified_matches_of_every_job() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_shared_constant_is_an_integer() {
     let manifest = |name: &str| {
         format!("[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n")
@@ -965,6 +1086,10 @@ fn a_shared_constant_is_an_integer() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn two_fresh_loads_of_the_fixtures_give_identical_bytes() {
     assert_eq!(
         builtin::builtin().expect("first"),
@@ -1081,6 +1206,10 @@ fn spread_tree(files: &[(&str, &str)]) -> MemoryTree {
 /// Census gate still loads the repository on every change through the
 /// production gate and holds its groups to the ledger and exact debt.
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn two_fresh_loads_of_a_multi_package_workspace_give_identical_bytes() {
     let census = Census::load(&spread_tree(SPREAD), &["ws"], &CensusOptions::default())
         .expect("the fixture loads");
@@ -1162,6 +1291,10 @@ fn identical_report_bytes(first: &str, second: &str) {
 /// per run; the repository's own Census gate still loads the repository on
 /// every change.
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_absolute_directory_reports_the_same_as_the_relative_spelling() {
     let scratch = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).expect("scratch");
     let root = scratch
@@ -1279,6 +1412,10 @@ fn declared_ledgers() -> [String; 2] {
     [ledger_from_facts(prior), ledger_from_facts(numeric)]
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn ledger_from_facts<'a>(facts: impl IntoIterator<Item = (&'a str, &'a str, TermValue)>) -> String {
     let header = [
         ("", "type", property("Ledger")),
@@ -1364,6 +1501,10 @@ fn read_ledger(text: &str, format: Format) -> Result<raf_census::Ledger, Error> 
 }
 
 /// Read `text` with the reader of its root class, in `format`.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn read_record(class: &str, text: &str, format: Format) -> Result<(), Error> {
     use raf_census::{DebtRecord, QueryReport};
     let turtle = format == Format::Turtle;
@@ -1386,6 +1527,10 @@ fn read_record(class: &str, text: &str, format: Format) -> Result<(), Error> {
 }
 
 /// The record of `graph` with one more assertion of `predicate` on `subject`.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn with_assertion(graph: &Graph, format: Format, subject: &str, predicate: &str) -> String {
     let mut graph = Builder::from_graph(graph);
     graph
@@ -1401,6 +1546,10 @@ fn with_assertion(graph: &Graph, format: Format, subject: &str, predicate: &str)
 /// A node inside a job's extension belongs to the consumer: the Ledger reader
 /// accepts any property on it and hands it unchanged to the consumer's
 /// validator through the extension graph.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn consumer_content_passes_unchanged(
     graph: &Graph,
     format: Format,
@@ -1424,6 +1573,10 @@ fn consumer_content_passes_unchanged(
 
 /// The layout conversion of `kind` converts the prior layout of `text` and
 /// refuses it by name once it states `added`.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn prior_layout_converts_and_refuses(
     kind: raf_census::ReportKind,
     text: &str,
@@ -1469,6 +1622,11 @@ fn prior_layout_converts_and_refuses(
 /// table. Nodes inside a job's extension are the consumer's and pass to its
 /// validator unchanged.
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn every_report_reader_refuses_a_property_outside_its_vocabulary_by_name() {
     use raf_census::ReportKind;
     let added = format!("{}excludeVendoredItems", vocab::REPORT);

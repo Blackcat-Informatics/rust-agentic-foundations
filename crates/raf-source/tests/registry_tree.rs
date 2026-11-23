@@ -16,6 +16,10 @@ fn file(path: &str, bytes: &[u8]) -> FileEntry {
         ..FileEntry::default()
     }
 }
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn archive(entries: &[FileEntry]) -> Vec<u8> {
     let encoded = purrdf_gts::files::pack_entries_v2(entries).expect("native fixture files");
     let graph = purrdf_gts::reader::read(&encoded, false, None);
@@ -26,6 +30,11 @@ fn archive(entries: &[FileEntry]) -> Vec<u8> {
 fn gzip(bytes: &[u8]) -> Vec<u8> {
     purrdf_deflate::gzip::compress(bytes, purrdf_deflate::Level::DEFAULT)
 }
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn catalog(archive: &[u8]) -> LockedCatalog {
     let checksum = purrdf_core::ContentDigest::of(archive);
     let text = format!(
@@ -50,6 +59,11 @@ fn valid() -> Vec<FileEntry> {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn authenticated_registry_contents_feed_the_loader_and_keep_exact_binary_and_path_boundaries() {
     let archive = gzip(&archive(&valid()));
     let catalog = catalog(&archive);
@@ -105,6 +119,11 @@ fn authenticated_registry_contents_feed_the_loader_and_keep_exact_binary_and_pat
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn wrong_package_links_conflicting_inventory_and_nested_transport_refuse_beside_a_valid_archive() {
     let valid_tar = archive(&valid());
     let mut wrong_prefix = valid();
@@ -180,6 +199,10 @@ fn raw_member(name: &[u8], body: &[u8]) -> Vec<u8> {
 /// replacement path that could alias a different file. The valid neighbor proves
 /// the same hand-framed archive loads when the name is UTF-8.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn non_utf8_member_names_refuse_instead_of_aliasing_a_replacement_path() {
     let manifest = b"[package]\nname='demo'\nversion='1.0.0'\nedition='2024'\n";
     let build = |name: &[u8]| {
@@ -218,6 +241,11 @@ fn non_utf8_member_names_refuse_instead_of_aliasing_a_replacement_path() {
 /// many small files loads inside the default work grant. A per-record scan of all
 /// earlier records exceeds that grant near ten thousand files.
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn an_archive_of_many_small_files_loads_within_the_default_work_grant() {
     let mut entries = valid();
     entries.extend((0..12_000).map(|index| {
@@ -246,6 +274,11 @@ fn an_archive_of_many_small_files_loads_within_the_default_work_grant() {
 /// `max_bytes` to get beyond `max_file_bytes`. The default-option read of the same
 /// file succeeds beside it.
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn registry_reads_honor_the_configured_file_limit() {
     let bytes = gzip(&archive(&valid()));
     let catalog = catalog(&bytes);
@@ -268,6 +301,11 @@ fn registry_reads_honor_the_configured_file_limit() {
 /// catalog cannot be bound to another catalog's row that merely shares its name,
 /// version and source. The same archive under its own catalog loads beside it.
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_first_party_archive_cannot_bind_to_a_different_catalogs_row() {
     let bytes = gzip(&archive(&valid()));
     let own = catalog(&bytes);
@@ -299,6 +337,11 @@ fn a_first_party_archive_cannot_bind_to_a_different_catalogs_row() {
 /// Composition imports the sealed file payloads into its own grant. The
 /// decompressed tar and opening scratch have already left the archive's view.
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn locked_registry_load_charges_the_retained_image() {
     const PAYLOAD_BYTES: usize = 256 * 1024;
     let mut entries = valid();
@@ -341,6 +384,10 @@ fn locked_registry_load_charges_the_retained_image() {
 /// a `[lib]` name, the package name for a default or unnamed library, nothing
 /// without a library or with `autolib = false`, and no other target is read.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn the_library_target_name_comes_from_the_root_manifest_alone() {
     let named = MemoryTree::from([(
         "Cargo.toml",

@@ -15,6 +15,10 @@ fn gate_root() -> PathBuf {
     )
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn tracked_markdown() -> Vec<String> {
     let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let output = Command::new("git")
@@ -37,6 +41,10 @@ fn tracked_markdown() -> Vec<String> {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn no_tracked_markdown_file_holds_a_split_link_or_a_malformed_block() {
     let paths = tracked_markdown();
     assert!(

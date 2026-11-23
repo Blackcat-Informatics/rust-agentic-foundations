@@ -17,6 +17,10 @@ fn exactly(len: usize) -> String {
 
 /// Run the cap cases against one backend that holds `exact.rs` of exactly
 /// the default cap and `over.rs` one byte longer.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn check_cap(tree: &dyn Tree) {
     let cap = DEFAULT_MAX_FILE_BYTES;
     let exact = RelPath::new("exact.rs").expect("path");
@@ -58,6 +62,10 @@ fn memory_tree_enforces_the_cap_at_eight_mib() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn disk_tree_enforces_the_cap_at_eight_mib() {
     let scratch = support::Scratch::new();
     let root = scratch.dir("root");
@@ -76,6 +84,10 @@ fn the_default_cap_is_eight_mib() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_zero_cap_refuses_any_content_and_accepts_an_empty_file() {
     let scratch = support::Scratch::new();
     let root = scratch.dir("root");

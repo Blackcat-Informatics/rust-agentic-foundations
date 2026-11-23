@@ -57,8 +57,9 @@ pub(super) fn read(
     }
     let start = base + group.span_open().byte_range().end;
     let end = base + group.span_close().byte_range().start;
-    let line =
-        group.span_open().end().line + source[..base].bytes().filter(|&b| b == b'\n').count();
+    // The lexer creates the stream from the suffix at this UTF-8 boundary.
+    let line_offset = source.split_at(base).0.matches('\n').count();
+    let line = group.span_open().end().line + line_offset;
     let Some(text) = source.get(start..end) else {
         return Some(Err(Refused::Syntax {
             message: "format argument spans are outside their source".into(),
@@ -67,7 +68,7 @@ pub(super) fn read(
         }));
     };
     *bytes += text.len();
-    let file = RelPath::new("format-arguments.rs").expect("a fixed relative path");
+    let file = RelPath::root();
     if let Err(error) = crate::prescan::prescan(&file, text, Budget::FileTokens.limit()) {
         let line = line + error.line.unwrap_or(1) - 1;
         return Some(Err(match error.kind {
@@ -88,8 +89,7 @@ pub(super) fn read(
         Err(error) => {
             return Some(Err(Refused::Syntax {
                 message: format!("cannot read format arguments: {error}"),
-                line: error.span().start().line
-                    + source[..base].bytes().filter(|&b| b == b'\n').count(),
+                line: error.span().start().line + line_offset,
                 column: error.span().start().column + 1,
             }));
         }
@@ -145,7 +145,7 @@ fn captures(text: &str) -> Option<BTreeSet<String>> {
                     break at;
                 }
             };
-            let field = &text[start..end];
+            let field = text.get(start..end)?;
             let (argument, spec) = field
                 .split_once(':')
                 .map_or((field, None), |(a, b)| (a, Some(b)));
@@ -172,44 +172,36 @@ fn counts(spec: &str, names: &mut BTreeSet<String>) -> Option<()> {
     {
         rest = preview.as_str();
     }
-    if rest.starts_with(['+', '-']) {
-        rest = &rest[1..];
-    }
-    if rest.starts_with('#') {
-        rest = &rest[1..];
-    }
-    if rest.starts_with('0') {
-        rest = &rest[1..];
-    }
-    if let Some(end) = rest.find('$') {
-        let count = &rest[..end];
-        if identifier(count) || (!count.is_empty() && count.bytes().all(|b| b.is_ascii_digit())) {
-            if identifier(count) {
-                names.insert(count.to_owned());
-            }
-            rest = &rest[end + 1..];
+    rest = rest.strip_prefix(['+', '-']).unwrap_or(rest);
+    rest = rest.strip_prefix('#').unwrap_or(rest);
+    rest = rest.strip_prefix('0').unwrap_or(rest);
+    if let Some((count, tail)) = rest.split_once('$')
+        && (identifier(count) || (!count.is_empty() && count.bytes().all(|b| b.is_ascii_digit())))
+    {
+        if identifier(count) {
+            names.insert(count.to_owned());
         }
+        rest = tail;
     }
     let digits = rest.bytes().take_while(u8::is_ascii_digit).count();
-    rest = &rest[digits..];
+    rest = rest.get(digits..)?;
     if let Some(precision) = rest.strip_prefix('.') {
         rest = precision;
         if let Some(tail) = rest.strip_prefix('*') {
             rest = tail;
-        } else if let Some(end) = rest.find('$') {
-            let count = &rest[..end];
+        } else if let Some((count, tail)) = rest.split_once('$') {
             if identifier(count) {
                 names.insert(count.to_owned());
             } else if count.is_empty() || !count.bytes().all(|b| b.is_ascii_digit()) {
                 return None;
             }
-            rest = &rest[end + 1..];
+            rest = tail;
         } else {
             let digits = rest.bytes().take_while(u8::is_ascii_digit).count();
             if digits == 0 {
                 return None;
             }
-            rest = &rest[digits..];
+            rest = rest.get(digits..)?;
         }
     }
     let kind = rest.trim_end();

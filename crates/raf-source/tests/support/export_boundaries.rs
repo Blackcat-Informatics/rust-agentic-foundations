@@ -50,6 +50,11 @@ enum Expected {
     CarryBudget,
 }
 
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 pub(super) fn assert_inventory() {
     // One metadata-only observation serves the two grants over identical bytes.
     let carrier = source(Shape::Carrier);
@@ -165,6 +170,11 @@ fn assert_listed(boundary: &Boundary, exports: &Exports, count: usize) {
     }
 }
 
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn assert_carrier_refusal(name: &str, source: &str, error: &ExportError, expected_limit: usize) {
     let ExportError::CarryBudget {
         path,
@@ -204,6 +214,10 @@ fn assert_carrier_refusal(name: &str, source: &str, error: &ExportError, expecte
     );
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn source(shape: Shape) -> String {
     let mut source = match shape {
         Shape::Shadowed | Shape::FreeRoute => {
@@ -231,6 +245,10 @@ fn source(shape: Shape) -> String {
 }
 
 /// The original carrier shape: long globs reach names behind competing binders.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn chain(links: usize, names: usize) -> String {
     let mut source = String::from("mod z {}\npub use c0::*;\n");
     for index in 0..links {

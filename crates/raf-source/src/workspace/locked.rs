@@ -98,7 +98,7 @@ impl<'a> LockedManifest<'a> {
 }
 
 /// A sealed external source admitted to configured dependency resolution.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum LockedTree<'a> {
     /// Exact native committed Git objects.
     Git(&'a CommittedGitTree<'a>),
@@ -115,6 +115,7 @@ impl<'a> LockedTree<'a> {
 }
 
 /// Candidate manifests beneath one sealed external source.
+#[derive(Debug)]
 pub struct LockedPackageRoots<'a> {
     tree: LockedTree<'a>,
     packages: &'a [LockedManifest<'a>],

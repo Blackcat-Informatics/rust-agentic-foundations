@@ -36,6 +36,10 @@ struct Fixture {
 }
 
 impl Fixture {
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )]
     fn new(first: &[u8], second: &[u8]) -> Self {
         let scratch = TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
         let root = scratch.path();
@@ -129,6 +133,10 @@ fn root_type() -> String {
     format!("0x{:016x}", node::Reader::TYPE_ID)
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 pub(super) fn payload(id: u64) -> Vec<u8> {
     let mut message = Message::new_default();
     message.init_root::<node::Builder<'_>>().set_id(id);
@@ -146,6 +154,10 @@ pub(super) fn payload(id: u64) -> Vec<u8> {
     output[0].to_vec()
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn check(args: Vec<OsString>) -> Output {
     Command::new(env!("CARGO_BIN_EXE_cargo-raf-census"))
         .args(args)
@@ -153,6 +165,10 @@ fn check(args: Vec<OsString>) -> Output {
         .unwrap()
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn replace(args: &mut [OsString], flag: &str, value: &str) {
     let index = args.iter().position(|arg| arg == flag).unwrap();
     args[index + 1] = OsString::from(value);
@@ -160,6 +176,10 @@ fn replace(args: &mut [OsString], flag: &str, value: &str) {
 
 /// The signer can attest only the exact caller scope, and Gate registration stays inert.
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn capnp_reader_evidence_authenticates_exact_scope_without_configuring_gate() {
     let first = payload(17);
     let second = payload(31);

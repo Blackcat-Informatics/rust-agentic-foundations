@@ -738,7 +738,9 @@ impl Workplan<'_> {
             return Ok((*path).to_string());
         }
         if self.is_present(id) {
-            let slug = &id[kind.id_prefix().len()..];
+            let slug = id
+                .strip_prefix(kind.id_prefix())
+                .ok_or_else(|| HistoryError::UnknownKind { id: id.to_string() })?;
             return Err(HistoryError::NotLoaded {
                 id: id.to_string(),
                 findings: self.findings_of(&format!("{}/{slug}.md", kind.directory())),

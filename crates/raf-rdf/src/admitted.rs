@@ -39,6 +39,7 @@ pub struct ConstructionStopped(());
 
 /// A construction body either propagated its retained native stop or supplied
 /// a separate caller-owned failure. The first native poison always wins.
+#[derive(Debug)]
 pub enum ConstructionExit<E> {
     /// Propagate the construction's non-owning stop token.
     Stopped(ConstructionStopped),
@@ -57,6 +58,14 @@ pub struct CallerFailure<A: Admission, E> {
     cause: E,
     _account: OwnedAdmission<A>,
 }
+impl<A: Admission, E: fmt::Debug> fmt::Debug for CallerFailure<A, E> {
+    fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
+        output
+            .debug_struct("CallerFailure")
+            .field("cause", &self.cause)
+            .finish_non_exhaustive()
+    }
+}
 impl<A: Admission, E> CallerFailure<A, E> {
     /// Borrow the unchanged caller failure while both original owners live.
     #[must_use]
@@ -71,6 +80,14 @@ pub enum ConstructionFailure<A: Admission, F: Copy, E> {
     Native(BuildFailure<A, F>),
     /// The original caller failure and the same construction account.
     Caller(CallerFailure<A, E>),
+}
+impl<A: Admission, F: Copy, E: fmt::Debug> fmt::Debug for ConstructionFailure<A, F, E> {
+    fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Native(cause) => output.debug_tuple("Native").field(cause).finish(),
+            Self::Caller(cause) => output.debug_tuple("Caller").field(cause).finish(),
+        }
+    }
 }
 impl From<Error> for BuildCause {
     fn from(error: Error) -> Self {
@@ -110,10 +127,9 @@ impl std::error::Error for BuildCause {
 
 type Key = (u8, TermId, TermId, TermId);
 struct Staged {
-    native: Option<RdfDatasetBuilder>,
-    frozen: Option<RdfDataset>,
+    native: RdfDatasetBuilder,
     owner: String,
-    entries: Option<OrderedTable<Key, ()>>,
+    entries: OrderedTable<Key, ()>,
 }
 
 /// An opaque failure retaining its owned diagnostic and original account.
@@ -157,7 +173,7 @@ impl<A: Admission, F: Copy> std::error::Error for BuildFailure<A, F> {
 pub struct AdmittedGraph<A: Admission> {
     dataset: RdfDataset,
     owner: String,
-    _live_bytes: usize,
+    live_bytes: usize,
     _account: OwnedAdmission<A>,
 }
 
@@ -172,6 +188,26 @@ pub struct Construction<'s, 'm, A: Admission, F: Copy = ()> {
     capture: &'s Cell<Option<F>>,
 }
 
+impl<A: Admission> fmt::Debug for AdmittedGraph<A> {
+    fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
+        output
+            .debug_struct("AdmittedGraph")
+            .field("owner", &self.owner)
+            .field("live_bytes", &self.live_bytes)
+            .finish_non_exhaustive()
+    }
+}
+
+impl<A: Admission, F: Copy> fmt::Debug for Construction<'_, '_, A, F> {
+    fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
+        output
+            .debug_struct("Construction")
+            .field("first", &self.first)
+            .field("captured_at_step", &self.captured_at_step)
+            .finish_non_exhaustive()
+    }
+}
+
 impl<A: Admission> AdmittedGraph<A> {
     /// Construct fresh physical RDF records under one fresh original account.
     ///
@@ -180,9 +216,6 @@ impl<A: Admission> AdmittedGraph<A> {
     ///
     /// # Errors
     /// Retains the first native or profile cause and its same account on failure.
-    ///
-    /// # Panics
-    /// Panics if an internal construction lifecycle invariant is violated.
     pub fn build(
         account: A,
         body: impl FnOnce(&mut Construction<'_, '_, A>) -> Result<(), ConstructionStopped>,
@@ -194,9 +227,6 @@ impl<A: Admission> AdmittedGraph<A> {
     /// This reads the capture at refusal; it never resets captures or budgets.
     /// # Errors
     /// Retains the first owned cause and its same original account on failure.
-    ///
-    /// # Panics
-    /// Panics if an internal construction lifecycle invariant is violated.
     pub fn build_captured<F: Copy>(
         account: A,
         capture: &Cell<Option<F>>,
@@ -230,9 +260,6 @@ impl<A: Admission> AdmittedGraph<A> {
     /// The observer may retain an owned failure; its payload cannot be detached
     /// from the original account. A caller diagnostic must retain its own grant
     /// inside `E`; this operation never adopts resident caller allocations.
-    ///
-    /// # Panics
-    /// Panics if an internal construction lifecycle invariant is violated.
     pub fn build_observed<F: Copy, E, R>(
         account: A,
         capture: &Cell<Option<F>>,
@@ -250,18 +277,15 @@ impl<A: Admission> AdmittedGraph<A> {
         observe: impl FnOnce(Result<Self, ConstructionFailure<A, F, E>>) -> R,
     ) -> R {
         let mut account = OwnedAdmission::new(account);
-        let mut staged = Staged {
-            native: Some(RdfDatasetBuilder::new()),
-            frozen: None,
-            owner: String::new(),
-            entries: Some(OrderedTable::default()),
-        };
         let (mut first, mut original, mut captured_at_step) = (None, None, false);
-        let mut caller = None;
         let (result, live) = {
             let mut memory = Memory::new(&mut account);
             let result = (|| {
-                staged.owner = memory.string_with_progress(owner)?;
+                let mut staged = Staged {
+                    native: RdfDatasetBuilder::new(),
+                    owner: memory.string_with_progress(owner)?,
+                    entries: OrderedTable::default(),
+                };
                 let outcome = body(&mut Construction {
                     staged: &mut staged,
                     memory: &mut memory,
@@ -274,10 +298,7 @@ impl<A: Admission> AdmittedGraph<A> {
                     return Err(cause);
                 }
                 match outcome {
-                    Err(ConstructionExit::Caller(cause)) => {
-                        caller = Some(cause);
-                        return Ok(());
-                    }
+                    Err(ConstructionExit::Caller(cause)) => return Ok(Err(cause)),
                     Err(ConstructionExit::Stopped(_)) => {
                         return Err(Error::Invariant(
                             "construction stopped without this operation's failure",
@@ -286,25 +307,19 @@ impl<A: Admission> AdmittedGraph<A> {
                     }
                     Ok(()) => {}
                 }
-                let native = staged
-                    .native
-                    .take()
-                    .expect("a live construction retains its native builder");
-                staged.frozen = Some(native.freeze_with_memory(&mut memory)?);
-                staged
-                    .entries
-                    .take()
-                    .expect("a live construction retains its exact membership table")
-                    .release(&mut memory)?;
+                let Staged {
+                    native,
+                    owner,
+                    entries,
+                } = staged;
+                let dataset = native.freeze_with_memory(&mut memory)?;
+                entries.release(&mut memory)?;
                 let view = GraphView {
-                    dataset: staged
-                        .frozen
-                        .as_ref()
-                        .expect("native freeze supplied the dataset"),
-                    owner: &staged.owner,
+                    dataset: &dataset,
+                    owner: &owner,
                 };
                 view.validate(&mut memory)?;
-                Ok::<_, BuildCause>(())
+                Ok::<_, BuildCause>(Ok((dataset, owner)))
             })();
             (result, memory.admitted_bytes())
         };
@@ -313,27 +328,20 @@ impl<A: Admission> AdmittedGraph<A> {
                 if !captured_at_step && cause.admission_refused() {
                     original = capture.get();
                 }
-                drop(staged);
                 Err(ConstructionFailure::Native(BuildFailure {
                     cause,
                     original,
                     _account: account,
                 }))
             }
-            Ok(()) if caller.is_some() => {
-                drop(staged);
-                Err(ConstructionFailure::Caller(CallerFailure {
-                    cause: caller.take().expect("caller refusal was present"),
-                    _account: account,
-                }))
-            }
-            Ok(()) => Ok(Self {
-                dataset: staged
-                    .frozen
-                    .take()
-                    .expect("successful construction froze native storage"),
-                owner: core::mem::take(&mut staged.owner),
-                _live_bytes: live,
+            Ok(Err(cause)) => Err(ConstructionFailure::Caller(CallerFailure {
+                cause,
+                _account: account,
+            })),
+            Ok(Ok((dataset, owner))) => Ok(Self {
+                dataset,
+                owner,
+                live_bytes: live,
                 _account: account,
             }),
         };
@@ -448,14 +456,7 @@ impl<A: Admission, F: Copy> Construction<'_, '_, A, F> {
         if self.first.is_some() {
             return Err(ConstructionStopped(()));
         }
-        let result = crate::import::replay(
-            view,
-            self.staged
-                .native
-                .as_mut()
-                .expect("construction has not frozen"),
-            self.memory,
-        );
+        let result = crate::import::replay(view, &mut self.staged.native, self.memory);
         self.retain_failure(result)
     }
 
@@ -495,8 +496,6 @@ impl<A: Admission, F: Copy> Construction<'_, '_, A, F> {
         let id = self
             .staged
             .native
-            .as_mut()
-            .expect("construction has not frozen")
             .intern_value_with_memory(&owned, self.memory)?;
         if let Err((remaining, cause)) = owned.release_with_memory(self.memory) {
             drop(remaining);
@@ -551,24 +550,18 @@ impl<A: Admission, F: Copy> Construction<'_, '_, A, F> {
             _ => return Err(Error::Invariant("unsupported native record layer").into()),
         };
         let key = (tag, subject, predicate, object);
-        let entries = self
-            .staged
-            .entries
-            .as_mut()
-            .expect("construction retains its membership table");
-        let entry = entries.prepare_insert_with_memory(key, self.memory, |a, b, memory| {
-            memory.admission_mut().checkpoint(4)?;
-            Ok::<_, BuildCause>(a.cmp(b))
-        })?;
+        let entry =
+            self.staged
+                .entries
+                .prepare_insert_with_memory(key, self.memory, |a, b, memory| {
+                    memory.admission_mut().checkpoint(4)?;
+                    Ok::<_, BuildCause>(a.cmp(b))
+                })?;
         if entry.is_occupied() {
             return Err(Error::Repeated.into());
         }
         entry.publish(());
-        let native = self
-            .staged
-            .native
-            .as_mut()
-            .expect("construction has not frozen");
+        let native = &mut self.staged.native;
         match kind {
             RecordKind::Ordinary => {
                 native.push_quad_with_memory(subject, predicate, object, None, self.memory)?;

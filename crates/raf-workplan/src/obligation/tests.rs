@@ -248,6 +248,13 @@ fn an_empty_list_prints_nothing() {
 /// lower case. A row of a table inside a PROPOSED block (a line that starts
 /// with `>`) is a row too, so the kinds a change adds are pinned in the same
 /// commit as the code, while their text is still a proposal.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )
+)]
 fn contract_evidence() -> Vec<(String, String)> {
     let root = std::env::var_os("RAF_GATE_ROOT").map_or_else(
         || Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."),
@@ -390,6 +397,13 @@ fn the_evidence_of_the_strict_kinds_names_the_outcome_or_the_item_its_file_and_l
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn the_evidence_strings_are_the_evidence_column_of_the_contract() {
     let rows = contract_evidence();
     let kinds: Vec<&str> = rows.iter().map(|(kind, _)| kind.as_str()).collect();
@@ -648,6 +662,13 @@ fn several_hits_of_a_phrase_on_one_line_are_one_hit_and_two_lines_are_two() {
 }
 
 /// A capability-shaped body: a section heading, then the text.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn body(text: &str) -> Body {
     Body::parse(&format!("# Title\n\n## Contract\n\n{text}")).expect("a body")
 }
@@ -686,6 +707,13 @@ Streaming is planned.
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn text_before_the_first_section_has_no_section() {
     let body = Body::parse("# Title\n\nIt will start.\n\n## Contract\n\nPlain.\n").expect("a body");
     let hits = tense::find(&body);
@@ -785,6 +813,13 @@ fn hostile_text_is_read_in_linear_time() {
 /// A repository of the capability `omega` and a change `shape` of `items`
 /// items that each move to a change that does not exist, beside `others`
 /// records that are done, judged by `reconcile`; and the work it counted.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn moves_to_ghosts(items: usize, others: usize) -> (Reconciled, crate::work::Tally) {
     use std::fmt::Write as _;
 

@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+set -euo pipefail
+
+top=$(git rev-parse --show-toplevel)
+cd "$top"
+hooks=$(git config --path --get core.hooksPath || true)
+if [[ -z $hooks || $(realpath -m -- "$hooks") != "$top/.githooks" ||
+    ! -x .githooks/pre-commit || ! -x .githooks/pre-merge-commit ]]; then
+    echo 'make precommit: install the repository hooks with make hooks' >&2
+    exit 1
+fi
+
+mkdir -p .stage
+scratch=$(mktemp -d "$top/.stage/static-gate.XXXXXXXX")
+trap 'rm -rf -- "$scratch"' EXIT
+snapshot="$scratch/snapshot"
+mkdir "$snapshot"
+# Use the commit tree for both the checkout and the inventory. The active
+# index can also contain paths marked intent-to-add.
+index=$(git rev-parse --path-format=absolute --git-path index)
+cp -- "$index" "$scratch/source-index"
+tree=$(GIT_INDEX_FILE="$scratch/source-index" git write-tree)
+GIT_INDEX_FILE="$scratch/tree-index" git read-tree "$tree"
+GIT_INDEX_FILE="$scratch/tree-index" git checkout-index --all --ignore-skip-worktree-bits --prefix="$snapshot/"
+git ls-tree --full-tree -rz "$tree" > "$scratch/tracked"
+
+target=$(realpath -m -- "${CARGO_TARGET_DIR:-$top/target}")
+CARGO_TARGET_DIR="$target" cargo run --quiet --locked -p raf-docs-contract \
+    --example repository_static_documents -- "$snapshot" "$scratch/tracked"
+
+if [[ ! -x $snapshot/.githooks/pre-commit || ! -x $snapshot/.githooks/pre-merge-commit ]]; then
+    echo 'make precommit: keep both staged commit hooks executable' >&2
+    exit 1
+fi
+
+make --no-print-directory fmt ROOT="$snapshot"
+CARGO_TARGET_DIR="$target" make --no-print-directory clippy ROOT="$snapshot"
+(
+    cd "$snapshot"
+    export CARGO_TARGET_DIR="$target"
+    cargo deny --locked --workspace check bans sources
+    cd fuzz
+    cargo deny --locked check bans sources
+)

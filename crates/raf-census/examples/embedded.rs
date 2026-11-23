@@ -126,6 +126,10 @@ pub(crate) fn witnesses(parent: &Path, source: &str) -> Result<Vec<Pair>, Box<dy
         .collect())
 }
 
+#[expect(
+    clippy::print_stdout,
+    reason = "this executable writes its results to the caller's standard output"
+)]
 fn main() -> Result<(), Box<dyn Error>> {
     let parent = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/embedded-examples");
     for (label, source) in [("copy", COPY_SOURCE), ("neighbour", NEIGHBOUR_SOURCE)] {

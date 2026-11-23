@@ -180,6 +180,10 @@ pub(crate) fn bindings(version: usize) -> Bindings {
 }
 
 /// The files of the crate at a version, by path.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 pub(crate) fn files(version: usize) -> Vec<(&'static str, &'static str)> {
     match version {
         0 => vec![

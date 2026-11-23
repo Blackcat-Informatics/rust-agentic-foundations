@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
+#![forbid(unsafe_code)]
+
 //! Fixtures that more than one package's tests use.
 //!
 //! A locked Census evaluation loads each physical source file under exactly one

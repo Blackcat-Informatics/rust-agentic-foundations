@@ -58,6 +58,11 @@ fn skipped(name: &str) -> bool {
     name == "target" || name.starts_with('.')
 }
 
+pub(crate) fn manifest_path(dir: &RelPath) -> Result<RelPath, LoadError> {
+    dir.join("Cargo.toml")
+        .map_err(|error| LoadError::tree(dir, None, &Origin::Discovery, error.into()))
+}
+
 impl<'a> Walk<'a> {
     fn new(tree: &'a dyn Tree, meter: &'a Meter, at: &RelPath) -> Result<Self, LoadError> {
         meter.items(
@@ -135,12 +140,6 @@ impl<'a> Walk<'a> {
         }
     }
 
-    fn manifest_path(dir: &RelPath) -> Result<RelPath, LoadError> {
-        let origin = Origin::Discovery;
-        dir.join("Cargo.toml")
-            .map_err(|error| LoadError::tree(dir, None, &origin, error.into()))
-    }
-
     fn read_manifest(&self, path: &RelPath) -> Result<Option<Manifest>, LoadError> {
         let origin = Origin::Discovery;
         let present = self
@@ -176,7 +175,7 @@ impl<'a> Walk<'a> {
     /// Read the manifest of `dir`, if it has one. Returns whether the walk goes
     /// on into the directory's children.
     fn manifest(&mut self, dir: &RelPath) -> Result<bool, LoadError> {
-        let path = Self::manifest_path(dir)?;
+        let path = manifest_path(dir)?;
         let Some(parsed) = self.read_manifest(&path)? else {
             return Ok(true);
         };
@@ -325,7 +324,7 @@ pub(crate) fn workspace_members(
     meter: &Meter,
 ) -> Result<Discovered, LoadError> {
     let root = crate::root::directory(tree, root)?;
-    let path = Walk::manifest_path(&root)?;
+    let path = manifest_path(&root)?;
     let mut walk = Walk::new(tree, meter, &path)?;
     let root_manifest = walk
         .read_manifest(&path)?
@@ -339,7 +338,7 @@ pub(crate) fn workspace_members(
                 continue;
             }
             let member = crate::root::directory(tree, &member)?;
-            let path = Walk::manifest_path(&member)?;
+            let path = manifest_path(&member)?;
             let parsed = walk
                 .read_manifest(&path)?
                 .filter(|manifest| manifest.package.is_some())
@@ -422,6 +421,14 @@ mod tests {
     use super::*;
     use crate::{Budget, LoadOptions, MemoryTree};
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            clippy::unwrap_in_result,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn populate_names(limit: usize) -> Result<usize, LoadError> {
         let tree = MemoryTree::default();
         let meter = Meter::new(&LoadOptions {
@@ -456,6 +463,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn native_discovery_names_resume_retained_storage_and_refuse_the_original_grant() {
         let spent = populate_names(LoadOptions::default().max_item_bytes).expect("populated");
         assert_eq!(populate_names(spent).expect("exact allowance"), spent);

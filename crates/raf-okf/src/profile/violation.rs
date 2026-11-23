@@ -1103,6 +1103,13 @@ mod tag_tests {
     /// A rule of each tag. The match names every tag, so a tag added to
     /// `RuleTag` stops this from compiling until it has a sample.
     #[expect(clippy::too_many_lines, reason = "one arm per rule of the profile")]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn sample(tag: RuleTag) -> Rule {
         match tag {
             RuleTag::HeaderShape => Rule::HeaderShape {

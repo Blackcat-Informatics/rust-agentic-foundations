@@ -154,6 +154,17 @@ pub enum ReferenceTree<'a> {
     Registry(&'a RegistryArchiveTree<'a>),
 }
 
+impl std::fmt::Debug for ReferenceTree<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Opaque(_) => f.debug_tuple("Opaque").finish_non_exhaustive(),
+            Self::Disk(tree) => f.debug_tuple("Disk").field(tree).finish(),
+            Self::Git(tree) => f.debug_tuple("Git").field(tree).finish(),
+            Self::Registry(tree) => f.debug_tuple("Registry").field(tree).finish(),
+        }
+    }
+}
+
 impl<'a> ReferenceTree<'a> {
     pub(super) fn tree(self) -> &'a dyn Tree {
         match self {
@@ -177,7 +188,7 @@ impl<'a> ReferenceTree<'a> {
 ///
 /// Package names and lock rows are checked against the loaded manifests. Disk
 /// and opaque contents remain observations, not archive authentication.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct ReferencePackageRoots<'a> {
     pub(super) tree: ReferenceTree<'a>,
     pub(super) packages: &'a [LockedManifest<'a>],

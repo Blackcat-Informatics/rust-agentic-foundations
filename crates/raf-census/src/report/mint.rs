@@ -37,11 +37,16 @@ pub(super) fn site(rule: &str, key: &str, file: &str) -> String {
 pub(crate) fn job(id: &str) -> String {
     format!("#job/{}", part(id))
 }
+#[expect(
+    clippy::expect_used,
+    reason = "callers pass the local unit fragment minted by the unit encoder"
+)]
 pub(super) fn reifier(id: &str, unit: &str) -> String {
     format!(
         "#match/{}/{}",
         part(id),
-        unit.strip_prefix("#unit/").expect("unit fragment")
+        unit.strip_prefix("#unit/")
+            .expect("INVARIANT: minted unit fragment")
     )
 }
 #[cfg(test)]

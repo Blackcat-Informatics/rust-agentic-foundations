@@ -19,6 +19,10 @@ const PLAIN_MANIFEST: &str =
     "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n";
 const SOURCE: &str = "/// The one implementation.\npub fn home() -> u32 { 7 }\n";
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn put(graph: &mut Builder, node: &str, key: &str, object: Term) {
     let subject = Term::iri(node);
     if key == "type" {
@@ -86,6 +90,10 @@ fn ledger(vectors: &[&str], benches: &[&str]) -> Builder {
     graph
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn text(graph: Builder) -> String {
     graph.finish().unwrap().to_text(Format::Turtle).unwrap()
 }
@@ -106,6 +114,10 @@ const LINKED: [(&str, &str); 2] = [
 ];
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn a_job_naming_an_existing_vector_and_bench_is_clean() {
     let report = fixture_gate(".")
         .check_tree(&tree(
@@ -118,6 +130,10 @@ fn a_job_naming_an_existing_vector_and_bench_is_clean() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn a_renamed_vector_or_removed_bench_is_a_finding_naming_the_job_and_link() {
     let renamed = fixture_gate(".")
         .check_tree(&tree(
@@ -178,6 +194,10 @@ fn a_renamed_vector_or_removed_bench_is_a_finding_naming_the_job_and_link() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn a_link_that_escapes_the_workspace_root_is_refused() {
     for (escaping, cause) in [
         ("../outside.json", "climbs above the root"),
@@ -202,6 +222,10 @@ fn a_link_that_escapes_the_workspace_root_is_refused() {
 
 #[cfg(unix)]
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn a_vector_symlink_leading_out_of_the_root_is_refused_beside_an_inside_link() {
     let scratch = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
     let root = scratch.path().join("workspace");
@@ -233,6 +257,11 @@ fn a_vector_symlink_leading_out_of_the_root_is_refused_beside_an_inside_link() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_job_homed_in_a_reference_dependency_is_refused_when_it_declares_links() {
     let files = |ledger: String| {
         MemoryTree::from_iter([
@@ -268,6 +297,10 @@ fn a_job_homed_in_a_reference_dependency_is_refused_when_it_declares_links() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn a_bench_of_a_sealed_dependency_is_not_a_first_party_bench_beside_a_local_one() {
     use raf_source::{
         CommittedGitTree, LoadOptions, LockedCatalog, LockedEdge, LockedManifest,

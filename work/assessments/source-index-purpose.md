@@ -247,7 +247,7 @@ inputs:
     digest: aa32afa42e2d644e93113a6853dd8f26dbdf6087e2df3a4c2db01df335551fa3
   - kind: symbol
     name: raf_source::LockedPackageRoots
-    digest: 5ac79cda2e62f715afafe05d9b2459108a904a95e755b8cd0536b49e6c248358
+    digest: f530a332664d30e9225d37eb7f57afe38c60fab88fa0f917a5118d3f793d6439
   - kind: symbol
     name: raf_source::LockedSource
     digest: 20621757ab2b98e7734ff326160f6a57ef77740f9d52459cfa803dccac5cf0ac
@@ -256,7 +256,7 @@ inputs:
     digest: 9adb0eec8905278652691276e1dd9ae7494a9cbe155b03ce1f4acbd100eee1bb
   - kind: symbol
     name: raf_source::LockedTree
-    digest: 159bf0fe6e332923e9a3d814c93469131863a0ad46d8204fd14652e0b150aecf
+    digest: bdcd17efa575d6b97af0ffa6f35b73c0fb31a18c18adf9f3bee5bde39699454f
   - kind: symbol
     name: raf_source::MemoryTree
     digest: 07a127a9ed66d9c1e464b41940094eecd18bdd384ea6765f43aad698fab6df49
@@ -532,10 +532,10 @@ inputs:
     digest: b935908e0bf18a62f32f8ce6447950753e6452a8c1fd0aeb0cd92ea522b0f7ea
   - kind: symbol
     name: raf_source::cargo_version
-    digest: 7140b4d7c9f960dd035dd01925075fcff67350001435ad2ecd39d1a655f3b36e
+    digest: b8b5f637a14a46e6d191d1b38cfa7f9558663d1cb966c5ca1dae800c716201dd
   - kind: symbol
     name: raf_source::code
-    digest: d9c18299209e8d4e0f76cf62467e8c946be8587c3d63e88077b03648e3952d2b
+    digest: f55f203e4e83eaab48e4e8ae2699342e31281d54a4ff593d1688bff8a748e6cb
   - kind: symbol
     name: raf_source::cost::shared_text
     digest: 417543dec94f58efe64575df018bc4b13589e906d90c4db5a4f0693d372ab4f1
@@ -565,10 +565,10 @@ inputs:
     digest: b44969cc51582cddcb93cde34d2e12b7c4e5aa7b467cbb7814bfb40c447ef561
   - kind: symbol
     name: raf_source::resolve
-    digest: c09f05b642a37dc589be0bc28932fdcf99900bd263a39bf7570c2133224d46a0
+    digest: 539dd6c8112a1642b4b9e249b8920571ad932212e467f9b3862caaeeb58d6181
   - kind: symbol
     name: raf_source::settle
-    digest: 6b87bfd9278a93bdf6976def510880204b8acc565e7cc9d53fddbfcd145b5623
+    digest: a81cbc91e90e458628cd039200460960121b21bbf48c20eabb5a9c621184c091
   - kind: symbol
     name: raf_source::syntax_storage::SyntaxBound
     digest: cb22bdd68d556de9e8bf4358d6be413602544bf94589ed6dbc6aac8e4e5e52e6
@@ -580,13 +580,13 @@ inputs:
     digest: a9f208ca5d3128541cfeb6e44036130de7596532225af3cc093dd92c4e30084b
   - kind: symbol
     name: raf_source::tree
-    digest: 631432a51fc5d7fba82b85c14b7cb8f0ce2ccb1ac69f188e257109accb303e28
+    digest: 8fdc75c19fb4418bc7c44587d80238ebfcad69f942e9d6390314ff9b1144a1d7
   - kind: symbol
     name: raf_source::tree::disk
-    digest: faa6d96e34bb963e9ce92b80011a735b72229f96383019987b696f56fb3217bc
+    digest: 6163fd56d2ae757ad88117945527aed5e5c40441d0d44b56c72f73eeb85e8182
   - kind: symbol
     name: raf_source::tree::memory
-    digest: 0845157bbecf5b541e8969cf9abe09a47c46e01d90eb655a28c525af87cdf0b4
+    digest: b0529ae4bbcc76733a8adf232a474afec395e92549954babf760a070a575e31f
   - kind: symbol
     name: raf_source::visit_pattern_bindings
     digest: 27019e74a30a0147f477718f5c4d7d4fd9cd0c9ed93f86efddf4718b98e98fcf

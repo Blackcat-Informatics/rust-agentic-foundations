@@ -7,6 +7,11 @@ mod support;
 use support::Repo;
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn stored_command_text_is_never_executed_by_checks_or_dependency_views() {
     use raf_okf::{Actor, EvidenceRecord, EvidenceSubject, EvidenceVerdict, Input, InputKind};
     use raf_workplan::Gate;

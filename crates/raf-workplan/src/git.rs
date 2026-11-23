@@ -193,6 +193,10 @@ fn answer(operation: &str, expected: &'static str, value: &str) -> GitError {
         answer: value.chars().take(80).collect(),
     }
 }
+#[expect(
+    clippy::map_err_ignore,
+    reason = "the commit answer retains the original bounded spelling and the required Git profile"
+)]
 fn admitted(text: &str) -> Result<ResolvedCommit, GitError> {
     Commit::new(text)
         .map(ResolvedCommit)
@@ -255,7 +259,10 @@ pub fn default_branch_ref(repository: &Repository) -> Result<RefName, GitError> 
         .map_err(|error| GitError::NoDefaultBranch {
             stderr: error.to_string(),
         })?;
-    RefName::new(&reference).map_err(|_| answer("origin HEAD", "a full reference name", &reference))
+    let Ok(reference) = RefName::new(&reference) else {
+        return Err(answer("origin HEAD", "a full reference name", &reference));
+    };
+    Ok(reference)
 }
 
 /// Admit the selected checkout's HEAD as an existing commit.

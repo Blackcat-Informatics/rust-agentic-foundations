@@ -29,6 +29,13 @@ fn documents(record: &str) -> MemoryTree {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn the_default_check_judges_each_policy_unit_once_without_policy_work_during_load() {
     let source = Workspace::load(&tree(&fixture::source_files()), &["."]).expect("the source");
     let docs = documents("");

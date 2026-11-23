@@ -51,6 +51,10 @@ fn on_plan<R>(repo: &Repo, f: impl FnOnce(&Workplan<'_>) -> R) -> R {
 }
 
 /// Replace the first `from` of `path` in `repo`.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn edit(repo: &mut Repo, path: &str, from: &str, to: &str) {
     let text = repo.get_mut(path).expect("the repository holds the file");
     assert!(text.contains(from), "{path} has no `{from}`");
@@ -80,6 +84,11 @@ fn kinds(repo: &Repo) -> Vec<(&'static str, String)> {
 // ---------------------------------------------------------------------------
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn each_record_type_loads_from_its_directory_into_the_model() {
     let repo = with_records();
     assert_clean(&check(&repo));
@@ -111,6 +120,10 @@ fn each_record_type_loads_from_its_directory_into_the_model() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_repository_without_record_directories_has_no_records_and_no_new_findings() {
     let mut repo = valid();
     repo.remove(COVERAGE);
@@ -168,6 +181,10 @@ fn a_broken_record_is_a_finding_and_not_in_the_model() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_record_in_the_directory_of_another_type_is_wrong_directory() {
     // Evidence among the assessments, and a capability among the evidence.
     let mut repo = valid();
@@ -363,6 +380,10 @@ fn a_record_that_names_what_does_not_exist_is_a_finding_and_its_neighbour_is_cle
 // ---------------------------------------------------------------------------
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_claim_on_evidence_that_covers_its_capability_is_clean_and_an_edge() {
     let repo = claiming(with_records(), "bound");
     assert_clean(&check(&repo));
@@ -434,6 +455,10 @@ fn a_claim_on_evidence_for_another_capability_is_a_finding() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_claim_inside_a_proposed_block_is_not_a_claim_until_it_is_resolved() {
     // Beta is considered and holds a PROPOSED block in its Purpose.
     let mut repo = with_records();
@@ -481,6 +506,10 @@ fn a_claim_inside_a_proposed_block_is_not_a_claim_until_it_is_resolved() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn claims_are_section_granular_and_one_edge_per_named_record() {
     let mut repo = with_records();
     let (second, path) = with_record(
@@ -548,6 +577,10 @@ fn claims_are_section_granular_and_one_edge_per_named_record() {
 // ---------------------------------------------------------------------------
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn the_records_are_nodes_with_their_edges() {
     let mut repo = with_records();
     edit(&mut repo, COVERAGE, "scope: []", "scope: [demo]");
@@ -626,6 +659,10 @@ fn with_inputs() -> Repo {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn each_input_of_a_record_that_resolves_is_an_edge_and_one_that_does_not_is_no_finding() {
     let repo = with_inputs();
     // An input that names nothing now is not a finding of the load.
@@ -767,6 +804,11 @@ fn repository_without_coverage(tag: &str) -> Scratch {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_written_record_reloads_with_no_finding_as_the_same_value() {
     let scratch = repository_without_coverage("record-create");
     let root = scratch.path();
@@ -844,6 +886,11 @@ fn a_written_record_reloads_with_no_finding_as_the_same_value() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn create_never_replaces_a_file() {
     let scratch = repository("record-exists");
     let root = scratch.path();
@@ -874,6 +921,11 @@ fn create_never_replaces_a_file() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn replace_puts_new_text_in_place_of_an_existing_record_only() {
     let scratch = repository("record-replace");
     let root = scratch.path();
@@ -946,6 +998,11 @@ fn replace_puts_new_text_in_place_of_an_existing_record_only() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_record_that_would_not_load_clean_is_not_written() {
     let scratch = repository("record-invalid");
     let root = scratch.path();
@@ -1001,6 +1058,11 @@ fn a_record_that_would_not_load_clean_is_not_written() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn the_record_directory_is_created_below_the_root_only() {
     let scratch = repository_without_coverage("record-dirs");
     let root = scratch.path();
@@ -1043,6 +1105,10 @@ fn the_record_directory_is_created_below_the_root_only() {
 
 #[cfg(unix)]
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_symbolic_link_on_the_way_to_the_record_is_refused() {
     let outside = Scratch::new("record-outside");
     let scratch = repository("record-link");
@@ -1077,6 +1143,10 @@ fn a_symbolic_link_on_the_way_to_the_record_is_refused() {
 // ---------------------------------------------------------------------------
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_record_at_the_size_bound_with_the_most_measures_loads() {
     let head = evidence_record()
         .split("values:")
@@ -1109,6 +1179,10 @@ fn a_record_at_the_size_bound_with_the_most_measures_loads() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_hundred_thousand_claims_load_with_one_finding_each() {
     // Four capabilities at the size bound, each holding as many claims as
     // fit, every claim naming a record that exists and one that does not.
@@ -1159,6 +1233,10 @@ fn a_hundred_thousand_claims_load_with_one_finding_each() {
 /// that refuses a new file leaves the target as it was, with no temporary file.
 #[cfg(unix)]
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn replace_renames_a_new_file_over_the_target_and_never_writes_into_it() {
     use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
 
@@ -1214,6 +1292,10 @@ fn replace_renames_a_new_file_over_the_target_and_never_writes_into_it() {
 /// Move the directory `link` below `root` to `moved` and put a symbolic link
 /// to it, relative and so inside the root, in its place.
 #[cfg(unix)]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn link_in_root(root: &std::path::Path, link: &str, moved: &str) {
     fs::rename(root.join(link), root.join(moved)).expect("the directory moves");
     let up = "../".repeat(link.matches('/').count());
@@ -1222,6 +1304,10 @@ fn link_in_root(root: &std::path::Path, link: &str, moved: &str) {
 
 /// Undo [`link_in_root`]: the directory is a real directory again.
 #[cfg(unix)]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn unlink_in_root(root: &std::path::Path, link: &str, moved: &str) {
     fs::remove_file(root.join(link)).expect("the link is removed");
     fs::rename(root.join(moved), root.join(link)).expect("the directory moves back");
@@ -1233,6 +1319,10 @@ fn unlink_in_root(root: &std::path::Path, link: &str, moved: &str) {
 /// once the directory is a real one again, the same writes go through.
 #[cfg(unix)]
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_directory_link_inside_the_root_on_the_way_to_a_record_is_refused_and_a_real_directory_is_not()
 {
     let cases = [
@@ -1282,6 +1372,10 @@ fn a_directory_link_inside_the_root_on_the_way_to_a_record_is_refused_and_a_real
 /// the coverage record is refused and `docs/default.md` keeps its text.
 #[cfg(unix)]
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_replacement_through_a_link_to_the_documents_never_overwrites_a_document() {
     let scratch = repository("record-onto-docs");
     let root = scratch.path();

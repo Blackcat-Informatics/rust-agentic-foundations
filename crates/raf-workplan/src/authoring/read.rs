@@ -267,7 +267,8 @@ fn route_subject(
         Some(subject)
     } else if name.starts_with(DATASET_NODE_IRI_BASE) {
         name.rfind('/')
-            .and_then(|index| prefixes.get(&name[..=index]).copied())
+            .and_then(|index| name.get(..=index))
+            .and_then(|prefix| prefixes.get(prefix).copied())
     } else {
         None
     };

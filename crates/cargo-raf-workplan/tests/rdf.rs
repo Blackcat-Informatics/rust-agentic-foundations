@@ -8,6 +8,10 @@ use raf_okf::Location;
 use raf_workplan::Gate;
 use support::{COPYRIGHT, LICENCE, Repo, rdf::Rdf};
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn findings_repo(tag: &str) -> Repo {
     let repo = Repo::synced(tag, true);
     let path = "docs/capabilities/alpha.md";
@@ -31,6 +35,11 @@ fn findings_repo(tag: &str) -> Repo {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn check_preserves_every_finding_location_in_both_equivalent_formats() {
     let repo = findings_repo("rdf-check");
     let findings = Gate::workspace(repo.root()).check();
@@ -134,6 +143,10 @@ fn status_preserves_ordered_capabilities_binding_gaps_and_open_changes() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites() {
     let repo = Repo::synced("rdf-preview", false);
     let run = repo
@@ -178,6 +191,10 @@ fn preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites() {
     exported_navigation_index(&repo);
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn exported_navigation_index(repo: &Repo) {
     use purrdf_rdf::{ParseOptions, parse_dataset_with};
     use raf_okf::Index;
@@ -293,6 +310,10 @@ const DOCUMENTS: [(&str, &str); raf_okf::DocType::ALL.len()] = [
     ),
 ];
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn exported_authoring_documents(repo: &Repo) {
     use purrdf_rdf::{ParseOptions, parse_dataset_with};
     use raf_okf::Document;
@@ -346,6 +367,10 @@ fn exported_authoring_documents(repo: &Repo) {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn repository_export_round_trips_declared_documents_and_refuses_bad_input() {
     use std::collections::BTreeMap;
     use std::path::Path;
@@ -444,6 +469,10 @@ fn repository_export_round_trips_declared_documents_and_refuses_bad_input() {
     refused_repository_export(&repo, alpha, "fence");
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn assert_exported_claims(dataset: &purrdf_rdf::RdfDataset) {
     use raf_okf::DocType;
     use raf_workplan::evidence::CLAIMS_VOCAB;
@@ -513,6 +542,10 @@ fn put_repository_export_records(repo: &Repo) -> [&'static str; 3] {
     [evidence, assessment, review]
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn assert_exported_record_inputs(dataset: &purrdf_rdf::RdfDataset) {
     use raf_okf::DocType;
 
@@ -566,6 +599,10 @@ fn assert_exported_record_inputs(dataset: &purrdf_rdf::RdfDataset) {
     }
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn assert_exported_evidence_targets(dataset: &purrdf_rdf::RdfDataset) {
     use raf_okf::DocType;
 
@@ -715,6 +752,10 @@ fn diagram_repo(tag: &str) -> Repo {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority() {
     let repo = diagram_repo("static-rustdoc-fragment");
     repo.put(
@@ -823,6 +864,10 @@ fn static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority
     fragment_carriers_refuse_before_inputs(&repo, &args);
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn fragment_binding_and_metadata_refusals(
     repo: &Repo,
     args: &[&str],
@@ -874,6 +919,10 @@ fn fragment_binding_and_metadata_refusals(
     assert_eq!(&repo.both(args).expect(0), accepted);
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn fragment_metadata(repo: &Repo, target: &std::path::Path) -> String {
     use purrdf_lex::json::{Value, write_compact};
     let path = |path: &std::path::Path| write_compact(&Value::from(path.to_str().unwrap()));
@@ -909,6 +958,10 @@ fn fragment_carriers_refuse_before_inputs(repo: &Repo, args: &[&str]) {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes() {
     repository_navigation_publication();
     let repo = diagram_repo("standalone-publication");
@@ -993,6 +1046,10 @@ fn standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes()
     );
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn repository_navigation_publication() {
     use raf_workplan::diagram::publication;
     let repo = diagram_repo("repository-linked-cli");
@@ -1073,6 +1130,10 @@ fn repository_navigation_publication() {
     }
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn mdbook_preserves_the_book_and_uses_the_shared_view() {
     use purrdf_lex::json::{self, Object, Value};
     let repo = diagram_repo("mdbook-shared-view");
@@ -1169,6 +1230,11 @@ fn mdbook_preserves_the_book_and_uses_the_shared_view() {
 }
 
 /// Native model storage and work refuse atomically while retaining the cause.
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn mdbook_native_limits(plan: &raf_workplan::Workplan<'_>) {
     use raf_workplan::diagram::book::preprocess;
     let unmatched_code_runs = |count| {
@@ -1223,6 +1289,10 @@ fn book_request(sections: Vec<purrdf_lex::json::Value>) -> purrdf_lex::json::Val
     ])
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn book_boundary(
     plan: &raf_workplan::Workplan<'_>,
     valid: purrdf_lex::json::Value,
@@ -1294,6 +1364,10 @@ fn mdbook_request_limits(plan: &raf_workplan::Workplan<'_>) {
     );
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn mdbook_output_limit(source: &raf_source::Workspace) {
     use raf_source::MemoryTree;
     use raf_workplan::{Workplan, diagram::documentation::static_fragment};
@@ -1331,6 +1405,10 @@ fn mdbook_output_limit(source: &raf_source::Workspace) {
     );
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn refused_authoring_documents(repo: &Repo) {
     let (path, valid) = DOCUMENTS[2];
     for (selected, text, expected) in [

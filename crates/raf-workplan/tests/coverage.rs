@@ -87,6 +87,10 @@ fn files() -> Vec<(String, String)> {
     ]
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn load(files: &[(String, String)]) -> Workspace {
     let tree: MemoryTree = files
         .iter()
@@ -202,6 +206,10 @@ fn paths(report: &CoverageReport, kind: GapKind) -> Vec<&str> {
     report.gaps(kind).iter().map(Gap::path).collect()
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn of_demo(report: &CoverageReport) -> CoverageReport {
     report.package("cov-demo").expect("the package is reported")
 }
@@ -253,6 +261,10 @@ fn the_code_report_lists_every_public_item_and_no_private_or_hidden_one() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn trait_members_alias_order_and_foreign_reexports_keep_their_defining_owners() {
     let source = load(&[
         (
@@ -416,6 +428,10 @@ fn an_item_bound_through_a_re_export_or_its_definition_is_covered_under_its_expo
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_bound_test_is_covered_and_every_unbound_test_unit_tests_included_is_a_gap() {
     let source = load(&files());
     let report = report_of(
@@ -448,6 +464,10 @@ fn a_bound_test_is_covered_and_every_unbound_test_unit_tests_included_is_a_gap()
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_unit_test_module_is_excluded_by_its_prefix_with_the_reason_shown() {
     let source = load(&files());
     let coverage = coverage_with("[]", &[("cov_demo::tests::*", "Unit tests of internals.")]);
@@ -489,6 +509,10 @@ fn an_item_is_excluded_by_its_exported_or_its_defining_path() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_report_of_check_and_its_findings_follow_the_scope() {
     let source = load(&files());
     let coverage = coverage_with(
@@ -570,6 +594,10 @@ fn an_empty_scope_leaves_item_gaps_unenforced_but_retains_line_refusals() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn without_a_record_check_has_exactly_one_finding_that_says_to_add_it() {
     let source = load(&files());
     let findings = findings_of(&docs("[]", "[]", None), &source);
@@ -595,6 +623,10 @@ fn without_a_record_check_has_exactly_one_finding_that_says_to_add_it() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn an_exclusion_without_a_reason_or_that_matches_nothing_fails_naming_the_file() {
     let source = load(&files());
     let check = |exclusions: &[(&str, &str)]| {
@@ -665,6 +697,10 @@ fn an_exclusion_without_a_reason_or_that_matches_nothing_fails_naming_the_file()
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_scope_entry_is_a_package_name_and_a_crate_name_says_which_package_it_means() {
     let source = load(&files());
     let findings = item_findings_after_line_refusals(
@@ -709,6 +745,11 @@ fn ambiguous_files() -> Vec<(String, String)> {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_surface_that_cannot_be_listed_is_an_error_of_the_report_and_a_finding_in_scope() {
     let source = load(&ambiguous_files());
     let repo = |scope: &str| {
@@ -763,6 +804,10 @@ fn a_surface_that_cannot_be_listed_is_an_error_of_the_report_and_a_finding_in_sc
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn cyclic_imports_and_empty_public_globs_are_report_errors_beside_listable_neighbors() {
     for (refused, accepted, diagnostic) in [
         (
@@ -807,6 +852,12 @@ fn cyclic_imports_and_empty_public_globs_are_report_errors_beside_listable_neigh
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn carried_name_search_budget_refusal_is_not_an_empty_covered_surface() {
     let mut lib = "mod z {}\npub use c0::*;\n".to_string();
     for i in 0..16 {
@@ -879,6 +930,11 @@ fn carried_name_search_budget_refusal_is_not_an_empty_covered_surface() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_crate_visible_item_sharing_an_external_carried_name_is_not_a_public_item() {
     for (visibility, public) in [("pub(crate)", false), ("pub", true)] {
         let lib = format!(
@@ -920,6 +976,10 @@ fn a_crate_visible_item_sharing_an_external_carried_name_is_not_a_public_item() 
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_surface_over_the_item_budget_is_a_budget_error() {
     let files = files();
     let tree: MemoryTree = files
@@ -958,6 +1018,10 @@ fn a_surface_over_the_item_budget_is_a_budget_error() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn the_report_and_its_two_forms_are_the_same_on_every_run() {
     let repo = docs(
         "[cov_demo::bound]",
@@ -983,6 +1047,11 @@ fn the_report_and_its_two_forms_are_the_same_on_every_run() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn the_table_and_rdf_preserve_the_same_entries_and_escape_their_carriers() {
     let source = load(&files());
     let coverage = coverage_with(
@@ -1053,6 +1122,10 @@ fn the_table_and_rdf_preserve_the_same_entries_and_escape_their_carriers() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_crate_with_thousands_of_items_and_tests_is_judged() {
     const MODULES: usize = 60;
     const ITEMS: usize = 50;
@@ -1115,6 +1188,10 @@ fn a_crate_with_thousands_of_items_and_tests_is_judged() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn this_repository_enforces_all_packages_with_zero_coverage_debt() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let opened = Gate::workspace(&root).open().expect("the repository opens");
@@ -1201,6 +1278,10 @@ fn made_files() -> Vec<(String, String)> {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_re_export_the_index_cannot_follow_is_reported_and_enforced_and_its_module_covers_it() {
     let source = load(&made_files());
     let scoped = |code: &str, exclusions: &[(&str, &str)]| {
@@ -1293,6 +1374,10 @@ fn a_prefix_matches_below_its_module_and_never_a_sibling_that_shares_its_text() 
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_item_bound_only_in_examples_is_a_gap() {
     let source = load(&made_files());
     let mut repo = docs(
@@ -1437,6 +1522,10 @@ fn a_capability_that_does_not_load_gives_its_own_findings_and_no_cascade_of_gaps
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn an_unresolved_bare_reexport_keeps_its_edition_specific_module_origin() {
     for (edition, written, named) in [
         ("2015", "gen::Made", "made::gen::Made"),
@@ -1467,6 +1556,10 @@ fn an_unresolved_bare_reexport_keeps_its_edition_specific_module_origin() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_re_export_written_through_super_names_the_path_super_reaches() {
     let made = |lib: &str, api: Option<&str>| {
         let mut files = vec![

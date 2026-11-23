@@ -387,6 +387,14 @@ mod tests {
 
     /// The directories `members` finds for a workspace manifest that holds the
     /// quoted `members` and `exclude`, beside one package `p`.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            clippy::panic,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn find(listed: &[String], exclude: &[String]) -> usize {
         let quoted = |entries: &[String]| {
             let mut text = String::new();

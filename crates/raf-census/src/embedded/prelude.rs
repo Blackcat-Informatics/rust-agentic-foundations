@@ -97,6 +97,13 @@ mod tests {
     use raf_source::MemoryTree;
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn actual_default_inherited_and_unsupported_editions_control_the_declared_profile() {
         for (declaration, expected) in [
             ("", Some(2015)),
@@ -140,6 +147,14 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::panic,
+            clippy::unwrap_used,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn declared_standard_names_stay_fixed_without_mistaking_type_or_macro_names_for_values() {
         let source = "fn helper(input: i32) -> i32 { let café = input; cafe\u{301} + 1 }";
         let tree = MemoryTree::from([
@@ -212,6 +227,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn disabled_preludes_have_no_fixed_variants_and_custom_or_malformed_flags_refuse() {
         for (attribute, admitted) in [
             ("#![no_implicit_prelude]", true),

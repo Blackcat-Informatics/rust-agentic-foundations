@@ -54,11 +54,8 @@ impl<'ast> Visit<'ast> for Hex {
 
     fn visit_expr_call(&mut self, node: &'ast syn::ExprCall) {
         if let syn::Expr::Path(function) = node.func.as_ref()
-            && function
-                .path
-                .segments
-                .last()
-                .is_some_and(|segment| segment.ident == "from_str_radix")
+            && let Some(method) = function.path.segments.last()
+            && method.ident == "from_str_radix"
             && node.args.len() == 2
             && node.args.iter().nth(1).is_some_and(sixteen)
         {
@@ -72,7 +69,7 @@ impl<'ast> Visit<'ast> for Hex {
                 } else {
                     "hex-digit-radix"
                 },
-                segments.last().expect("radix path").ident.span(),
+                method.ident.span(),
                 "radix-16 decoding written through a general integer conversion",
             );
         }

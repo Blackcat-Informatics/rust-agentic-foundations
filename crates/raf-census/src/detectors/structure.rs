@@ -170,6 +170,10 @@ impl<'ast> Structure<'ast> {
         self.write_probe != WriteProbe::Inactive
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "each recording visit pushes one frame and nested visits balance their own frames"
+    )]
     fn function(&mut self, signature: &syn::Signature, walk: impl FnOnce(&mut Self)) {
         if !self.recording() {
             return;
@@ -435,6 +439,10 @@ impl<'ast> Structure<'ast> {
         self.write_probe = outer;
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "the scope restores the same enclosing function frame after the nested walk"
+    )]
     fn graph_scope(&mut self, walk: impl FnOnce(&mut Self)) {
         let Some((len, block_glob)) = self
             .frames
@@ -703,6 +711,10 @@ impl<'ast> Visit<'ast> for Structure<'ast> {
         });
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "the function visitor pushes the method frame before invoking its body"
+    )]
     fn visit_impl_item_fn(&mut self, node: &'ast syn::ImplItemFn) {
         self.written_scope(inert_receiver_attributes(&node.attrs), |this| {
             this.generics(&node.sig.generics, |this| {

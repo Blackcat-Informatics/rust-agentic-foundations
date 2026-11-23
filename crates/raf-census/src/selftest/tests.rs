@@ -145,6 +145,14 @@ const CLI_DOC: &str = include_str!("../../../../docs/capabilities/census-cli.md"
 /// or renaming a detector, or changing the case count, fails until the capability document
 /// states the new list.
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        clippy::string_slice,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn the_documented_detector_list_and_case_count_equal_the_registry() {
     let report = Gate::workspace("/nonexistent").self_test();
     let total = report.cases().len();

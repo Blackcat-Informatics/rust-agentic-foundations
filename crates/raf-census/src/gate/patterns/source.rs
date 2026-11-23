@@ -100,6 +100,10 @@ fn extent(node: &Node) -> Range<usize> {
 
 type Replacements = std::iter::Peekable<std::vec::IntoIter<(Range<usize>, Vec<Node>)>>;
 
+#[expect(
+    clippy::expect_used,
+    reason = "each removal follows a successful peek of the same replacement iterator without advancing it"
+)]
 fn overlay(
     nodes: &mut Vec<Node>,
     replacements: &mut Replacements,
@@ -113,7 +117,7 @@ fn overlay(
             .peek()
             .is_some_and(|(range, _)| range.end <= span.start)
         {
-            let (_, replacement) = replacements.next().expect("peeked replacement");
+            let (_, replacement) = replacements.next().expect("INVARIANT: peeked replacement");
             if !replacement.is_empty() {
                 return Err(failure(
                     "tokens",
@@ -127,7 +131,7 @@ fn overlay(
             break;
         };
         if span.start >= range.start && span.end <= range.end {
-            let (range, replacement) = replacements.next().expect("peeked replacement");
+            let (range, replacement) = replacements.next().expect("INVARIANT: peeked replacement");
             while input.peek().is_some_and(|node| {
                 let span = extent(node);
                 span.start >= range.start && span.end <= range.end

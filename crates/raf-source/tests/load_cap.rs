@@ -39,6 +39,10 @@ fn padded_to(head: &str, len: usize) -> String {
     text
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn cap() -> usize {
     usize::try_from(DEFAULT_MAX_FILE_BYTES).expect("the cap fits")
 }
@@ -61,6 +65,10 @@ fn too_large(error: &LoadError) -> Option<u64> {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_library_root_of_exactly_the_cap_loads_and_one_byte_more_is_refused_naming_it() {
     let at = padded_to("pub fn at_cap() {}\n", cap());
     let ws = load(&[("src/lib.rs", &at)], &LoadOptions::default()).expect("at the cap");
@@ -74,6 +82,10 @@ fn a_library_root_of_exactly_the_cap_loads_and_one_byte_more_is_refused_naming_i
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_module_file_of_exactly_the_cap_loads_and_one_byte_more_is_refused_naming_it() {
     let lib = "pub mod child;\n";
     let at = padded_to("pub fn at_cap() {}\n", cap());
@@ -101,6 +113,10 @@ fn a_module_file_of_exactly_the_cap_loads_and_one_byte_more_is_refused_naming_it
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_lowered_cap_applies_to_a_child_file_and_spares_a_root_within_it() {
     let lib = "pub mod child;\n";
     let child = padded_to("pub fn small() {}\n", 1000);
@@ -124,6 +140,10 @@ fn a_lowered_cap_applies_to_a_child_file_and_spares_a_root_within_it() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_cap_larger_than_the_default_admits_a_file_the_default_refuses() {
     let big = padded_to("pub fn big() {}\n", cap() + 1);
     let mut options = LoadOptions::default();
@@ -133,6 +153,10 @@ fn a_cap_larger_than_the_default_admits_a_file_the_default_refuses() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_memory_tree_used_here_reads_the_padded_file_at_its_exact_size() {
     let text = padded_to("", cap());
     let tree: MemoryTree = [("a.rs", text.as_str())].into_iter().collect();

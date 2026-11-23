@@ -321,7 +321,11 @@ fn extension(
     class(graph, &node, "Extension")?;
     for id in std::mem::take(&mut extension.table) {
         let value = &row.document.nodes()[id];
-        let key = &value.key.as_ref().expect("native table field key").decoded;
+        let key = &value
+            .key
+            .as_ref()
+            .ok_or_else(|| row.bad("extension", "native table field has no key"))?
+            .decoded;
         let term = match &value.kind {
             Kind::Scalar(Scalar::String(value)) => Ok(Term::simple_literal(value)),
             Kind::Scalar(Scalar::Boolean(value)) => Ok(Term::boolean(*value)),
@@ -383,7 +387,7 @@ fn json(document: &Document<'_>, id: usize) -> Result<purrdf_lex::json::Value, S
                     let key = &document.nodes()[*id]
                         .key
                         .as_ref()
-                        .expect("native table field key")
+                        .ok_or("native TOML table field has no key")?
                         .decoded;
                     Ok((key.clone(), json(document, *id)?))
                 })
@@ -391,7 +395,7 @@ fn json(document: &Document<'_>, id: usize) -> Result<purrdf_lex::json::Value, S
             purrdf_lex::walk::try_sort_unstable_by(&mut fields, |a, b| {
                 Ok::<_, std::convert::Infallible>(a.0.cmp(&b.0))
             })
-            .expect("infallible key comparison");
+            .unwrap_or_else(|never| match never {});
             Ok(Json::object(fields))
         }
         Kind::Scalar(Scalar::Float(_)) => {

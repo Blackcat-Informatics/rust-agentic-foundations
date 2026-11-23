@@ -52,6 +52,10 @@ impl Fixture {
         Self::with_descriptors(BASE, CHANGED)
     }
 
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )]
     fn with_descriptors(base_descriptor: &'static [u8], current_descriptor: &'static [u8]) -> Self {
         let repo = persistence::repository();
         let root = repo.path();
@@ -160,6 +164,10 @@ impl Fixture {
         commit_statement(self.repo.path(), graph, &self.key)
     }
 
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )]
     fn command(
         &self,
         declaration: &str,

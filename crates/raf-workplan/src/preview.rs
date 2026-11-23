@@ -268,13 +268,22 @@ impl Workplan<'_> {
 /// quote marker that follows the marker line's indentation.
 fn reconcile(file: &str, body: &Body, block: &ProposedBlock) -> Result<String, PreviewError> {
     let (body_text, base) = (body.text(), body.span().bytes.start);
-    let whole = &body_text[block.span().bytes.start - base..block.span().bytes.end - base];
-    let marker = &whole[..block.marker().bytes.len()];
-    let indent = &marker[..marker.len() - marker.trim_start().len()];
+    let invalid_span = || PreviewError::Rewrite {
+        file: file.to_string(),
+        reason: "the PROPOSED block or marker span is outside the body".into(),
+    };
+    let span = &block.span().bytes;
+    let start = span.start.checked_sub(base).ok_or_else(invalid_span)?;
+    let end = span.end.checked_sub(base).ok_or_else(invalid_span)?;
+    let (before_end, after) = body_text.split_at_checked(end).ok_or_else(invalid_span)?;
+    let whole = before_end.get(start..).ok_or_else(invalid_span)?;
+    let (marker, quoted_lines) = whole
+        .split_at_checked(block.marker().bytes.len())
+        .ok_or_else(invalid_span)?;
+    let indent = marker.split_at(marker.len() - marker.trim_start().len()).0;
     let first = block.span().lines.start;
     // The document model ends a block at a fenced code block, so a quote
     // that goes on after the block is a block whose end cannot be told.
-    let after = &body_text[block.span().bytes.end - base..];
     let next = after.lines().next().unwrap_or("");
     let starts_block = body
         .proposed_blocks()
@@ -288,7 +297,7 @@ fn reconcile(file: &str, body: &Body, block: &ProposedBlock) -> Result<String, P
         });
     }
     let mut out = String::new();
-    for (offset, line) in whole[marker.len()..].split_inclusive('\n').enumerate() {
+    for (offset, line) in quoted_lines.split_inclusive('\n').enumerate() {
         let at = first + 1 + offset;
         let prefix = |reason| PreviewError::Prefix {
             file: file.to_string(),

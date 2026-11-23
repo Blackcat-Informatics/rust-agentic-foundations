@@ -125,6 +125,10 @@ fn the_groups_are_in_catalogue_order_and_sorted_by_slug() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_implementing_capability_lists_its_gaps_exactly() {
     let tree = fixture();
     let workspace = demo_workspace();
@@ -178,6 +182,10 @@ fn an_implementing_capability_lists_its_gaps_exactly() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn only_an_implementing_capability_has_gaps() {
     let tree = fixture();
     let workspace = demo_workspace();
@@ -193,6 +201,10 @@ fn only_an_implementing_capability_has_gaps() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_fully_bound_implementing_capability_has_no_gap() {
     let tree: MemoryTree = [capability(
         "full",
@@ -207,6 +219,10 @@ fn a_fully_bound_implementing_capability_has_no_gap() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn open_changes_are_the_changes_that_list_the_capability() {
     let tree = fixture();
     let workspace = demo_workspace();
@@ -222,6 +238,10 @@ fn open_changes_are_the_changes_that_list_the_capability() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn open_change_slugs_are_the_open_changes_without_their_prefix() {
     let tree = fixture();
     let workspace = demo_workspace();
@@ -294,6 +314,10 @@ fn the_open_changes_are_sorted_by_slug_whatever_the_order_of_the_files() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_entry_carries_what_the_catalogue_row_needs() {
     let tree = fixture();
     let workspace = demo_workspace();
@@ -359,6 +383,10 @@ fn slug_order_is_not_file_name_order() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_resolving_binding_of_the_wrong_role_is_not_a_gap() {
     // `demo::bare` resolves but is an undocumented function, and `demo::real`
     // is not a test: `check` reports `binding-wrong-role`, the roadmap no gap.
@@ -396,6 +424,10 @@ fn an_empty_repository_has_an_empty_roadmap() {
 
 /// The directory the documents are read from: `RAF_GATE_ROOT` when set, the
 /// repository root otherwise.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn repo_root() -> PathBuf {
     let root = std::env::var_os("RAF_GATE_ROOT").map_or_else(
         || Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."),
@@ -406,6 +438,10 @@ fn repo_root() -> PathBuf {
 }
 
 /// The tracked paths of the repository, as `git ls-files` lists them.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn tracked() -> Vec<RelPath> {
     let checkout = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let output = Command::new("git")
@@ -435,6 +471,10 @@ fn tracked() -> Vec<RelPath> {
 
 /// The capability documents on disk, counted without the loader: the
 /// Markdown files of `docs/capabilities` other than `index.md`.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn capability_files(root: &Path) -> usize {
     let dir = root.join("docs/capabilities");
     std::fs::read_dir(&dir)
@@ -519,6 +559,10 @@ fn built_roadmap(state: &str, bindings: [&str; 3], changes: &[(&str, &str)]) -> 
 const BOUND: [&str; 3] = ["[demo::real]", "[demo::real]", "[demo::real]"];
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_built_capability_is_delivered_or_reopened_under_an_open_change_and_has_no_gap() {
     // Delivered, with no record: holds.
     let delivered = built_roadmap("delivered", BOUND, &[]);
@@ -568,6 +612,10 @@ fn a_built_capability_is_delivered_or_reopened_under_an_open_change_and_has_no_g
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn this_repository_lists_every_capability_once_in_its_state_group() {
     let root = repo_root();
     let tree = DiskTree::new(&root).unwrap_or_else(|e| panic!("cannot open the tree: {e}"));

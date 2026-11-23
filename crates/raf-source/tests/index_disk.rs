@@ -33,6 +33,10 @@ const FILES: [(&str, &str); 6] = [
 ];
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn disk_and_memory_trees_give_equal_workspaces_and_equal_resolutions() {
     let scratch = Scratch::new();
     for (name, text) in FILES {
@@ -61,6 +65,10 @@ fn disk_and_memory_trees_give_equal_workspaces_and_equal_resolutions() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_reload_observes_changed_source_while_the_previous_workspace_keeps_its_snapshot() {
     let scratch = Scratch::new();
     scratch.file("root/Cargo.toml", FILES[0].1);

@@ -7,13 +7,13 @@ subject: cap:repository-contract#explanation
 inputs:
   - kind: section
     name: cap:repository-contract#explanation
-    digest: 17fdf10d83371f7015cafa5deab30c57eb318402714db920b081a976b5a6aeb8
+    digest: c257fed75e151f914919606eae23e6b529beebc52871fe00824cf5739ea0b045
   - kind: symbol
     name: rust_agentic_foundations
-    digest: 6ce13169a8f665c367f852f7f12b6d44b220a53527e122595c6a7bd4deee813d
+    digest: 55568b2214e473f89f19aaa70a81a5aede3b6327d30888525f8b5fe6a48edc6a
   - kind: symbol
     name: rust_agentic_foundations::gate_files
-    digest: b85bbcfada4779d5fab7eef7188bccaf80ece519b93e6fa5fedeb6112713d8b5
+    digest: 1f7690dba2dd4e057d94bef2624eea97a2ea4c301ae50cb875d25a748f75ea21
   - kind: symbol
     name: rust_agentic_foundations::gate_root
     digest: e48e81c50c0cfc26b6c8685788f7ca64c18c5a1f21d9e81da0c90f0db62cba4d

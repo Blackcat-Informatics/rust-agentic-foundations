@@ -145,23 +145,24 @@ fn bounded(subject: &str) -> String {
 }
 
 fn canonical_path(path: &str) -> Result<RelPath, Error> {
+    let invalid = || {
+        Error::shape(
+            path,
+            "a canonical relative profile document path is required",
+        )
+    };
     let file = path.rsplit('/').next().unwrap_or(path);
     if path.len() > raf_okf::MAX_TEXT_BYTES
         || path.split('/').any(|part| matches!(part, "" | "." | ".."))
         || !crate::load::is_markdown(file)
         || crate::load::is_navigation_index(file)
     {
-        return Err(Error::shape(
-            path,
-            "a canonical relative profile document path is required",
-        ));
+        return Err(invalid());
     }
-    RelPath::new(path).map_err(|_| {
-        Error::shape(
-            path,
-            "a canonical relative profile document path is required",
-        )
-    })
+    let Ok(relative) = RelPath::new(path) else {
+        return Err(invalid());
+    };
+    Ok(relative)
 }
 
 impl Workplan<'_> {

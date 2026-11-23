@@ -8,11 +8,26 @@ use raf_source::MemoryTree;
 
 const MANIFEST: &str = "[package]\nname = \"fixture\"\nversion = \"0.1.0\"\nedition = \"2024\"\n";
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn source<'workspace>(workspace: &'workspace Workspace, path: &str) -> &'workspace SourceFile {
     workspace.file(&RelPath::new(path).unwrap()).unwrap()
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn actual_inline_outline_and_literal_path_ancestors_preserve_disabled_prelude_bindings() {
     for (root, child_path, disabled) in [
         (
@@ -107,6 +122,13 @@ fn actual_inline_outline_and_literal_path_ancestors_preserve_disabled_prelude_bi
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn shared_source_reaches_require_independent_agreement_instead_of_pooling_disabled_flags() {
     for (second_flag, admitted) in [("", false), ("#[no_implicit_prelude]", true)] {
         let root = format!(
@@ -168,6 +190,14 @@ fn shared_source_reaches_require_independent_agreement_instead_of_pooling_disabl
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn ancestor_expansion_conditionals_and_custom_preludes_refuse_beside_inert_documentation() {
     for (root, admitted) in [
         ("//! Crate documentation.\nmod child;", true),

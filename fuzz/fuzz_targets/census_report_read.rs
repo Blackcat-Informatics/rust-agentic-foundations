@@ -9,6 +9,11 @@ use raf_census::{Baseline, Error, Index, Query, QueryReport, ReportError};
 use std::sync::Once;
 
 static SELF_CHECK: Once = Once::new();
+
+#[expect(
+    clippy::expect_used,
+    reason = "fuzzing treats failures to load valid seeds or render accepted reports as regressions"
+)]
 fn exercise(data: &[u8]) {
     SELF_CHECK.call_once(|| {
         let baseline = include_str!("../../crates/raf-census/tests/fixtures/reports/baseline.ttl");

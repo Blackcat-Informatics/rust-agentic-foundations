@@ -13,6 +13,10 @@ const INDEX: &str = "docs/capabilities/index.md";
 const MATRIX: &str = "<!-- raf:generated:verification-matrix -->\n<!-- raf:generated:end -->\n";
 
 /// Leave only the catalogue missing, with the capability's blocks current.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn without_index(tag: &str) -> Repo {
     let repo = Repo::synced(tag, false);
     std::fs::remove_file(repo.root().join(INDEX)).expect("remove the generated index");
@@ -20,6 +24,10 @@ fn without_index(tag: &str) -> Repo {
 }
 
 /// Make the real, already populated verification matrix stale.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn empty_matrix(repo: &Repo) {
     let path = "docs/capabilities/alpha.md";
     let text = repo.read(path);
@@ -191,6 +199,10 @@ fn a_value_that_cannot_be_written_into_the_header_is_refused_when_the_index_is_c
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn only_the_generated_blocks_are_rewritten() {
     let repo = Repo::synced("sync-blocks", false);
     empty_matrix(&repo);

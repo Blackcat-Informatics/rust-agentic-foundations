@@ -250,6 +250,10 @@ fn fenced_generated_and_proposed_text_make_no_claim_and_evidence_does_not_cover_
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_bound_test_that_panics_still_covers_a_claim_without_execution() {
     let mut files = fixture::source_files();
     let entry = files
@@ -331,6 +335,11 @@ fn a_heading_clause_is_covered_by_a_marker_after_its_heading_and_its_text_needs_
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::string_slice,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn constraints_are_cut_into_top_level_items_paragraphs_and_tables() {
     let constraints = format!(
         "- An item that\n  goes on.\n  - A nested item of it.\n\n  A paragraph of the item.\n{MARKER}\n- A second item.\n\nA paragraph outside the list.\n\n| A | table |\n| --- | --- |\n| of | rows |\n{MARKER}\n\n- A second item.\n"
@@ -531,6 +540,10 @@ fn report_beside_alpha(capability: &str) -> ClaimsReport {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_report_lists_every_claim_of_every_delivered_capability_sorted_and_the_same_each_run() {
     let text = capability(CLAUSES, &clean_constraints());
     let first = report_beside_alpha(&text);

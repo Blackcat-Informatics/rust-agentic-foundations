@@ -7,13 +7,13 @@ use std::collections::BTreeMap;
 
 use super::{Entry, EntryKind, FileId, Opened, Tree};
 use crate::error::TreeError;
-use crate::path::RelPath;
+use crate::path::{PathError, RelPath};
 
 /// Why a set of keys is not a tree.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Fault {
-    /// A key is absolute or climbs above the root.
-    Outside { key: String },
+    /// A key fails relative-path validation.
+    Outside(PathError),
     /// A key is a file and also a directory holding other keys.
     FileAsDirectory { key: String },
     /// A key names a path that an earlier key already holds.
@@ -23,7 +23,9 @@ enum Fault {
 impl Fault {
     fn to_error(&self) -> TreeError {
         match self {
-            Self::Outside { key } => TreeError::OutsideRoot { path: key.clone() },
+            Self::Outside(error) => TreeError::OutsideRoot {
+                path: error.input().to_owned(),
+            },
             Self::FileAsDirectory { key } => TreeError::NotRegular { path: key.clone() },
             Self::Duplicate { key } => TreeError::DuplicatePath { path: key.clone() },
         }
@@ -152,9 +154,7 @@ impl MemoryTree {
         let mut files = BTreeMap::new();
         for (key, text) in entries {
             let key = key.as_ref();
-            let path = RelPath::new(key).map_err(|_| Fault::Outside {
-                key: key.to_owned(),
-            })?;
+            let path = RelPath::new(key).map_err(Fault::Outside)?;
             if files.insert(collapse(&path), text.into()).is_some() {
                 return Err(Fault::Duplicate {
                     key: key.to_owned(),

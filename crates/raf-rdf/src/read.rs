@@ -94,8 +94,9 @@ pub(crate) fn parse(text: &str, format: Format, spelling: write::Spelling) -> Re
         let position = purrdf_iri::LineIndex::new(text)
             .try_locate(text, offset)
             .map_err(|e| Error::Value(e.to_string()))?;
-        let line = usize::try_from(position.line)
-            .map_err(|_| Error::Value("line exceeds usize".into()))?;
+        let Ok(line) = usize::try_from(position.line) else {
+            return Err(Error::Value("line exceeds usize".into()));
+        };
         return Err(Error::NotCanonical { line });
     }
     Ok(graph)
@@ -105,6 +106,13 @@ pub(crate) fn parse(text: &str, format: Format, spelling: write::Spelling) -> Re
 mod tests {
     use super::*;
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn ownership_normalization_checks_the_selected_root_boundary() {
         let graph = Graph::from_text(
             include_str!("../tests/fixtures/profile.ttl"),

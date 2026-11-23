@@ -28,6 +28,10 @@ fn lowered() -> LoadOptions {
 }
 
 /// The tokens a load at the lowered limit counted.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn tokens_at_lowered(text: &str) -> usize {
     load_with(&[("src/lib.rs", text)], &lowered())
         .unwrap_or_else(|error| panic!("loads: {error}"))
@@ -45,6 +49,10 @@ fn load_with(files: &[(&str, &str)], options: &LoadOptions) -> Result<Workspace,
     Workspace::load_with(&tree(files), &["."], options)
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn usage(files: &[(&str, &str)]) -> Usage {
     load_with(files, &LoadOptions::default())
         .unwrap_or_else(|error| panic!("loads: {error}"))
@@ -52,6 +60,11 @@ fn usage(files: &[(&str, &str)]) -> Usage {
 }
 
 /// The budget and limit of a refusal, after checking that it names `file`.
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn refused(result: Result<Workspace, LoadError>, file: &str) -> (Budget, usize, Option<usize>) {
     let error = result.expect_err("over the budget");
     assert_eq!(error.file.as_str(), file, "{error}");
@@ -132,6 +145,10 @@ fn statement_lists(tokens: usize) -> String {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_file_at_the_token_limit_parses_and_one_more_token_is_refused_naming_its_line() {
     // `m ! {` and `}` are four tokens around the identifiers.
     let at = format!("m!{{ {} }}\n", "a ".repeat(TOKENS - 4));
@@ -239,6 +256,10 @@ fn large_payloads() -> [(&'static str, String, usize); 3] {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn each_large_fact_payload_is_charged_and_refused_at_its_line_once_over_the_fact_budget() {
     for (kind, text, line) in large_payloads() {
         let files = [("src/lib.rs", text.as_str())];
@@ -259,6 +280,10 @@ fn each_large_fact_payload_is_charged_and_refused_at_its_line_once_over_the_fact
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_verbatim_use_group_and_a_bodiless_function_are_charged_as_their_plain_forms() {
     // The members of a `use` group that syn returns as tokens are charged as
     // the separate `use` declarations, and a function with no body as the
@@ -310,6 +335,10 @@ fn a_verbatim_use_group_and_a_bodiless_function_are_charged_as_their_plain_forms
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_fact_budget_counts_over_every_file_of_the_load() {
     let doc = format!("/// {}\npub fn f() {{}}\n", "d".repeat(4096));
     let files = [
@@ -328,6 +357,10 @@ fn the_fact_budget_counts_over_every_file_of_the_load() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn wide_discovery_and_member_frontiers_spill_under_the_item_budget() {
     let mut files = vec![(
         "Cargo.toml".to_owned(),
@@ -365,6 +398,10 @@ fn wide_discovery_and_member_frontiers_spill_under_the_item_budget() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn nested_definition_emission_spills_with_only_the_item_budget() {
     // Each entered inline module leaves its parent's Rest and Mods frames
     // pending. Twelve levels therefore exceed the native eight-frame inline
@@ -393,6 +430,10 @@ fn nested_definition_emission_spills_with_only_the_item_budget() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn index_records_at_the_item_budget_load_and_one_byte_less_is_refused() {
     let files = [
         (
@@ -430,6 +471,10 @@ fn index_records_at_the_item_budget_load_and_one_byte_less_is_refused() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_long_module_name_is_charged_in_every_item_path_and_refused_over_the_item_budget() {
     let name = format!("m{}", "x".repeat(64 * 1024));
     let fns = (0..100).fold(String::new(), |mut text, i| {
@@ -448,6 +493,10 @@ fn a_long_module_name_is_charged_in_every_item_path_and_refused_over_the_item_bu
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_file_reached_by_many_module_paths_is_charged_once_per_path_and_refused_over_the_item_budget() {
     let fns = (0..100).fold(String::new(), |mut text, i| {
         writeln!(text, "pub fn f{i}() {{}}").expect("write to a string");
@@ -471,6 +520,10 @@ fn a_file_reached_by_many_module_paths_is_charged_once_per_path_and_refused_over
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_bytes_read_at_the_total_budget_load_and_one_byte_less_is_refused_naming_the_file() {
     let padding = format!("// {}\npub fn f() {{}}\n", "p".repeat(1000));
     let files = [
@@ -514,6 +567,10 @@ fn the_default_budgets_are_the_stated_limits() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn usage_reports_what_a_load_spent() {
     // A root package with a `[workspace]` table, so discovery walks below it.
     let manifest = format!("{DEMO}[workspace]\n");
@@ -617,6 +674,10 @@ fn a_chain_of_files_that_each_declare_the_next_twice_is_charged_what_it_keeps() 
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn nested_inline_modules_whose_scopes_hold_one_name_are_charged_what_they_keep() {
     // Twenty modules, each holding a chain of a hundred inline modules `a`:
     // 2020 modules whose scope tables hold one name each.
@@ -637,6 +698,10 @@ fn nested_inline_modules_whose_scopes_hold_one_name_are_charged_what_they_keep()
 
 /// A library whose module `big` defines `names` functions and whose
 /// `importers` modules each glob it.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn glob_fan(names: usize, importers: usize) -> String {
     let mut text = String::from("pub mod big {\n");
     for i in 0..names {
@@ -651,6 +716,10 @@ fn glob_fan(names: usize, importers: usize) -> String {
 
 /// A library of `length` modules, each globbing the next, the last defining
 /// one function.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn glob_chain(length: usize) -> String {
     let mut text = String::new();
     for i in 0..length {
@@ -663,6 +732,10 @@ fn glob_chain(length: usize) -> String {
 /// A library of `count` modules that each glob the crate root, which globs
 /// each of them, each defining one function: every module brings in every
 /// name of every other.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn mutual_globs(count: usize) -> String {
     let mut text = String::new();
     for i in 0..count {
@@ -679,6 +752,10 @@ fn mutual_globs(count: usize) -> String {
 /// `children` modules, each of a foreign type and methods, twelve of them
 /// named as in every other child, each child globbing its parent, the parent
 /// globbing each child and the root globbing the parent.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn generated_bindings(children: usize) -> Vec<(String, String)> {
     let mut files = vec![(
         "src/lib.rs".to_owned(),
@@ -707,6 +784,10 @@ fn glob_bytes_of(text: &str) -> usize {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn retained_import_reads_and_blocker_cycles_obey_exact_storage_and_work_limits() {
     for (text, path, target) in [
         (
@@ -801,6 +882,10 @@ fn retained_import_reads_and_blocker_cycles_obey_exact_storage_and_work_limits()
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn glob_tables_at_the_glob_budget_load_and_one_byte_less_is_refused() {
     let text = "pub mod a { pub fn f() {} pub struct S; }\n\
                 pub mod b { pub use crate::a::*; }\n\
@@ -825,6 +910,10 @@ fn glob_tables_at_the_glob_budget_load_and_one_byte_less_is_refused() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn glob_table_work_at_the_work_budget_loads_and_one_step_less_is_refused() {
     let text = "pub mod a { pub fn f() {} pub struct S; }\n\
                 pub mod b { pub use crate::a::*; }\n\
@@ -879,6 +968,10 @@ fn a_module_that_many_modules_glob_is_kept_once_for_all_of_them() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_chain_of_globs_is_charged_what_each_link_brings_in() {
     // Each link of a chain of globs brings in one name, so twice the links
     // cost twice the bytes, not four times.
@@ -900,6 +993,10 @@ fn a_chain_of_globs_is_charged_what_each_link_brings_in() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn modules_that_glob_one_another_are_refused_over_the_glob_budget_naming_a_glob() {
     // Each of 200 modules brings in all 400 names of the others, which the
     // tables hold once for each module; a limit of 4 MiB refuses them, and
@@ -925,6 +1022,10 @@ fn modules_that_glob_one_another_are_refused_over_the_glob_budget_naming_a_glob(
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn glob_tables_of_a_generated_binding_crate_are_charged_what_they_keep() {
     // Two hundred children of one module, each globbing it, read one table
     // of all that the module brings in. Such a load keeps 1976740 bytes of
@@ -948,6 +1049,10 @@ fn glob_tables_of_a_generated_binding_crate_are_charged_what_they_keep() {
 /// A library whose module `a` defines `names` structs, whose module `t` globs
 /// `a` `globs` times over and whose module `u` globs `t`, with `u` declared
 /// first when `u_first`.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn repeated_globs(names: usize, globs: usize, u_first: bool) -> Vec<(String, String)> {
     let mut a = String::new();
     for i in 0..names {
@@ -977,6 +1082,10 @@ fn borrowed(files: &[(String, String)]) -> Vec<(&str, &str)> {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn repeated_globs_of_one_module_are_charged_once_for_what_it_holds() {
     // `t` globs a module of 2000 names 400 times over, which rustc accepts,
     // and `u` globs `t`. Every glob of `t` reads the one table of `a`, and
@@ -1015,6 +1124,10 @@ fn repeated_globs_of_one_module_are_charged_once_for_what_it_holds() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_impl_block_is_charged_its_record_and_what_it_holds() {
     let without = usage(&[("src/lib.rs", "pub struct S;\n")]).item_bytes;
     let with = usage(&[("src/lib.rs", "pub struct S;\nimpl S {}\n")]).item_bytes;

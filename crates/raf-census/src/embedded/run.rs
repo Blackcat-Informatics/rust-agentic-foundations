@@ -3,6 +3,8 @@
 
 //! One explicit Workspace and the original account for its embedded analysis.
 
+use std::fmt;
+
 use super::{
     Candidate, Error, Options, OutputFailure, SyntaxExcess, Witness, debt, pairing, report,
     resource, workspace,
@@ -16,6 +18,16 @@ use super::{
 /// heap or work guarantee.
 pub struct Run<'source> {
     matches: pairing::Matches<'source>,
+}
+
+impl fmt::Debug for Run<'_> {
+    fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
+        output
+            .debug_struct("Run")
+            .field("counts", &self.matches.counts)
+            .field("usage", &self.usage())
+            .finish_non_exhaustive()
+    }
 }
 
 impl<'source> Run<'source> {
@@ -154,6 +166,15 @@ pub struct Evidence<'run> {
     claims: report::Claims<'run>,
     meter: &'run resource::Meter,
 }
+impl fmt::Debug for Evidence<'_> {
+    fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
+        output
+            .debug_struct("Evidence")
+            .field("run_usage", &self.meter.usage())
+            .finish_non_exhaustive()
+    }
+}
+
 impl<'run> Evidence<'run> {
     /// Serialize through admitted canonical RDF rendering. Returned bytes retain
     /// their original run grant. Refusals remain under their original accounts
@@ -171,6 +192,7 @@ impl<'run> Evidence<'run> {
 }
 
 /// Exact normative allowances owned by the selected run's original account.
+#[derive(Debug)]
 pub struct Debt<'run> {
     record: debt::Record<'run>,
 }
@@ -206,6 +228,15 @@ pub enum Comparison {
 pub struct Serialized<'run> {
     text: resource::Text<'run>,
 }
+impl fmt::Debug for Serialized<'_> {
+    fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
+        output
+            .debug_struct("Serialized")
+            .field("bytes", &self.text.len())
+            .finish_non_exhaustive()
+    }
+}
+
 impl Serialized<'_> {
     /// Canonical native RDF text.
     #[must_use]

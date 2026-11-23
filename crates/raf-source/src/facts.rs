@@ -2218,6 +2218,13 @@ mod tests {
     const DEMO: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n";
 
     /// The workspace of the package `demo` with `files` beside its manifest.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::panic,
+            reason = "the assertion reports the unexpected outcome and terminates the test"
+        )
+    )]
     fn loaded(files: &[(&str, &str)]) -> crate::Workspace {
         let mut all = vec![("Cargo.toml", DEMO)];
         all.extend_from_slice(files);
@@ -2226,6 +2233,14 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            clippy::string_slice,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn facts_carry_names_lines_documentation_visibility_and_macro_export() {
         let ws = loaded(&[(
             "src/lib.rs",
@@ -2253,6 +2268,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn use_trees_and_impl_headers_are_recorded_as_written() {
         let ws = loaded(&[(
             "src/lib.rs",
@@ -2280,6 +2302,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn facts_record_struct_shapes_unnamed_consts_leading_colons_and_documentation_forms() {
         let ws = loaded(&[
             (
@@ -2340,6 +2369,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn a_verbatim_use_group_is_one_use_fact_per_member_in_its_module_with_the_whole_span() {
         let text = "pub mod a { pub fn f() {} }\n\
                     pub mod m {\n    #[cfg(test)]\n    pub(crate) use {\n        ::std::fmt::Debug as D,\n        crate::a::f,\n    };\n}\n";
@@ -2393,6 +2429,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn a_large_attribute_on_a_verbatim_use_group_is_read_once_for_all_its_members() {
         use std::fmt::Write as _;
         // Reading the attribute once per member made this quadratic: 6000
@@ -2445,6 +2488,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn a_long_line_of_wide_characters_is_indexed_once_for_all_its_positions() {
         use std::fmt::Write as _;
         // Twenty thousand functions on one line, each name holding a character

@@ -2012,6 +2012,13 @@ mod tests {
         }]
     }
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn visit(file: &str) -> Visit {
         Visit {
             file: RelPath::new(file).expect("path"),
@@ -2020,6 +2027,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn a_target_whose_root_file_is_missing_is_a_typed_internal_error() {
         let tree = MemoryTree::from([
             ("Cargo.toml", "[package]\nname = \"demo\"\n"),
@@ -2045,6 +2059,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn an_unknown_dependency_identity_is_not_an_external_or_libraryless_package() {
         let tree = MemoryTree::from([
             ("Cargo.toml", "[package]\nname = \"demo\"\n"),
@@ -2080,6 +2101,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn a_module_file_visited_before_the_declaration_that_names_it_is_an_internal_error() {
         let tree = MemoryTree::from([
             ("Cargo.toml", "[package]\nname = \"demo\"\n"),

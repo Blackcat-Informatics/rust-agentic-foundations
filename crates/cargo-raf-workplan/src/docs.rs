@@ -172,20 +172,26 @@ pub(crate) fn build(root: &Path, args: &TrustedDocsArgs) -> Result<Report, Failu
     Ok(report)
 }
 
+#[expect(
+    clippy::unnecessary_debug_formatting,
+    reason = "these diagnostics specifically report non-UTF-8 paths; debug escaping preserves their original bytes"
+)]
 pub(crate) fn publication_record(
     view: &str,
     name: &str,
     directory: PathBuf,
 ) -> Result<Record, Failure> {
     let entry = directory.join(format!("{name}.html"));
-    let directory = directory
-        .into_os_string()
-        .into_string()
-        .map_err(|_| Failure::new("documentation directory cannot be represented as UTF-8"))?;
-    let entry = entry
-        .into_os_string()
-        .into_string()
-        .map_err(|_| Failure::new("documentation entry cannot be represented as UTF-8"))?;
+    let directory = directory.into_os_string().into_string().map_err(|path| {
+        Failure::new(format!(
+            "documentation directory cannot be represented as UTF-8: {path:?}"
+        ))
+    })?;
+    let entry = entry.into_os_string().into_string().map_err(|path| {
+        Failure::new(format!(
+            "documentation entry cannot be represented as UTF-8: {path:?}"
+        ))
+    })?;
     let message = format!("published {view} at {entry}");
     Ok(Record::outcome(
         CommandResult::DocumentationBuilt {

@@ -686,6 +686,13 @@ impl<'source, 'meter> Scopes<'source, 'meter> {
 mod tests {
     use super::*;
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn fixture<'source>(
         source: &'source str,
         check: impl FnOnce(&syn::File, &mut Scopes<'source, '_>) + Send,
@@ -701,6 +708,13 @@ mod tests {
         .unwrap();
     }
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn function(file: &syn::File) -> &syn::ItemFn {
         file.items
             .iter()
@@ -712,6 +726,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn closed_source_names_separate_constants_constructors_and_type_only_items() {
         fixture(
             "//! Inventory fixture.\n#![no_implicit_prelude]\nconst fixed: u8 = 1; struct Unit; \
@@ -736,6 +757,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn imports_conditionals_and_unexpanded_attributes_never_prove_binding_absence() {
         fixture(
             "#![no_implicit_prelude]\nuse external::value as maybe; \
@@ -784,6 +812,14 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::panic,
+            clippy::unwrap_used,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn local_activation_and_scope_exit_preserve_shadow_identity_and_raw_names() {
         fixture(
             "#![no_implicit_prelude]\nfn helper() { let r#value = 1; { let value = 2; } let café = 3; }",
@@ -828,6 +864,14 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::panic,
+            clippy::unwrap_used,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn unmodeled_preludes_refuse_while_explicit_const_parameters_remain_fixed() {
         fixture("fn helper<const N: usize>() {}", |file, scopes| {
             assert!(matches!(

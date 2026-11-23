@@ -16,6 +16,10 @@ mod support;
 use git_objects::{GitObjectId, GitObjectKind, Objects, entry};
 
 /// Remove only a fixture object, including Git's Windows read-only flag.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn remove_object(objects: &Objects, id: GitObjectId) {
     let path = objects.object_path(id);
     #[cfg(windows)]
@@ -58,6 +62,10 @@ fn fixture() -> (Objects, GitObjectId, GitObjectId) {
     (objects, commit, lib)
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn locked(commit: GitObjectId) -> LockedCatalog {
     let text = format!(
         "version=4\n[[package]]\nname='demo'\nversion='1.0.0'\nsource='git+https://example.test/source?rev={commit}#{commit}'\n"
@@ -71,6 +79,10 @@ fn locked(commit: GitObjectId) -> LockedCatalog {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn checked_snapshot_serves_real_bytes_and_existing_loader_with_distinct_path_identity() {
     let (objects, commit, _) = fixture();
     let catalog = locked(commit);
@@ -128,6 +140,10 @@ fn checked_snapshot_serves_real_bytes_and_existing_loader_with_distinct_path_ide
 /// Both committed tree authorities return the authenticated bytes under the
 /// same path and length rules, even when the working copy diverges.
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn pinned_and_locked_reads_return_binary_blobs_without_utf8_conversion() {
     let mut objects = Objects::default();
     let bytes = [0xff, 0, 0x80, b'\r', b'\n'];
@@ -189,6 +205,10 @@ fn pinned_and_locked_reads_return_binary_blobs_without_utf8_conversion() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn missing_commit_repository_and_wrong_object_kind_refuse_beside_the_exact_commit() {
     let (objects, commit, blob) = fixture();
     let catalog = locked(commit);
@@ -210,6 +230,10 @@ fn missing_commit_repository_and_wrong_object_kind_refuse_beside_the_exact_commi
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn commit_messages_refuse_invalid_utf8_and_other_encodings_without_replacement() {
     use raf_source::git::Repository;
 
@@ -238,6 +262,10 @@ fn commit_messages_refuse_invalid_utf8_and_other_encodings_without_replacement()
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn missing_or_substituted_blob_is_a_hard_failure_even_when_seen_would_skip_text() {
     let (mut objects, commit, blob) = fixture();
     let catalog = locked(commit);
@@ -267,6 +295,10 @@ fn missing_or_substituted_blob_is_a_hard_failure_even_when_seen_would_skip_text(
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn malformed_tree_and_submodule_refuse_with_an_ordinary_tree_neighbor() {
     let mut objects = Objects::default();
     let blob = objects.insert(GitObjectKind::Blob, b"hello\n".to_vec());
@@ -301,6 +333,10 @@ fn malformed_tree_and_submodule_refuse_with_an_ordinary_tree_neighbor() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn committed_bytes_ignore_worktree_edits_and_replacement_refs() {
     let (mut objects, commit, _) = fixture();
     let status = objects
@@ -344,6 +380,10 @@ fn committed_bytes_ignore_worktree_edits_and_replacement_refs() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn native_git_reads_do_not_require_an_installed_git() {
     const REPO: &str = "RAF_GIT_MISSING_TOOL_REPOSITORY";
     if let Some(repository) = std::env::var_os(REPO) {
@@ -383,6 +423,11 @@ fn native_git_reads_do_not_require_an_installed_git() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn native_selected_index_is_read_only_and_committed_grants_remain_exact() {
     use raf_source::git::Repository;
     let (objects, commit, _) = fixture();
@@ -466,6 +511,10 @@ fn native_selected_index_is_read_only_and_committed_grants_remain_exact() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn pinned_tree_never_reads_or_size_checks_a_file_the_caller_already_holds() {
     let (objects, commit, blob) = fixture();
     let mut options = LoadOptions::default();

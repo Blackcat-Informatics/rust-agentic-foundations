@@ -1016,6 +1016,13 @@ mod native_tests {
     use crate::body::Origin;
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn native_reader_refusals_keep_body_origins_and_original_causes() {
         let origin = Origin { byte: 17, line: 4 };
         let limits = purrdf_markdown::SyntaxLimits {

@@ -140,6 +140,13 @@ mod tests {
     use crate::diagram::{DiagramGrouping, DiagramKind, DiagramScope};
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn persisted_identity_profiles_pin_field_boundaries_and_escaping() {
         let view = NamedDiagramView::new(
             "dependencies",

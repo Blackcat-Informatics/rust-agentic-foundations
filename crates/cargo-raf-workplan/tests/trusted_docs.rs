@@ -20,11 +20,19 @@ fn quoted(text: &str) -> String {
 fn json(text: &str) -> String {
     purrdf_lex::json::write_compact(&purrdf_lex::json::Value::from(text))
 }
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn script(path: &Path, body: &str) {
     fs::write(path, format!("#!/bin/sh\nset -eu\n{body}\n")).unwrap();
     fs::set_permissions(path, fs::Permissions::from_mode(0o755)).unwrap();
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn carrier(name: &str, package: &Path, html: &Path) -> (String, String, String) {
     let manifest = json(package.join("Cargo.toml").to_str().unwrap());
     let source = json(package.join("src/lib.rs").to_str().unwrap());
@@ -42,6 +50,10 @@ fn carrier(name: &str, package: &Path, html: &Path) -> (String, String, String) 
     (id, package, message)
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn prepare(base: &Path) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
     let root = base.join("workspace");
     let target = base.join("artifacts");
@@ -105,6 +117,10 @@ fn prepare(base: &Path) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
     (root, target, tools, calls)
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn run(root: &Path, target: &Path, tools: &Path, args: &[&str]) -> std::process::Output {
     let mut command = Command::new(env!("CARGO_BIN_EXE_cargo-raf-workplan"));
     command
@@ -152,6 +168,10 @@ fn run(root: &Path, target: &Path, tools: &Path, args: &[&str]) -> std::process:
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn documentation_trust_is_explicit_and_configuration_cannot_select_a_test_driver() {
     let scratch = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
     let base = scratch.path().canonicalize().unwrap();
@@ -191,6 +211,10 @@ fn documentation_trust_is_explicit_and_configuration_cannot_select_a_test_driver
 
 /// The trusted path publishes only after admitting all actual reported entries.
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn trusted_rustdoc_publishes_the_named_view_beside_selected_library_entries() {
     let scratch = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
     let base = scratch.path().canonicalize().unwrap();

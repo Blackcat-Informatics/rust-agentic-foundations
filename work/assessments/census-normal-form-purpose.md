@@ -397,16 +397,16 @@ inputs:
     digest: 024665fb57e1d0347781572f35b5b8c7bdc9d60cf9080a46f41d5551ec771327
   - kind: symbol
     name: raf_census::report
-    digest: a2dc7e428e827b11cf6f2bb399f1b4b99f6ed1d1bd26eee7e665ed7f8a9a7f0a
+    digest: c6818b0626ac8239e3fdc65148a49e9bd5ec2ed948b4a104ae324cd3e8ed919e
   - kind: symbol
     name: raf_census::report::vocab
     digest: '0b352bf4e2cc3e9c2c7394e4bba2aa8567d484ec73cfd39410ea3d1c2b03322e'
   - kind: symbol
     name: raf_source_fuzz::bin_crate::census_normalize::exercise
-    digest: 0934837fdcc9f4735d5fb6253b367cd0cdee1489a4ba58a85d0e083d2f4f4941
+    digest: 81b246b507f22d41e7a9a8ecb6ee88f103e7adf416df0d365c8353c300b6e50c
   - kind: symbol
     name: raf_source_fuzz::bin_crate::census_report_read::exercise
-    digest: b08f1cf7621b07735954e9557c707704b8075ac9cb6a2f31c20e9a974f2bdfdd
+    digest: aef39c5498049b0d8656527a793812b703f5b6ce3dd4b490fc22d9e8266d46c9
 verdict: accepted
 by: agent
 ---

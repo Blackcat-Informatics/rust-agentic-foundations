@@ -125,9 +125,13 @@ fn effective_path<'a>(
     )
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "the base is the workspace-relative path of a Cargo manifest, so it has a parent"
+)]
 fn package_manifest(base: &RelPath, path: &str) -> Result<RelPath, raf_source::PathError> {
     base.parent()
-        .expect("Cargo.toml has a source-relative parent")
+        .expect("INVARIANT: Cargo.toml has a source-relative parent")
         .join(path)
         .and_then(|path| path.join("Cargo.toml"))
 }
@@ -168,13 +172,19 @@ fn work(options: &mut LoadOptions, amount: usize) -> Result<(), Error> {
     Ok(())
 }
 
+fn reference_path(path: &str) -> Result<RelPath, Error> {
+    RelPath::new(path).map_err(|source| Error::Tree {
+        file: path.to_owned(),
+        source: source.into(),
+    })
+}
+
 fn disk_path(
     request: &ReferenceRequest<'_>,
     directory: PathBuf,
     locator: Option<&ReferenceRoot>,
     options: &LoadOptions,
 ) -> Result<(ReferenceObservation, Origin), Error> {
-    let manifest = RelPath::new("Cargo.toml").expect("literal manifest");
     let (root, manifest) = if let Some(locator) = locator {
         let actual = directory
             .join("Cargo.toml")
@@ -197,7 +207,7 @@ fn disk_path(
         }
         (locator.root.clone(), locator.manifest.clone())
     } else {
-        (directory, manifest)
+        (directory, reference_path("Cargo.toml")?)
     };
     let disk = DiskTree::new(&root).map_err(|source| Error::Tree {
         file: root.display().to_string(),
@@ -355,7 +365,9 @@ fn forward_graph(
             }
             memory
                 .push(
-                    reverse.get_mut(dependency).expect("inserted dependency"),
+                    reverse
+                        .get_mut(dependency)
+                        .ok_or_else(|| refusal("reverse dependency index lost a lock row"))?,
                     row,
                 )
                 .map_err(storage)?;
@@ -861,11 +873,7 @@ pub(crate) fn acquire(
     let mut memory = Memory::new(&mut resident);
     let storage = |source| Error::SourceIndexStorage { source };
     options.max_file_bytes = ledger.options().max_file_bytes;
-    let catalog = LockedCatalog::load(
-        tree,
-        &RelPath::new("Cargo.lock").expect("literal lock path"),
-        &options,
-    )?;
+    let catalog = LockedCatalog::load(tree, &reference_path("Cargo.lock")?, &options)?;
     work(&mut options, catalog.usage().work)?;
     let inputs = Inputs {
         ledger,

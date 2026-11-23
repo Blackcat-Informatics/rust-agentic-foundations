@@ -1064,15 +1064,15 @@ impl<'q, 'i, 'm> QueryRows<'q, 'i, 'm> {
         decl: &UseDecl,
         charge: &dyn Fn(usize) -> Result<(), LoadError>,
     ) -> Result<Self, LoadError> {
-        if phase.is_none() {
-            *phase = Some(RowScratch::new(
+        let scratch = match phase {
+            Some(scratch) => scratch,
+            empty => empty.insert(RowScratch::new(
                 index.globs.views.len(),
                 memory.child(),
                 decl,
                 charge,
-            )?);
-        }
-        let scratch = phase.as_mut().expect("the phase row scratch was admitted");
+            )?),
+        };
         charge(1)?;
         // Equal immutable slices can retain raw rows across namespaces. A
         // different allocation conservatively resets even for equal text.
@@ -1685,9 +1685,13 @@ impl Index {
 
     /// The level a binding with the visibility `vis` in `home` is accessible
     /// at: `pub(in path)` names an ancestor of `home` or `home` itself.
+    #[expect(
+        clippy::expect_used,
+        reason = "resident visibility checks use steps without fallible work or storage charges"
+    )]
     pub(crate) fn level_of(&self, vis: &Vis, home: usize, steps: Steps<'_>) -> Level {
         self.read_level_of(vis, home, steps)
-            .expect("nonretained visibility levels reserve no import storage")
+            .expect("INVARIANT: a resident visibility level reserves no import storage")
     }
 
     pub(crate) fn read_level_of(
@@ -1752,7 +1756,9 @@ impl Index {
             Vis::Restricted("crate".to_owned())
         } else {
             let (path, base) = (&self.modules[module].path, &self.modules[root].path);
-            Vis::Restricted(format!("in crate{}", &path[base.len()..]))
+            // This module's path extends its root's complete spelling.
+            let relative = path.split_at(base.len()).1;
+            Vis::Restricted(format!("in crate{relative}"))
         }
     }
 
@@ -1772,8 +1778,10 @@ impl Index {
     /// of the target, and the target, it lies within.
     fn class_for(&self, target: usize, importer: usize) -> Box<[bool]> {
         let mut chain = vec![target];
-        while let Some(parent) = self.modules[*chain.last().expect("one module")].parent {
+        let mut current = target;
+        while let Some(parent) = self.modules[current].parent {
             chain.push(parent);
+            current = parent;
         }
         chain
             .iter()
@@ -1981,9 +1989,13 @@ impl Index {
     ///
     /// Each read looked at, and each view that holds the name looked at to
     /// find the reads, is a lookup step, counted where `steps` says.
+    #[expect(
+        clippy::expect_used,
+        reason = "resident glob lookups use steps without fallible work or storage charges"
+    )]
     pub(crate) fn globbed(&self, module: usize, name: &str, at: usize, steps: Steps<'_>) -> Bound {
         self.read_globbed(module, name, at, steps)
-            .expect("nonretained glob lookups reserve no import storage")
+            .expect("INVARIANT: resident glob lookups reserve no import storage")
     }
 
     pub(crate) fn read_globbed(
@@ -2356,16 +2368,16 @@ impl Index {
                 tally::add(copies, 1);
             }
             let held = held.to_mut();
-            held.retain(|entry| selected(entry.0).is_some());
             // A canonical replacement can have arrived as a companion.
             // It becomes firm only within its independent support's
             // visibility, and only if the carrier already holds it.
-            for entry in held {
-                entry.1 = self.meet(
-                    entry.1.plain(),
-                    selected(entry.0).expect("retained support"),
-                );
-            }
+            held.retain_mut(|entry| {
+                let Some(support) = selected(entry.0) else {
+                    return false;
+                };
+                entry.1 = self.meet(entry.1.plain(), support);
+                true
+            });
         }
     }
 
@@ -2686,12 +2698,14 @@ impl Index {
             return Ok(None);
         }
         charge(held.len())?;
-        // INVARIANT: group members were formed only from this held list
-        // at the selected canonical identity; discovery has not mutated it.
+        #[expect(
+            clippy::expect_used,
+            reason = "group members are selected from this immutable held list at this canonical identity"
+        )]
         let carrier = held
             .iter()
             .find_map(|(candidate, level)| (*candidate == id).then_some(level.plain()))
-            .expect("a carrier holds its selected identity");
+            .expect("INVARIANT: a carrier holds its selected identity");
         Ok(Some(self.meet(level.plain(), carrier).plain()))
     }
 
@@ -2918,10 +2932,10 @@ impl Index {
                 // nothing; admit both operations per holder before the loop.
                 charge(holders.len().saturating_mul(2).saturating_add(1))?;
                 let found = self.read_lists(holders, name, *at, Work::DropReads, Some(&mut rows));
-                if supply.is_none() {
-                    supply = Some(self.supply(meter, first)?);
-                }
-                let supply = supply.as_mut().expect("the supply graph was constructed");
+                let supply = match &mut supply {
+                    Some(supply) => supply,
+                    empty => empty.insert(self.supply(meter, first)?),
+                };
                 let redelivered = self.redelivered(
                     (module, name, *at),
                     &found,
@@ -3212,10 +3226,10 @@ impl Index {
             if answers.is_empty() {
                 return Ok(None);
             }
-            if supply.is_none() {
-                supply = Some(self.supply(meter, first)?);
-            }
-            let supply = supply.as_mut().expect("the supply graph was constructed");
+            let supply = match &mut supply {
+                Some(supply) => supply,
+                empty => empty.insert(self.supply(meter, first)?),
+            };
             let crate::index::UseKind::Named { name, .. } = &decl.kind else {
                 unreachable!("only named imports belong to a namespace cycle");
             };
@@ -3674,18 +3688,11 @@ impl Index {
         if units == 0 {
             return;
         }
-        match steps {
-            Steps::Load | Steps::LoadAt { .. } => self.lookups.add(units),
-            Steps::Query(meter) => {
+        match steps.query_meter() {
+            None => self.lookups.add(units),
+            Some(meter) => {
                 tally::add(Work::LookupCharges, units);
                 meter.count_query(units, module);
-            }
-            Steps::Observed(_) | Steps::QueryAt { .. } | Steps::QueryItems { .. } => {
-                tally::add(Work::LookupCharges, units);
-                steps
-                    .query_meter()
-                    .expect("query proof has a meter")
-                    .count_query(units, module);
             }
         }
     }
@@ -4121,13 +4128,21 @@ impl Index {
         finals: &[Held],
     ) {
         if finals.iter().any(|entry| entry.1.is_companion()) {
+            #[expect(
+                clippy::expect_used,
+                reason = "adding to an existing view name reuses the spelling already in the intern table"
+            )]
             let key = key
                 .as_ref()
                 .map(|(key, _)| key.clone())
                 .or_else(|| self.globs.strings.get(name).cloned())
-                .expect("a name a view holds is interned");
+                .expect("INVARIANT: a name a view holds is interned");
             self.globs.companions.entry(key).or_default()[at] = true;
         }
+        #[expect(
+            clippy::expect_used,
+            reason = "the caller supplies a new key exactly when no name list has been admitted for this view"
+        )]
         let lists = match key {
             Some((key, text)) => {
                 if text {
@@ -4143,7 +4158,7 @@ impl Index {
             None => self.globs.views[view]
                 .names
                 .get_mut(name)
-                .expect("the name is held"),
+                .expect("INVARIANT: the view holds the existing name"),
         };
         for entry in finals {
             match lists[at].binary_search_by_key(&entry.0, |known| known.0) {
@@ -4341,7 +4356,14 @@ impl Index {
                     self.charge_tables(bytes, site, meter)?;
                 }
                 let readers = &mut self.globs.views[read_view];
-                let list = readers.passive.get_mut(&target).expect("listed");
+                #[expect(
+                    clippy::expect_used,
+                    reason = "this passive row yielded the reader position and charging has not modified it"
+                )]
+                let list = readers
+                    .passive
+                    .get_mut(&target)
+                    .expect("INVARIANT: the passive reader remains listed");
                 list.remove(at);
                 if list.is_empty() {
                     readers.passive.remove(&target);
@@ -4368,7 +4390,14 @@ impl Index {
                 // The read keeps its turn among the active readers.
                 let readers = &mut self.globs.views[read_view];
                 let unseen = readers.unseen_mut();
-                let list = unseen.covert.get_mut(&target).expect("listed");
+                #[expect(
+                    clippy::expect_used,
+                    reason = "this covert row yielded the reader position and has not been modified"
+                )]
+                let list = unseen
+                    .covert
+                    .get_mut(&target)
+                    .expect("INVARIANT: the covert reader remains listed");
                 let (_, turn) = list.remove(at);
                 if list.is_empty() {
                     unseen.covert.remove(&target);
@@ -4534,11 +4563,15 @@ impl Index {
                 // nothing of are dropped: the name is recorded where no view
                 // holds a companion under it (see [`Index::hides_nothing`]).
                 if plain && ids.is_empty() && !hidden.is_empty() {
+                    #[expect(
+                        clippy::expect_used,
+                        reason = "content names are gathered from views that intern their spellings"
+                    )]
                     let key = self
                         .globs
                         .strings
                         .get(name)
-                        .expect("a name a view holds is interned");
+                        .expect("INVARIANT: a name a view holds is interned");
                     dropped.push((key.clone(), at));
                 }
                 // Items the class cannot access, and companions, are read
@@ -5037,12 +5070,16 @@ impl Index {
                 }
                 let fresh = self.add_to_view(view, name, at, &ids, meter)?;
                 if !fresh.is_empty() {
-                    let grown = Grown::new(
-                        view,
-                        self.globs.strings.get(name).expect("interned").clone(),
-                        at,
-                        fresh,
-                    );
+                    #[expect(
+                        clippy::expect_used,
+                        reason = "add_to_view interns each name before admitting a fresh entry"
+                    )]
+                    let key = self
+                        .globs
+                        .strings
+                        .get(name)
+                        .expect("INVARIANT: the fresh name is interned");
+                    let grown = Grown::new(view, key.clone(), at, fresh);
                     let mut queue = Queue::new(meter);
                     queue.push(grown, &self.uses[self.globs.views[view].site])?;
                     self.pass_on(queue, waiters, meter)?;
@@ -5829,9 +5866,8 @@ fn dominators(
             push_work(&mut path, at, storage)?;
             at = ancestor[at];
         }
-        while !path.is_empty() {
+        while let Some(at) = path.pop() {
             step(1)?;
-            let at = path.pop().expect("the compression path is nonempty");
             let up = ancestor[at];
             if semi[label[up]] < semi[label[at]] {
                 label[at] = label[up];
@@ -5909,6 +5945,13 @@ mod tests {
     const UNIT: usize = 40;
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn holder_visibility_uses_ancestry_instead_of_sibling_depth() {
         let tree: MemoryTree = [
             ("Cargo.toml", DEMO),
@@ -5945,6 +5988,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn named_supplier_levels_stay_with_the_declaration_that_provides_them() {
         let tree: MemoryTree = [
             ("Cargo.toml", DEMO),
@@ -6005,6 +6055,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn native_resumed_growth_admits_overlapping_buffers_before_mutation() {
         use crate::meter::{Meter, Steps, Transient};
         use crate::{Budget, LoadErrorKind, LoadOptions, RelPath};
@@ -6064,6 +6121,13 @@ mod tests {
     /// A chain of `n` pass-through globs of `d`, `c0` to `c{n-1}`, `c0`
     /// globbing `d` and the modules `extra` names, and `n` readers that each
     /// glob `a`, the end of the chain and what `more` names for the reader.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn chain(n: usize, extra: &str, more: &dyn Fn(usize) -> String) -> String {
         let mut lib = String::from(BASE);
         writeln!(lib, "pub mod c0 {{ pub use crate::d::*; {extra} }}").expect("write");
@@ -6088,6 +6152,14 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            clippy::panic,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn independent_same_item_supply_preserves_the_carriers_ambiguity() {
         // Unlike a returning carrier, a's genuine d route bypasses r0.
         let lib = format!(
@@ -6120,6 +6192,13 @@ mod tests {
     /// The chain whose start also globs every reader: each reader holds
     /// the item through the chain and back from the readers, so each lies
     /// on a way to the others.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn fan_in(n: usize) -> String {
         let mut readers = String::new();
         for i in 0..n {
@@ -6144,6 +6223,13 @@ mod tests {
     /// as from `demo::r0` in the type name space. Each step of the search is
     /// a step of glob table work too, so the work of the load counts at least
     /// the steps of the search.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::panic,
+            reason = "the assertion reports the unexpected outcome and terminates the test"
+        )
+    )]
     fn counted(lib: &str) -> (usize, String) {
         let tree: MemoryTree = [("Cargo.toml", DEMO), ("src/lib.rs", lib)]
             .into_iter()
@@ -6205,6 +6291,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn a_read_that_holds_no_companion_starts_no_search_for_the_holders_of_its_items() {
         // Each reader reads `X` as `d::X` beside a companion through `a`,
         // and as `e::X` through `e1` and `e2`, which both carry it from `e`:
@@ -6245,6 +6338,13 @@ mod tests {
 
     /// Whether the root reaches `node` in `successors` with `left_out` left
     /// out, by a plain search.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn reached_without(successors: &[Vec<usize>], left_out: Option<usize>, node: usize) -> bool {
         let mut seen = vec![false; successors.len()];
         let mut work = purrdf_lex::walk::WorkList::<_, 8>::new();
@@ -6264,6 +6364,13 @@ mod tests {
     /// Check the dominators of `successors` against their definition: a
     /// node the root reaches is dominated by another exactly when leaving
     /// that one out leaves it unreached, and by itself and the root.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::panic,
+            reason = "the assertion reports the unexpected outcome and terminates the test"
+        )
+    )]
     fn check_dominators(successors: &[Vec<usize>]) -> Vec<usize> {
         let mut predecessors = vec![Vec::new(); successors.len()];
         for (node, next) in successors.iter().enumerate() {
@@ -6318,6 +6425,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn the_dominators_of_seeded_random_graphs_follow_their_definition() {
         // A fixed generator, so every run checks the same graphs.
         let mut state: u64 = 0x5eed_0f00_d000_0014;
@@ -6368,6 +6482,13 @@ mod work_budget {
     }
 
     /// The glob table work of loading `lib` at the default limit.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::panic,
+            reason = "the assertion reports the unexpected outcome and terminates the test"
+        )
+    )]
     fn work(lib: &str) -> usize {
         load(lib, Budget::Work.limit())
             .unwrap_or_else(|error| panic!("loads: {error}"))
@@ -6376,6 +6497,13 @@ mod work_budget {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn an_export_read_charges_each_visited_read_and_holder_before_returning_its_answer() {
         use crate::meter::Meter;
         use crate::work::{Work, measure};
@@ -6440,6 +6568,13 @@ mod work_budget {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn a_new_view_charges_raw_reads_and_unique_source_names_before_gathering() {
         use crate::meter::Meter;
         use crate::work::{Work, measure};
@@ -6518,6 +6653,13 @@ mod work_budget {
     ];
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn each_shape_loads_at_its_measured_work_and_refuses_one_step_less() {
         // Whole-load work includes queue and graph operations, so the old
         // table-only polynomials are not laws of this population. The export,
@@ -6600,6 +6742,13 @@ mod work_budget {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn holder_scan_sources_beyond_the_admitted_growth_sizes_are_refused() {
         let tokens = load(&holder_scan(400), Budget::Work.limit()).expect_err("token budget");
         assert!(
@@ -6618,6 +6767,13 @@ mod work_budget {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn a_settle_heavy_shape_is_refused_at_the_charge_that_passes_a_small_limit() {
         for (shape, lib) in [
             ("fan-in", private_fan_in(32)),
@@ -6719,6 +6875,13 @@ mod settling {
     }
 
     /// What loading `lib` counts of each kind of [`KINDS`].
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::panic,
+            reason = "the assertion reports the unexpected outcome and terminates the test"
+        )
+    )]
     fn counted(lib: &str) -> [usize; 11] {
         let tree: MemoryTree = [("Cargo.toml", MANIFEST), ("src/lib.rs", lib)]
             .into_iter()
@@ -6743,6 +6906,13 @@ mod settling {
 
     /// Preserve the original two-construction operation pins while proving
     /// exactly one real replay is absent from fixed-path production loads.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn assert_one_replay_omitted(
         shape: &str,
         build: fn(usize) -> String,
@@ -6788,6 +6958,13 @@ mod settling {
 
     /// Of counts at n, 2n and 3n, the second difference: zero when they
     /// grow linearly.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn second_difference([one, two, three]: [usize; 3]) -> isize {
         let [one, two, three] =
             [one, two, three].map(|count| isize::try_from(count).expect("a small count"));
@@ -6796,6 +6973,13 @@ mod settling {
 
     /// The counts of one kind, the place of `work` in [`KINDS`], at n, 2n
     /// and 3n.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn of(counts: &[[usize; 11]; 3], work: Work) -> [usize; 3] {
         let place = KINDS
             .iter()
@@ -6936,6 +7120,13 @@ mod settling {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn a_companion_hub_keeps_local_definitions_and_reads_without_copying_candidate_lists() {
         for n in [8, 16, 24] {
             let lib = ambiguous_hub(n);
@@ -6961,6 +7152,13 @@ mod settling {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn a_companion_hub_bounds_delivery_and_carrier_graph_growth_together() {
         let kinds = [
             Work::Recomputations,
@@ -6986,10 +7184,6 @@ mod settling {
                 Workspace::load(&tree, &["."]).expect("loads")
             });
             let counts = kinds.map(|kind| tally.get(kind));
-            eprintln!(
-                "n = {n}: {kinds:?} = {counts:?}; charged work = {}",
-                workspace.usage().work
-            );
             (counts, workspace.usage().work)
         });
         // Include carrier graph construction and all newly metered queue /
@@ -7087,6 +7281,13 @@ mod monotone {
 
     /// An index of a crate with a glob import, its tables cleared, and a view
     /// of the root in it: the view, the root and the module `d`.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn viewed() -> (Index, Meter, usize) {
         let tree: MemoryTree = [
             (
@@ -7122,6 +7323,13 @@ mod monotone {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn an_entry_held_as_a_companion_is_widened_as_it_is_added_again_and_made_plain_only_by_a_plain_entry()
      {
         let (mut index, meter, view) = viewed();
@@ -7160,6 +7368,13 @@ mod monotone {
 
     #[test]
     #[should_panic(expected = "narrows")]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn an_entry_that_narrows_the_level_an_item_is_held_at_is_refused() {
         let (mut index, meter, view) = viewed();
         let item = ItemId(1);
@@ -7171,6 +7386,13 @@ mod monotone {
 
     #[test]
     #[should_panic(expected = "narrows")]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn an_entry_that_makes_a_plain_item_a_companion_again_is_refused() {
         let (mut index, meter, view) = viewed();
         let item = ItemId(1);
@@ -7214,6 +7436,13 @@ mod table_bytes {
     /// so that no view holds a name until the test adds it: the index,
     /// the meter, the modules `a` and `d`, the two glob imports of `a`, and
     /// what building the tables again charged.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn emptied() -> (Index, Meter, usize, usize, [usize; 2], usize) {
         let tree: MemoryTree = [
             (
@@ -7270,6 +7499,13 @@ mod table_bytes {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn each_name_a_view_takes_is_charged_its_slot_among_the_holders_of_the_name_and_the_first_companion_its_entry()
      {
         let (mut index, meter, a, d, globs, _) = emptied();
@@ -7319,6 +7555,13 @@ mod table_bytes {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn each_read_of_a_view_is_charged_its_place_among_the_reads_of_its_module_of_that_view() {
         let (mut index, meter, a, d, globs, _) = emptied();
         let class = index.class_for(d, a);
@@ -7381,6 +7624,13 @@ mod table_bytes {
     /// it, such as `d`, which can access `a`'s `pub` glob of `d` but not its
     /// private one: the index, the meter, `a`, `d`, the two glob imports of
     /// `a`, the view and its class.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn viewed_from_outside() -> (Index, Meter, usize, usize, [usize; 2], usize, Box<[bool]>) {
         let (mut index, meter, a, d, globs, _) = emptied();
         let outside = index.class_for(a, d);
@@ -7398,6 +7648,13 @@ mod table_bytes {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn each_covert_reader_open_reader_and_view_read_through_a_glob_a_class_cannot_access_is_charged_its_entry_and_the_first_room_of_its_table()
      {
         let (mut index, meter, a, d, globs, view, outside) = viewed_from_outside();
@@ -7459,6 +7716,13 @@ mod table_bytes {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn each_name_a_view_dropped_and_each_name_a_reading_again_set_is_charged_its_entry_and_the_first_room_of_its_record()
      {
         let (mut index, meter, _, _, globs, view, _) = viewed_from_outside();

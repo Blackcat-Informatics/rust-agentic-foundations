@@ -12,6 +12,10 @@ use raf_source::{
 const MANIFEST: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n";
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn qualified_self_suffixes_are_not_member_edges_beside_an_unqualified_self_member() {
     let ws = lib("pub trait Tr { fn trait_member(); } pub struct S; \
          impl S { pub fn qualified() { <Self as Tr>::trait_member(); <S>::helper(); } \
@@ -32,6 +36,10 @@ fn qualified_self_suffixes_are_not_member_edges_beside_an_unqualified_self_membe
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_edition_2015_body_import_is_read_from_its_module_beside_an_explicit_crate_path() {
     let tree = MemoryTree::from([
         (
@@ -52,6 +60,10 @@ fn an_edition_2015_body_import_is_read_from_its_module_beside_an_explicit_crate_
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn nested_impl_self_is_read_in_the_enclosing_members_context() {
     let ws = lib("pub struct S; impl S { pub fn outer() { struct Inner; \
          impl Inner { fn nested() { Self::helper(); } fn helper() {} } } \
@@ -99,6 +111,10 @@ fn impls_inside_const_and_function_blocks_are_tokens_beside_an_indexed_top_level
     assert!(reach(&ws, &[ty(&ws, "demo::S")]).contains(value(&ws, "demo::S::ordinary")));
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn load(files: &[(&str, &str)]) -> Workspace {
     let mut all = vec![("Cargo.toml", MANIFEST)];
     all.extend_from_slice(files);
@@ -111,6 +127,10 @@ fn lib(text: &str) -> Workspace {
 }
 
 /// The item at a canonical path in one name space.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn site(ws: &Workspace, path: &str, ns: Namespace) -> ItemId {
     ws.resolve_in(path, ns)
         .unwrap_or_else(|e| panic!("{path}: {e}"))
@@ -125,6 +145,10 @@ fn ty(ws: &Workspace, path: &str) -> Node {
     Node::Item(site(ws, path, Namespace::Type))
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn reach(ws: &Workspace, roots: &[Node]) -> Reachability {
     ws.reachable(roots).unwrap_or_else(|e| panic!("{e}"))
 }
@@ -139,6 +163,10 @@ fn names(ws: &Workspace, reached: &Reachability) -> Vec<String> {
         .collect()
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn name(ws: &Workspace, node: Node) -> String {
     match node {
         Node::Item(id) => ws.item(id).expect("an item").path.to_string(),
@@ -157,6 +185,10 @@ fn sorted(ws: &Workspace, reached: &Reachability) -> Vec<String> {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_bound_type_covers_its_impl_blocks_and_their_members_and_a_bound_method_nothing_beside_it() {
     let ws = lib("pub struct S;\n\
          impl S { pub fn new() -> u8 { 0 } pub fn other() -> u8 { 1 } }\n\
@@ -488,6 +520,10 @@ fn the_answer_does_not_depend_on_the_order_of_the_roots_and_is_the_same_each_run
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_root_past_the_items_or_the_blocks_of_the_workspace_is_refused_beside_one_in_range() {
     let small = lib("pub fn a() {}\n");
     let big =
@@ -519,6 +555,10 @@ fn a_root_past_the_items_or_the_blocks_of_the_workspace_is_refused_beside_one_in
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_impl_block_root_reaches_its_members_and_what_its_header_names() {
     let ws = lib("pub trait Tr { fn shown(&self) {} }\n\
          pub struct S;\n\
@@ -624,6 +664,10 @@ fn a_path_the_resolver_refuses_reaches_nothing_beside_one_it_resolves() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn test_code_names_the_dev_dependencies_and_other_code_does_not() {
     let tree: MemoryTree = [
         ("Cargo.toml", "[workspace]\nmembers = [\"a\", \"b\"]\n"),
@@ -659,6 +703,10 @@ fn test_code_names_the_dev_dependencies_and_other_code_does_not() {
 }
 
 /// A library of `text` in a package of `edition`.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn lib_of(edition: &str, text: &str) -> Workspace {
     let manifest =
         format!("[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"{edition}\"\n");
@@ -692,6 +740,10 @@ fn gen_is_a_name_before_edition_2024_and_a_keyword_from_it() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_shared_file_reads_keywords_in_each_reached_packages_edition() {
     for (alpha, zeta) in [("2024", "2021"), ("2021", "2024")] {
         let manifest = |name: &str, edition: &str| {
@@ -823,6 +875,10 @@ fn self_paths_and_methods_called_on_self_reach_the_members_of_that_name() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn self_in_a_trait_and_in_its_impl_blocks_reaches_the_members_of_the_trait_and_of_the_block() {
     let ws = lib("pub trait Tr {\n\
              fn req(&self) -> u8;\n\
@@ -902,6 +958,11 @@ fn the_type_a_where_clause_bounds_is_reached_and_a_bound_name_is_not() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_walk_past_the_item_bytes_budget_is_refused_and_one_within_it_is_given() {
     let text = "pub fn api() { helper() }\nfn helper() {}\n";
     let tree: MemoryTree = [("Cargo.toml", MANIFEST), ("src/lib.rs", text)]

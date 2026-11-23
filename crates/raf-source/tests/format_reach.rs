@@ -8,6 +8,10 @@ use std::fmt::Write as _;
 
 mod support;
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn load(text: &str) -> Workspace {
     Workspace::load(
         &MemoryTree::from([
@@ -22,6 +26,10 @@ fn load(text: &str) -> Workspace {
     .unwrap_or_else(|error| panic!("{error}"))
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn value(workspace: &Workspace, path: &str) -> Node {
     Node::Item(
         workspace
@@ -31,6 +39,10 @@ fn value(workspace: &Workspace, path: &str) -> Node {
     )
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn captured(workspace: &Workspace, root: &str, name: &str, expected: bool) {
     let root = value(workspace, root);
     let reach = workspace.reachable(&[root]).expect("reachable");
@@ -230,6 +242,10 @@ pub fn escaped() -> String { format!("\\u0085 {{VALUE}}") }
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn malformed_standard_format_input_is_actionable_while_a_custom_macro_keeps_its_grammar() {
     let workspace =
         load("pub fn bad() { format!(\"{\"); } pub fn good()->String { format!(\"{{\") }");
@@ -309,6 +325,11 @@ pub fn standard() -> String {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn recursive_format_expressions_are_admitted_before_parsing_and_custom_tokens_stay_opaque() {
     let expressions = |operators| format!("{}0", "0 + ".repeat(operators));
     let source = format!(
@@ -340,6 +361,10 @@ fn recursive_format_expressions_are_admitted_before_parsing_and_custom_tokens_st
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn one_physical_file_is_recognized_per_target_module_edition_and_root_order() {
     let tree = MemoryTree::from([
         ("Cargo.toml", "[workspace]\nmembers=['old','new']\n"),
@@ -394,6 +419,10 @@ fn one_physical_file_is_recognized_per_target_module_edition_and_root_order() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_dependency_named_std_and_a_resolved_workspace_macro_are_not_the_sysroot() {
     let tree = MemoryTree::from([
         ("Cargo.toml", "[workspace]\nmembers=['app','vendor']\n"),
@@ -439,6 +468,10 @@ fn a_dependency_named_std_and_a_resolved_workspace_macro_are_not_the_sysroot() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn every_admitted_enclosing_standard_macro_accepts_nested_format_expressions() {
     let mut source = String::from("use std::fmt::Write; const VALUE:u32=7;\n");
     let expressions = [
@@ -488,6 +521,10 @@ fn every_admitted_enclosing_standard_macro_accepts_nested_format_expressions() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_parent_files_textual_macro_also_shadows_an_imported_standard_alias() {
     let workspace = Workspace::load(&MemoryTree::from([
         ("Cargo.toml", "[package]\nname='demo'\nversion='0.1.0'\nedition='2021'\n"),

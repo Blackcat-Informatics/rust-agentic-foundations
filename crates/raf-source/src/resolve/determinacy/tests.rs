@@ -14,6 +14,13 @@ fn workspace() -> Workspace {
     workspace_with_suffix("")
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn workspace_with_suffix(extra: &str) -> Workspace {
     let source = include_str!("../../../../../fuzz/corpus/rustc-oracle/import_cycle_a_private_glob_does_not_finalize_a_returning_type.rs")
         .replace("pub(crate) const fn A() -> u32 { 1 }", "pub const fn A() -> u32 { 1 }")
@@ -31,6 +38,14 @@ fn workspace_with_suffix(extra: &str) -> Workspace {
     Workspace::load(&tree, &["."]).expect("late import fixture")
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        clippy::panic,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn query(ws: &Workspace, meter: &Meter, surface: bool) -> Result<(), ResolveError> {
     if surface {
         let target = ws.target_ids().next().expect("library");
@@ -55,6 +70,13 @@ fn query(ws: &Workspace, meter: &Meter, surface: bool) -> Result<(), ResolveErro
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn selected_query_and_surface_proofs_admit_exact_work_and_release_all_scratch() {
     unresolved_import_read_refusals();
     derived_glob_fact_admission();
@@ -101,6 +123,14 @@ fn selected_query_and_surface_proofs_admit_exact_work_and_release_all_scratch() 
     }
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn derived_glob_fact_admission() {
     let mut source = "pub fn good() {}\n".to_owned();
     for family in ["r", "u"] {
@@ -138,6 +168,14 @@ fn derived_glob_fact_admission() {
     derived_glob_fact_query(index);
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn derived_glob_fact_build(workspace: &Workspace) {
     let index = workspace.index();
     let source = &workspace
@@ -216,6 +254,14 @@ fn derived_glob_fact_build(workspace: &Workspace) {
     }
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn derived_glob_fact_query(index: &Index) {
     let module = index.module_named("demo::r0", None).unwrap().unwrap();
     let (file, line) = index.module_site(module);
@@ -267,6 +313,13 @@ fn derived_glob_fact_query(index: &Index) {
     }
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn unresolved_import_read_refusals() {
     let tree: MemoryTree = [
         (
@@ -331,6 +384,13 @@ fn unresolved_import_read_refusals() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn native_query_layout_failure_is_reported_as_storage_without_allocating() {
     let meter = Meter::query(&LoadOptions::default());
     let memory = Transient::new(&meter);
@@ -353,6 +413,13 @@ fn native_query_layout_failure_is_reported_as_storage_without_allocating() {
     assert_eq!(meter.usage().glob_bytes, 0);
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn spill_workspace() -> Workspace {
     let mut source = "pub mod spill_source { pub fn x() {} }\n".to_owned();
     for route in 0..9 {
@@ -371,6 +438,13 @@ fn spill_workspace() -> Workspace {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn selected_path_proof_spills_on_real_routes_and_releases_its_scratch() {
     let ws = spill_workspace();
     let index = ws.index();
@@ -435,6 +509,13 @@ struct SpillRun {
     peak: usize,
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn select_real_routes(ws: &Workspace, limit: usize) -> SpillRun {
     let index = ws.index();
     let source = index
@@ -492,6 +573,13 @@ fn select_real_routes(ws: &Workspace, limit: usize) -> SpillRun {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn selected_routes_admit_the_first_native_spill_exactly_and_refuse_before_mutation() {
     let ws = spill_workspace();
     let full = select_real_routes(&ws, usize::MAX);

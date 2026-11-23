@@ -12,6 +12,13 @@ use crate::coverage::lines;
 use crate::{Loaded, Workplan};
 
 /// A workspace of one function, and a larger one whose item is no item of it.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn workspaces() -> (Workspace, Workspace) {
     let load = |name: &str, library: &str| {
         Workspace::load(
@@ -36,6 +43,13 @@ fn workspaces() -> (Workspace, Workspace) {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn a_report_that_could_not_count_is_one_finding_no_row_holds_and_resolves_no_row() {
     let (small, large) = workspaces();
     let foreign = large

@@ -24,6 +24,10 @@ pub(crate) fn permutations(items: &[String]) -> Vec<Vec<String>> {
 
 /// What `module` reads `path` as in `ns` when it writes it in a `use`: the
 /// canonical path, or the kind of refusal.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub(crate) fn read_as(ws: &Workspace, module: &str, path: &str, ns: Namespace) -> String {
     match ws.resolve_from_in(module, path, ns) {
         Ok(found) => found.path,
@@ -48,6 +52,10 @@ pub(crate) type Read = (&'static str, &'static str, Namespace);
 
 /// What the canonical path `path` resolves to in the workspace: the path of
 /// the item, or the kind of refusal.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub(crate) fn resolved_as(ws: &Workspace, path: &str) -> String {
     match ws.resolve(path) {
         Ok(found) => found.path,
@@ -67,6 +75,10 @@ pub(crate) fn resolved_as(ws: &Workspace, path: &str) -> String {
 /// declarations inside each of those modules in every order too, and collect
 /// what `answer` says about each. Asserts that the answers are the same in
 /// each, and returns them and the number of loads.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub(crate) fn in_every_order(
     load: fn(&str) -> Workspace,
     others: &[&str],

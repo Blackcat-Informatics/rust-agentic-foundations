@@ -11,6 +11,10 @@ use raf_source::{
     ReferenceTree, RelPath, Workspace,
 };
 
+#[expect(
+    clippy::print_stdout,
+    reason = "this executable writes its results to the caller's standard output"
+)]
 fn main() -> Result<(), Box<dyn Error>> {
     let directory = purrdf_testkit::TempDir::new_in(std::env::temp_dir())?;
     for path in ["app/src", "helper/src"] {

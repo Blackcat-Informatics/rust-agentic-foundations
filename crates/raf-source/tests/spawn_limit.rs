@@ -27,6 +27,10 @@ const DEMO: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \
 
 /// In a child: load a one-file workspace and print what became of it.
 #[test]
+#[expect(
+    clippy::print_stdout,
+    reason = "this executable writes its results to the caller's standard output"
+)]
 fn child_main() {
     if env::var_os(MODE).is_none() {
         return;
@@ -46,6 +50,10 @@ fn child_main() {
 /// Run `child_main` as a child, under `limit_kib` of address space when given,
 /// and return its result line, or `None` when the child printed none (the
 /// system could not even start it under the limit).
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn run(limit_kib: Option<u64>) -> (Option<String>, String) {
     let executable = env::current_exe().expect("the test binary has a path");
     // `ulimit -v` applies to the shell and what it executes; the limit is the
@@ -78,6 +86,10 @@ fn run(limit_kib: Option<u64>) -> (Option<String>, String) {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_parse_thread_the_system_refuses_a_stack_is_a_spawn_error_naming_the_file() {
     // The control: without a limit the same load succeeds.
     let (free, detail) = run(None);

@@ -41,6 +41,10 @@ fn build(assertions: impl IntoIterator<Item = Triple>) -> Result<Graph, Error> {
     }
     builder.finish()
 }
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn example() -> Graph {
     build(assertions()).unwrap()
 }
@@ -89,6 +93,10 @@ impl Admission for ConstructionAccount<'_> {
     }
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn assert_copy_refund<A: Admission>(
     value: raf_rdf::AdmittedValue<'_>,
     memory: &mut purrdf_lex::allocation::Memory<'_, A>,
@@ -115,6 +123,14 @@ fn assert_copy_refund<A: Admission>(
     assert_eq!(memory.admitted_bytes(), retained);
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn assert_admitted_roundtrip(text: &str, format: Format, expected: &Graph) {
     use purrdf_lex::allocation::{Memory, OwnedAdmission, Resident};
     use raf_rdf::AdmittedGraph;
@@ -211,6 +227,10 @@ fn assert_admitted_roundtrip(text: &str, format: Format, expected: &Graph) {
     assert_eq!(live.get(), 0);
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn assert_admitted_refusal(text: &str, format: Format, expected: Option<ConstructionRefusal>) {
     use raf_rdf::{AdmittedGraph, ImportFailure};
 
@@ -245,6 +265,10 @@ fn assert_admitted_refusal(text: &str, format: Format, expected: Option<Construc
     assert_eq!(live.get(), 0);
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn assert_caller_precedence<A: Admission>(
     account: impl Fn() -> A,
     capture: &Cell<Option<ConstructionRefusal>>,
@@ -301,6 +325,10 @@ fn assert_caller_precedence<A: Admission>(
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn absolute_iris_use_component_validation_without_normalizing_identity() {
     let lower = build([triple("", Term::iri("https://example.org/%2f"))]).unwrap();
     let upper = build([triple("", Term::iri("https://example.org/%2F"))]).unwrap();
@@ -334,6 +362,10 @@ fn absolute_iris_use_component_validation_without_normalizing_identity() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn an_external_iri_sharing_a_snapshot_prefix_is_not_local() {
     let original = example();
     let external = format!("{}suffix", original.snapshot().unwrap());
@@ -354,6 +386,10 @@ fn an_external_iri_sharing_a_snapshot_prefix_is_not_local() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn malformed_escapes_and_predicates_refuse_beside_canonical_neighbors() {
     for format in [Format::Turtle, Format::NTriples] {
         let text = example().to_text(format).unwrap();
@@ -376,6 +412,14 @@ fn malformed_escapes_and_predicates_refuse_beside_canonical_neighbors() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn ingestion_order_does_not_change_either_format_or_snapshot() {
     let graph = example();
     let reverse = build(assertions().into_iter().rev()).unwrap();
@@ -413,6 +457,14 @@ fn ingestion_order_does_not_change_either_format_or_snapshot() {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn duplicate_native_membership_and_real_subject_queries_have_valid_neighbors() {
     use purrdf_core::RecordKind;
     use purrdf_lex::allocation::{Memory, Resident};
@@ -511,6 +563,10 @@ fn duplicate_native_membership_and_real_subject_queries_have_valid_neighbors() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn parsed_statement_duplicates_and_repeated_source_bytes_refuse_with_valid_neighbors() {
     for format in [Format::Turtle, Format::NTriples] {
         let text = example().to_text(format).unwrap();
@@ -618,6 +674,10 @@ fn absolute_iri_and_literal_profile_refusals_keep_valid_neighbors() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn exact_bytes_include_cr_final_lf_and_multibyte_diagnostic_neighbors() {
     for format in [Format::Turtle, Format::NTriples] {
         let text = example().to_text(format).unwrap();
@@ -665,6 +725,10 @@ fn exact_bytes_include_cr_final_lf_and_multibyte_diagnostic_neighbors() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn both_readers_preserve_role_language_depth_and_ownership_refusals() {
     for format in [Format::Turtle, Format::NTriples] {
         let graph = example();
@@ -715,6 +779,10 @@ fn both_readers_preserve_role_language_depth_and_ownership_refusals() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn pinned_registry_expansions_remain_distinct_from_native_canonical_bytes() {
     let turtle = include_str!("fixtures/profile.ttl");
     let nt = include_str!("fixtures/profile.nt");
@@ -733,6 +801,10 @@ fn pinned_registry_expansions_remain_distinct_from_native_canonical_bytes() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn abbreviations_blank_nodes_and_quads_are_outside_the_closed_profile() {
     let graph = example();
     for format in [Format::Turtle, Format::NTriples] {
@@ -762,6 +834,10 @@ fn abbreviations_blank_nodes_and_quads_are_outside_the_closed_profile() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn caller_supplied_large_literals_are_validated_without_a_profile_byte_budget() {
     let mut graph = Builder::new();
     graph
@@ -787,6 +863,10 @@ fn caller_supplied_large_literals_are_validated_without_a_profile_byte_budget() 
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn ground_validation_does_not_apply_domain_shapes_or_datatype_value_spaces() {
     let mut graph = Builder::new();
     graph

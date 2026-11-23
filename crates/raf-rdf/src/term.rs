@@ -28,6 +28,10 @@ pub(crate) fn owned_local<'a>(text: &'a str, owner: &str) -> &'a str {
     }
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "resident progress cannot refuse and the normalization only removes bytes"
+)]
 pub(crate) fn normalize(value: &mut TermValue, base: &str) {
     let mut resident = purrdf_lex::allocation::Resident;
     normalize_with_memory(
@@ -35,7 +39,7 @@ pub(crate) fn normalize(value: &mut TermValue, base: &str) {
         base,
         &mut purrdf_lex::allocation::Memory::new(&mut resident),
     )
-    .expect("resident in-place owner normalization allocates no storage");
+    .expect("INVARIANT: resident normalization cannot refuse");
 }
 
 pub(crate) fn normalize_with_memory<S: purrdf_lex::allocation::Admission + ?Sized>(

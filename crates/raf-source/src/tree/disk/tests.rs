@@ -26,6 +26,13 @@ struct Scratch {
 }
 
 impl Scratch {
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn new() -> Self {
         static NEXT: AtomicUsize = AtomicUsize::new(0);
         let dir = std::env::temp_dir().join(format!(
@@ -39,6 +46,13 @@ impl Scratch {
         }
     }
 
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn dir(&self, name: &str) -> PathBuf {
         let path = self.dir.join(name);
         fs::create_dir_all(&path).expect("create directory");
@@ -53,23 +67,51 @@ impl Drop for Scratch {
     }
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn write(path: &Path, text: &str) {
     fs::write(path, text).expect("write file");
 }
 
 /// A tree at `root` that verifies with `strategy`.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn tree_with(root: &Path, strategy: Strategy) -> DiskTree {
     let mut tree = DiskTree::new(root).expect("tree");
     tree.strategy = strategy;
     tree
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn rel(text: &str) -> RelPath {
     RelPath::new(text).expect("valid path")
 }
 
 #[cfg(target_os = "linux")]
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn root_acquisition_refuses_replaced_components_before_exposing_a_directory() {
     use std::os::unix::fs::symlink;
 
@@ -94,6 +136,14 @@ fn root_acquisition_refuses_replaced_components_before_exposing_a_directory() {
 
 #[cfg(target_os = "linux")]
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn replacing_the_root_during_open_never_redirects_its_retained_directory() {
     for before in [true, false] {
         let scratch = Scratch::new();
@@ -141,6 +191,14 @@ fn replacing_the_root_during_open_never_redirects_its_retained_directory() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        clippy::panic,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn source_dispatch_preserves_backend_aliases_and_rejects_foreign_direct_paths() {
     let scratch = Scratch::new();
     write(&scratch.dir.join("lib.rs"), "source");
@@ -214,6 +272,13 @@ fn source_dispatch_preserves_backend_aliases_and_rejects_foreign_direct_paths() 
 }
 
 #[cfg(unix)]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn make_fifo(path: &Path) {
     let status = std::process::Command::new("mkfifo")
         .arg(path)
@@ -223,11 +288,25 @@ fn make_fifo(path: &Path) {
 }
 
 #[cfg(unix)]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn symlink(target: impl AsRef<Path>, link: &Path) {
     std::os::unix::fs::symlink(target, link).expect("create symlink");
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn the_native_strategy_is_the_platforms_own() {
     let scratch = Scratch::new();
     let tree = DiskTree::new(scratch.dir("root")).expect("tree");
@@ -286,6 +365,13 @@ fn linux_verifier_refuses_a_handle_link_that_leads_outside_and_accepts_one_insid
 
 #[cfg(target_os = "linux")]
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn linux_verifier_reads_the_real_descriptor_of_an_open_file() {
     let scratch = Scratch::new();
     let root = scratch.dir("root");
@@ -305,6 +391,13 @@ fn linux_verifier_reads_the_real_descriptor_of_an_open_file() {
 
 #[cfg(target_os = "linux")]
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn a_missing_descriptor_link_is_an_io_failure_and_never_absence() {
     let scratch = Scratch::new();
     let root = scratch.dir("root");
@@ -466,6 +559,13 @@ mod swap {
 
     /// A hook that parks `root/dir` beside itself and puts a symlink to
     /// `outside/dir` in its place.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn park_and_link(root: &Path, outside_dir: &Path) -> Hook {
         let dir = root.join("dir");
         let parked = root.join("dir.parked");
@@ -479,6 +579,13 @@ mod swap {
     /// A hook that moves `root/dir` out of the root and puts a symlink to
     /// `outside/dir` in its place, so both the verified handle and the path
     /// lead outside.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn move_out_and_link(root: &Path, outside_dir: &Path) -> Hook {
         let dir = root.join("dir");
         let moved = outside_dir.with_file_name("moved");
@@ -510,6 +617,14 @@ mod swap {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            clippy::unwrap_used,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn captures_refuse_changed_observations_beside_stable_reads() {
         use std::os::unix::fs::PermissionsExt as _;
 
@@ -636,6 +751,13 @@ mod swap {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn the_same_listing_without_a_swap_returns_the_entries() {
         for &strategy in STRATEGIES {
             let (_scratch, root, _outside_dir) = fixture();
@@ -677,6 +799,13 @@ mod swap {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn the_same_entry_without_a_swap_is_found() {
         for &strategy in STRATEGIES {
             let (_scratch, root, _outside_dir) = fixture();
@@ -700,6 +829,13 @@ mod swap {
     /// The open events queued on `queue` since it was last read, and none
     /// when the queue is empty.
     #[cfg(target_os = "linux")]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::panic,
+            reason = "the assertion reports the unexpected outcome and terminates the test"
+        )
+    )]
     fn queued_opens(queue: &std::os::fd::OwnedFd) -> Vec<rustix::fs::inotify::ReadFlags> {
         use rustix::fs::inotify::Reader;
         use rustix::io::Errno;
@@ -728,6 +864,13 @@ mod swap {
     /// Linux strategy relies on), and an `O_NONBLOCK` open must be, exactly
     /// once (the positive control, which proves the watch is live).
     #[cfg(target_os = "linux")]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn outside_fifo_is_never_opened(strategy: Strategy) {
         use rustix::fs::inotify::{self, CreateFlags, ReadFlags, WatchFlags};
         use std::os::unix::fs::OpenOptionsExt as _;
@@ -789,6 +932,13 @@ mod swap {
 
     /// A hook that undoes [`park_and_link`]: the symlink goes and the parked
     /// directory returns, so every path names in-root files again.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn undo_park(root: &Path) -> Hook {
         let dir = root.join("dir");
         let parked = root.join("dir.parked");
@@ -841,6 +991,13 @@ mod swap {
     /// The swap is flipped at every point a test can reach: made before the
     /// open, undone after it, and made again after the handle is verified.
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn a_swap_flipped_at_every_hook_point_is_refused() {
         for &strategy in STRATEGIES {
             let (_scratch, root, outside_dir) = secret_fixture();
@@ -872,6 +1029,13 @@ mod swap {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn the_same_calls_with_the_hooks_and_no_swap_succeed() {
         for &strategy in STRATEGIES {
             let (_scratch, root, _outside_dir) = secret_fixture();
@@ -920,6 +1084,13 @@ mod strategy {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn every_strategy_refuses_an_outside_symlink_and_reads_in_root_links() {
         for &strategy in STRATEGIES {
             let (scratch, root) = fixture();
@@ -950,6 +1121,13 @@ mod strategy {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn every_strategy_ends_a_symlink_loop_with_an_error_and_lists_it_without_entering() {
         for &strategy in STRATEGIES {
             let (scratch, root) = fixture();
@@ -985,6 +1163,13 @@ mod strategy {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn every_strategy_follows_an_absolute_in_root_link_spelled_through_a_linked_parent() {
         for &strategy in STRATEGIES {
             let (scratch, root) = fixture();
@@ -1028,6 +1213,13 @@ mod strategy {
     /// or `None` for the first pair, the in-root file or `NotFound` for the
     /// second.
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn links_into_the_outside_are_answered_alike_only_by_the_walk() {
         for &strategy in STRATEGIES {
             let (scratch, root) = fixture();
@@ -1119,6 +1311,13 @@ mod strategy {
     /// walk refuses each with `OutsideRoot`, beside an absolute target through a
     /// linked parent, which every strategy reads.
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn a_link_that_climbs_back_into_the_root_is_read_only_by_canonicalisation() {
         for &strategy in STRATEGIES {
             let (scratch, root) = fixture();
@@ -1189,6 +1388,13 @@ mod strategy {
     /// directories deep is read, listed and looked up under every strategy,
     /// beside a `..` near its foot, so no walk holds a descriptor per step.
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn a_path_three_hundred_deep_is_walked_under_a_limit_of_sixty_four_descriptors() {
         const CHILD: &str = "RAF_SOURCE_DESCRIPTOR_LIMIT_CHILD";
         let name = "tree::disk::tests::strategy::\
@@ -1218,6 +1424,13 @@ mod strategy {
     }
 
     /// The walks of the child, in the scratch directory `dir` of the parent.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn deep_walk(dir: &Path) {
         // The limit is in force: opening 64 more descriptors fails.
         write(&dir.join("probe"), "");
@@ -1278,6 +1491,13 @@ mod strategy {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn every_strategy_refuses_a_fifo_and_a_directory_as_a_file_without_blocking() {
         for &strategy in STRATEGIES {
             let (scratch, root) = fixture();
@@ -1311,6 +1531,13 @@ mod strategy {
     /// that must reach an open record at least one (the Linux strategy refuses
     /// the outside link before it opens anything).
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn every_open_that_resolves_a_name_is_a_reference_or_does_not_block() {
         for &strategy in STRATEGIES {
             let (scratch, root) = fixture();
@@ -1359,6 +1586,13 @@ mod strategy {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn every_strategy_lists_a_directory_and_refuses_a_symlink_a_file_and_an_outside_link() {
         for &strategy in STRATEGIES {
             let (scratch, root) = fixture();
@@ -1392,6 +1626,13 @@ mod strategy {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn every_strategy_reports_entry_kinds_and_refuses_an_outside_directory() {
         for &strategy in STRATEGIES {
             let (scratch, root) = fixture();
@@ -1432,6 +1673,14 @@ mod strategy {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            clippy::panic,
+            reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+        )
+    )]
     fn every_strategy_gives_one_identity_for_a_file_its_links_and_a_path_through_a_directory_link()
     {
         for &strategy in STRATEGIES {

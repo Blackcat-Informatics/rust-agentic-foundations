@@ -16,6 +16,10 @@ pub(crate) const DONE: &str = "items:\n  - claim: \"fixture is shaped\"\n    out
 
 /// Keep only the proof targets this lifecycle fixture actually binds. The
 /// negative targets remain real failing programs when the case requests them.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub(crate) fn proof_targets(repo: &Repo, tests: &str, examples: &str) {
     let mut library = repo
         .read("src/lib.rs")

@@ -28,7 +28,7 @@ inputs:
     digest: 49f626817760b07fbe7afaafe97572109be37839609006150d1faae79f2fe61d
   - kind: symbol
     name: raf_workplan::coverage::lines
-    digest: 41b8ce78866f3a197893d6e0857f22dd2aedebad88cadcf1fa30c6fbf5afd480
+    digest: d75230036f307ce555a17c6ce1c87fbe88db309e677c118bddb7c17c3ca0f3f0
   - kind: symbol
     name: raf_workplan::coverage::render::claims_table
     digest: ec714c03844e0af34c41358c7e1819d20cd86bdaa606446bad1eca24256e3e86
@@ -37,7 +37,7 @@ inputs:
     digest: 793e2f3e0f00b0de8fd87eb763542d5440be88895b9f501a79820295e1785925
   - kind: symbol
     name: raf_workplan::debt
-    digest: 3846f3b004f0531aef9b76ba65f49b16b31364d1d5c0cd4c0aa2590217bfe0fa
+    digest: bffe7dfe36dc62a85a2a4f399bb70fe8c979cf4f43f00b9f3e81d2f76f375b02
   - kind: symbol
     name: raf_workplan::obligation::Touch
     digest: ca407531ac5b02455378a18b4a8188e2007434ae9f0c34e07bd4b5fc23d8c499
@@ -46,10 +46,10 @@ inputs:
     digest: ae57f2bd96ea153dc8b2936b97d47898ab8e26bd5cb8cd730d2823f4a3bf860d
   - kind: symbol
     name: raf_workplan::record
-    digest: 416954816d9cb9a7c43ef56a547ca154bee150f9272acc13f4f0955db6a3ed87
+    digest: cea3cd0f078143621b900d501b96d3d5ffebaa3612871621d044320784e14bed
   - kind: symbol
     name: raf_workplan::strict
-    digest: ff49bf53e0e0bd157a28f93aa5d2924fe8504e38f35ddf49db70ad6469c380ae
+    digest: 7e6838c29c2d7ae408d19671a79abfc1ec72440d873a34b1d4553ae7d3e43e0c
   - kind: symbol
     name: raf_workplan::work
     digest: a12641f798ca2966e2032b3fa7a3b7871f038d89d808d5e89658b2b25e79b472

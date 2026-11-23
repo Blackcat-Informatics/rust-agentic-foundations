@@ -13,6 +13,10 @@ pub(crate) struct Node<'a> {
     node: raf_rdf::Node<'a>,
 }
 impl Rdf {
+    #[expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )]
     pub(crate) fn of(run: &Run) -> Self {
         let format = if run.stdout.starts_with("VERSION") {
             Format::Turtle
@@ -27,6 +31,10 @@ impl Rdf {
     pub(crate) fn graph(&self) -> &Graph {
         &self.0
     }
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )]
     pub(crate) fn reparsed(&self, format: Format) -> Self {
         Self(Graph::from_text(&self.0.to_text(format).unwrap(), format).unwrap())
     }
@@ -48,6 +56,10 @@ impl Rdf {
         rows.sort_by_cached_key(|row| row.number("ordinal"));
         rows
     }
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     pub(crate) fn result_count(&self) -> usize {
         self.0
             .get("")
@@ -57,6 +69,11 @@ impl Rdf {
     }
 }
 impl<'a> Node<'a> {
+    #[expect(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )]
     pub(crate) fn reified(self, property: &str) -> Self {
         let mut values = self.node.values(vocab::REIFIES);
         let (subject, predicate, object) = values
@@ -79,6 +96,10 @@ impl<'a> Node<'a> {
             node,
         }
     }
+    #[expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )]
     fn literal(self, property: &str) -> Option<(&'a str, &'a str)> {
         let mut values = self.node.values(&format!("{}{property}", vocab::REPORT));
         let value = values.next().map(|value| {
@@ -95,10 +116,18 @@ impl<'a> Node<'a> {
     pub(crate) fn text(self, property: &str) -> Option<&'a str> {
         self.literal(property).map(|(lexical, _)| lexical)
     }
+    #[expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )]
     pub(crate) fn required(self, property: &str) -> &'a str {
         self.text(property)
             .unwrap_or_else(|| panic!("missing {property}"))
     }
+    #[expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )]
     pub(crate) fn number(self, property: &str) -> usize {
         let (lexical, datatype) = self
             .literal(property)
@@ -124,6 +153,10 @@ impl<'a> Node<'a> {
             .unwrap_or_else(|| panic!("{property} exceeds u128"));
         usize::try_from(value).unwrap_or_else(|_| panic!("{property} exceeds usize"))
     }
+    #[expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )]
     pub(crate) fn boolean(self, property: &str) -> bool {
         let (lexical, datatype) = self
             .literal(property)
@@ -138,6 +171,10 @@ impl<'a> Node<'a> {
         );
         value
     }
+    #[expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )]
     pub(crate) fn children(self, property: &str) -> Vec<Self> {
         let mut values: Vec<_> = self
             .node

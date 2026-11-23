@@ -7,6 +7,10 @@ use raf_source::{
     Entry, EntryKind, FileId, MemoryTree, Opened, RelPath, SourceTrees, Tree, TreeError,
 };
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn path(text: &str) -> RelPath {
     RelPath::new(text).expect("valid path")
 }
@@ -21,6 +25,10 @@ fn sample() -> MemoryTree {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_file_reads_back_and_a_missing_file_is_not_found() {
     let tree = sample();
     assert_eq!(
@@ -50,6 +58,10 @@ fn a_directory_is_not_readable_as_a_file_and_a_file_is_not_listable() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn directories_are_inferred_and_listings_are_sorted_with_their_kinds() {
     let tree = sample();
     assert_eq!(
@@ -70,6 +82,10 @@ fn directories_are_inferred_and_listings_are_sorted_with_their_kinds() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn entry_reports_file_dir_and_absence_without_an_error() {
     let tree = sample();
     assert_eq!(
@@ -88,6 +104,10 @@ fn entry_reports_file_dir_and_absence_without_an_error() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_parent_segment_is_applied_to_the_trees_own_directories() {
     let tree = sample();
     assert_eq!(
@@ -101,6 +121,10 @@ fn a_parent_segment_is_applied_to_the_trees_own_directories() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn keys_that_leave_the_root_are_refused_with_outside_root_beside_a_valid_key() {
     for key in ["../a", "/a", "x/../../a"] {
         let error = MemoryTree::try_from_iter([(key, "text")]).expect_err(key);
@@ -114,6 +138,10 @@ fn keys_that_leave_the_root_are_refused_with_outside_root_beside_a_valid_key() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_tree_built_infallibly_from_a_bad_key_reports_the_error_from_every_call() {
     for key in ["../a", "/a"] {
         let tree = MemoryTree::from([("ok.rs", "fine"), (key, "text")]);
@@ -140,6 +168,10 @@ fn a_tree_built_infallibly_from_a_bad_key_reports_the_error_from_every_call() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn read_and_unseen_read_apply_the_exact_byte_limit_beside_a_seen_identity() {
     let text = "é🦀";
     let tree = MemoryTree::from([("wide.rs", text)]);
@@ -167,6 +199,10 @@ fn read_and_unseen_read_apply_the_exact_byte_limit_beside_a_seen_identity() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_workspace_loads_through_an_object_safe_tree_with_caller_local_state() {
     use std::cell::Cell;
     use std::rc::Rc;
@@ -183,6 +219,10 @@ fn a_workspace_loads_through_an_object_safe_tree_with_caller_local_state() {
             self.files.read(path, max_bytes)
         }
 
+        #[expect(
+            clippy::panic,
+            reason = "the assertion reports the unexpected outcome and terminates the test"
+        )]
         fn read_unseen(
             &self,
             path: &RelPath,
@@ -248,6 +288,10 @@ fn a_workspace_loads_through_an_object_safe_tree_with_caller_local_state() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_key_that_is_both_a_file_and_a_directory_is_refused() {
     let error = MemoryTree::try_from_iter([("a", "x"), ("a/b", "y")]).expect_err("conflict");
     assert!(matches!(error, TreeError::NotRegular { .. }));
@@ -262,6 +306,10 @@ fn collecting_pairs_builds_the_same_tree_as_the_array_conversion() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn duplicate_keys_are_refused_literally_and_after_normalisation_beside_distinct_keys() {
     for (first, second) in [
         ("a.rs", "a.rs"),
@@ -292,6 +340,11 @@ fn duplicate_keys_are_refused_literally_and_after_normalisation_beside_distinct_
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn the_identity_of_a_file_is_its_normalised_key_and_refuses_what_read_refuses() {
     let mut tree = sample();
     let lib = tree.identity(&path("src/lib.rs")).expect("a file");
@@ -383,6 +436,10 @@ fn the_identity_of_a_file_is_its_normalised_key_and_refuses_what_read_refuses() 
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn one_open_gives_the_identity_and_the_text_unless_the_identity_is_seen() {
     let tree = sample();
     let lib = FileId::from_key("src/lib.rs");

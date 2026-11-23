@@ -44,6 +44,7 @@ bindings:
     - raf_docs_contract::test_crate::docs_contract::rejects_a_typed_document_outside_the_document_directories
     - raf_docs_contract::test_crate::docs_contract::rejects_non_markdown_file_in_a_document_directory
     - raf_docs_contract::test_crate::docs_contract::repository_documents_satisfy_the_profile
+    - raf_docs_contract::test_crate::docs_contract::repository_static_documents
     - raf_docs_contract::test_crate::docs_contract::the_checker_accepts_a_valid_checkout
     - raf_docs_contract::test_crate::docs_contract::the_checker_judges_links_against_the_tracked_paths_and_symlinks
     - raf_docs_contract::test_crate::docs_contract::the_checker_judges_markdown_outside_the_document_directories
@@ -131,6 +132,8 @@ bindings:
     - rust_agentic_foundations::test_crate::self_census::a_decorative_provider_call_cannot_stand_in_for_the_delegation
     - raf_census::test_crate::reference_scan::absent_mismatching_and_oversized_registry_archives_refuse
   examples:
+    - raf_docs_contract::example_crate::repository_static_documents
+    - rust_agentic_foundations::example_crate::prepare_census_archives
     - rust_agentic_foundations::example_crate::repository_gate
 depends: [cap:workplan-document-model, cap:workplan-strict, cap:source-index, cap:census-debt-ratchet]
 ---
@@ -178,11 +181,12 @@ the BLAKE3 digest and its hexadecimal text, with no exclusion and no debt. The
 locked evaluation takes the lock catalog from `Cargo.lock` (the fuzz harness
 row from `fuzz/Cargo.lock`), every first-party manifest with its discovered targets
 under a declared Linux configuration, and the direct `purrdf-*` registry sources
-sealed from their original `.crate` archives through `LockedRegistry` of `raf-census`. The archives are found in the Cargo
-registry cache named by `CARGO_HOME`, or `$HOME/.cargo`, which must hold the complete
-locked set of archives of both lock files (`cargo fetch --locked`, and the same with
-`--manifest-path fuzz/Cargo.toml`; the hosted root-package jobs run both first); only their bytes come
-from there, and each must match the `Cargo.lock` checksum before any of it is read.
+sealed from their original `.crate` archives through `LockedRegistry` of `raf-census`.
+`make registry-archives` reads both lock files and downloads the locked PurRDF
+archives from crates.io into a build-owned directory. It prints the absolute
+directory for `RAF_GATE_REGISTRY_CACHE`. The Census check, workspace test target
+and hosted jobs supply this directory. Preparation authenticates each archive before
+publishing it, and Census checks the same lock checksum before unpacking.
 A missing archive, one larger than the load's byte budget (refused before it is read in full) or a checksum mismatch is a hard failure. A library is judged in
 its ordinary mode, so `cfg(test)` modules inside library sources are outside the
 locked census; every integration test, example and binary is judged with `cfg(test)`.
@@ -201,8 +205,7 @@ shares a source file across packages, because a locked load judges each file und
 one package: the fixtures that several packages use live in the unpublished
 `raf-fixtures` crate, which states no capability: it is outside the coverage `scope`,
 and its modules and items are excluded in `work/coverage/default.md` with a reason.
-Checks, Linux CI and the staged commit and merge
-snapshots execute the same test.
+The exact merge candidate and Linux CI execute the workspace test.
 <!-- raf:tested-by rust_agentic_foundations::test_crate::self_census::repository_census_is_clean_and_duplicate_growth_is_refused,rust_agentic_foundations::test_crate::self_census::a_competing_implementation_of_purrdf_functionality_fails_the_repository_gate,rust_agentic_foundations::test_crate::self_census::a_decorative_provider_call_cannot_stand_in_for_the_delegation,raf_census::test_crate::reference_scan::absent_mismatching_and_oversized_registry_archives_refuse -->
 
 **Shared read root.** The gates and repository-gate example use `gate_root`:
@@ -224,16 +227,26 @@ Generated blocks must match their renderer, delivered capabilities hold their
 verification matrix, and documented Rust examples match their bound doctests.
 <!-- raf:tested-by raf_docs_contract::test_crate::docs_contract::repository_documents_satisfy_the_profile,raf_docs_contract::test_crate::docs_contract::the_checker_judges_links_against_the_tracked_paths_and_symlinks,raf_docs_contract::test_crate::docs_contract::a_block_that_differs_by_one_line_is_reported,raf_docs_contract::test_crate::docs_contract::usage_and_examples_blocks_are_the_crate_doctests -->
 
+**Staged document checks.** `make precommit` requires the installed hooks and
+reads the file inventory and document bytes of the effective staged tree.
+It checks tracked text for forbidden references, refuses tracked symlinks
+and invalid document placement, and checks Markdown links against that
+same inventory. The generated capability index is checked as plain
+Markdown. The full Workplan gate judges source bindings and assessment
+currency.
+<!-- raf:tested-by raf_docs_contract::test_crate::docs_contract::repository_static_documents,raf_docs_contract::example_crate::repository_static_documents -->
+
 **Licence and version integrity.** Pinned licence text must retain its digest,
 and the citation version must equal the workspace version. Altered text, missing
 fingerprint records and a version changed on only one side are refused.
 <!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::licenses_accepts_bytes_that_hash_to_the_pin,rust_agentic_foundations::test_crate::repo_gates::licenses_rejects_an_altered_mulan_text,rust_agentic_foundations::test_crate::repo_gates::licenses_rejects_a_record_without_a_fingerprint_line,rust_agentic_foundations::test_crate::repo_gates::citation_accepts_matching_versions,rust_agentic_foundations::test_crate::repo_gates::citation_rejects_a_manifest_bump_without_a_matching_citation -->
 
-**Production lint coverage.** The aggregate Make check and staged hooks run
-Clippy over the workspace libraries and binaries with the locked dependency
-graph and denied warnings. The staged hook supplies the source, manifests
-and build-owned receipt for the same snapshot to the Census gate. The
-all-target lint pass also checks tests, examples and benchmarks.
+**Production lint coverage.** `make clippy` checks locked libraries and
+binaries with warnings denied. The commit hooks apply those flags to the
+staged source and manifests. The merge and CI Census gates capture a
+build-owned compiler receipt for the source they judge.
+`make clippy-all` also checks tests, examples and benchmarks in both
+workspaces.
 <!-- raf:tested-by rust_agentic_foundations::test_crate::self_census::repository_census_is_clean_and_duplicate_growth_is_refused -->
 
 **Manifest policy.** Every first-party manifest inherits the workspace lint
@@ -259,18 +272,25 @@ masquerade as a clean repository.
 `.pyz` and `.pyzw` extensions case-insensitively, including empty and binary
 files. A Python or PyPy interpreter shebang is refused regardless of the file
 name, including direct and `env` interpreter forms. Documentation mentions and
-shell commands that merely name Python remain valid. The commit and merge hooks
-apply this Rust gate to a checkout of the staged index; CI runs the same gate.
+shell commands that merely name Python remain valid. The exact merge candidate
+and CI run this Rust gate.
 <!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::python::python_tracked_files_are_forbidden,rust_agentic_foundations::test_crate::repo_gates::python::python_extensions_are_refused_even_for_empty_or_binary_files,rust_agentic_foundations::test_crate::repo_gates::python::python_shebangs_are_refused_without_a_python_extension,rust_agentic_foundations::test_crate::repo_gates::python::python_mentions_and_similar_names_are_allowed -->
 
 ## Usage
 
+Install the hooks with `make hooks`. Run `make precommit` to check the staged
+tree. Run `make check` and `make test` to qualify the working tree.
+
 Use `cargo test --locked --package <package>` for one package's ordinary suite.
 Use the static verification command to inspect declared example and test bindings. It never initiates the consumer programs named by those declarations.
 
-Run `make test` to capture production lint evidence and judge the repository
-ledger and debt. With a current build-owned receipt in `RAF_CENSUS_LINT_EVIDENCE`,
-run `cargo test --locked --test self_census` for the Census test alone.
+Run `make test` to prepare the locked archives, capture production lint
+evidence and judge the repository ledger and debt. For a standalone Census
+check, set `RAF_GATE_REGISTRY_CACHE` to the directory printed by
+`make registry-archives`, set `RAF_CENSUS_LINT_EVIDENCE` to a current
+build-owned receipt, and run `cargo test --locked --test self_census`.
+Set the same archive directory for the native provider fixture and for the
+registered repository Census example.
 Adopt missing debt or lower resolved debt explicitly with
 `cargo run --locked --example repository_census -- --census-debt-write-v1`, then review the complete
 `census-debt.ttl` diff. The writer refuses growth into a current record; deleting
@@ -283,15 +303,15 @@ this unpublished package; library consumers use their own repository policy.
 
 Run `cargo test --locked --test repo_gates` to apply the repository policy
 checks, including the Python refusal. Install the commit and merge hooks with
-`make hooks`; `make check` and CI also run the repository gates.
+`make hooks`. `make check` and CI also run the repository gates.
 
 ## Examples
 
 A workflow job with `timeout-minutes: 9` passes the budget rule. Omitting the
 property, spelling it as an expression, or giving sixteen refuses and names the
 job. Adding a workspace member automatically adds it to the source-change test
-matrix. A documented example shared by several capabilities has one successful
-execution for its package, while every binding still receives native planning.
+matrix. A normal example shared by several capabilities is built in one job
+for its package. Workplan checks every declared binding.
 <!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_execution_budget,raf_docs_contract::test_crate::docs_contract::repository_workplan_is_clean_and_assessed -->
 
 A clean self-Census accepts the currently adopted groups. Adding another
@@ -336,10 +356,11 @@ These maintainer-controlled jobs qualify RAF itself; they do not grant RAF
 authority to execute an inspected consumer. Capability documents are test inputs,
 so their changes select the full repository package matrix.
 
-Workplan has three exhaustive partitions of its enabled Cargo test targets;
-Source and the root package have two. Each partition uses explicit target
+Workplan has three exhaustive partitions of its enabled Cargo test targets.
+Source has two. Each partition uses explicit target
 selectors. Library doctests and normal example compilation run on the second
-partition; examples are never automatically executed. Unsupported target kinds
+partition. The archive preparation helper runs as an explicit build step for
+the Census jobs. Unsupported target kinds
 and missing test decisions fail rather than drop a target. Other packages retain
 the ordinary package suite. The CLI coverage test checks this repository once
 for code and once for tests. Package-name spelling and command-entry parity run
@@ -380,6 +401,7 @@ no separate interpretation of the documents or source index.
 | --- | --- | --- |
 | `cargo_raf_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution` | test | [Contract](#contract) |
 | `raf_census::test_crate::reference_scan::absent_mismatching_and_oversized_registry_archives_refuse` | test | [Contract](#contract) |
+| `raf_docs_contract::example_crate::repository_static_documents` | example target | [Contract](#contract) |
 | `raf_docs_contract::test_crate::docs_contract::a_block_that_differs_by_one_line_is_reported` | test | [Contract](#contract) |
 | `raf_docs_contract::test_crate::docs_contract::a_delivered_capability_holds_a_verification_matrix` | test | [Verification](#verification) |
 | `raf_docs_contract::test_crate::docs_contract::a_tilde_fenced_usage_block_is_accepted_and_an_unclosed_block_is_refused` | test | [Verification](#verification) |
@@ -403,6 +425,7 @@ no separate interpretation of the documents or source index.
 | `raf_docs_contract::test_crate::docs_contract::rejects_a_typed_document_outside_the_document_directories` | test | [Verification](#verification) |
 | `raf_docs_contract::test_crate::docs_contract::rejects_non_markdown_file_in_a_document_directory` | test | [Verification](#verification) |
 | `raf_docs_contract::test_crate::docs_contract::repository_documents_satisfy_the_profile` | test | [Contract](#contract) |
+| `raf_docs_contract::test_crate::docs_contract::repository_static_documents` | test | [Contract](#contract) |
 | `raf_docs_contract::test_crate::docs_contract::repository_workplan_is_clean_and_assessed` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_docs_contract::test_crate::docs_contract::the_checker_accepts_a_valid_checkout` | test | [Verification](#verification) |
 | `raf_docs_contract::test_crate::docs_contract::the_checker_judges_links_against_the_tracked_paths_and_symlinks` | test | [Contract](#contract) |
@@ -410,6 +433,7 @@ no separate interpretation of the documents or source index.
 | `raf_docs_contract::test_crate::docs_contract::the_checker_judges_the_documents_through_the_model` | test | [Verification](#verification) |
 | `raf_docs_contract::test_crate::docs_contract::usage_and_examples_blocks_are_the_crate_doctests` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::history::a_fixture_commit_obeys_an_installed_hook_and_the_successful_neighbor` | test | [Verification](#verification) |
+| `rust_agentic_foundations::example_crate::prepare_census_archives` | example target | [Verification](#verification) |
 | `rust_agentic_foundations::example_crate::repository_gate` | example target | [Usage](#usage) |
 | `rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_execution_budget` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `rust_agentic_foundations::test_crate::repo_gates::citation_accepts_matching_versions` | test | [Contract](#contract) |

@@ -12,6 +12,10 @@ use raf_workplan::root::{RootError, discover};
 struct Scratch(purrdf_testkit::TempDir);
 
 impl Scratch {
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     fn new() -> Self {
         let parent = fs::canonicalize(std::env::temp_dir()).expect("a canonical temporary parent");
         Self(purrdf_testkit::TempDir::new_in(parent).expect("a scratch directory"))
@@ -21,6 +25,10 @@ impl Scratch {
         self.0.path()
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     fn put(&self, path: &str, text: &str) {
         let target = self.path().join(path);
         fs::create_dir_all(target.parent().expect("a file has a directory"))
@@ -66,11 +74,19 @@ fn discovered(dir: &Path) -> Result<PathBuf, RootError> {
     discover(dir)
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn same_path(left: &Path, right: &Path) -> bool {
     fs::canonicalize(left).expect("left exists") == fs::canonicalize(right).expect("right exists")
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_root_is_found_from_the_root_a_member_and_a_subdirectory() {
     let single_scratch = Scratch::new();
     single(&single_scratch);
@@ -108,6 +124,10 @@ fn the_root_is_found_from_the_root_a_member_and_a_subdirectory() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_directory_outside_any_workspace_is_an_actionable_error() {
     let scratch = Scratch::new();
     scratch.put("note.txt", "no manifest here");
@@ -126,6 +146,10 @@ fn a_nonexistent_directory_is_refused() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn memory_tree_membership_discovery_needs_no_disk_adapter() {
     let tree = raf_source::MemoryTree::from([
         ("Cargo.toml", "[workspace]\nmembers=['member']"),
@@ -141,6 +165,11 @@ fn memory_tree_membership_discovery_needs_no_disk_adapter() {
 
 #[cfg(unix)]
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_dangling_manifest_is_a_finding_instead_of_an_ancestor_fallback() {
     let scratch = Scratch::new();
     single(&scratch);
@@ -159,6 +188,10 @@ fn a_dangling_manifest_is_a_finding_instead_of_an_ancestor_fallback() {
 
 #[cfg(unix)]
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn tree_directory_aliases_fail_instead_of_selecting_lexical_ancestors() {
     let scratch = Scratch::new();
     virtual_workspace(&scratch);

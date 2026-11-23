@@ -40,6 +40,13 @@ pub(super) fn listing(id: TargetId) {
     });
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn listed<T>(source: &Workspace, packages: &[&str], run: impl FnOnce() -> T) -> T {
     struct Clear;
     impl Drop for Clear {
@@ -73,6 +80,13 @@ fn listed<T>(source: &Workspace, packages: &[&str], run: impl FnOnce() -> T) -> 
     value
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn phase_source(refused: bool) -> Workspace {
     let mut files = Vec::new();
     for package in ["scoped", "excluded", "bound", "overlap", "untouched"] {
@@ -260,6 +274,13 @@ fn documents(package: &str, code: &[String], exclusions: &[String]) -> MemoryTre
 /// `TEST_MODULES * TESTS_PER_MODULE` tests, half the modules bound by a
 /// capability and `exclusions` of the tests excluded by name, one exclusion
 /// each, with every kind of work held to `ceiling`; and the work counted.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn judged(modules: usize, exclusions: usize, ceiling: usize) -> Judged {
     let mut lib = String::new();
     for m in 0..modules {
@@ -445,6 +466,14 @@ fn every_kind_of_work_is_held_to_a_ceiling_linear_in_the_entries_and_the_exclusi
 /// no such exclusion as matching nothing; the first in the record gives the
 /// reason, and an exclusion that matches nothing is the one finding of its kind.
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        clippy::panic,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn an_exclusion_that_another_matches_first_is_marked_and_only_one_that_matches_nothing_is_reported()
 {
     let source = Workspace::load(
@@ -530,6 +559,13 @@ fn oracle(exclusions: &[Exclusion], matched: &mut [bool], paths: &[&str]) -> Opt
 }
 
 /// The position in `exclusions` of the exclusion the index gives.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn position_of(exclusions: &[Exclusion], found: Option<&Exclusion>) -> Option<usize> {
     found.map(|found| {
         exclusions

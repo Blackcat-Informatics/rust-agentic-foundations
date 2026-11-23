@@ -33,56 +33,52 @@ fn selects(selector: &str, alias: &str, package: &str) -> bool {
 fn roots<'a>(
     workspace: &Workspace,
     code: &'a CodeResolver<'a>,
-    row: &LedgerJob,
+    job: &str,
+    provider: &str,
     owner: ItemId,
     limits: &mut MatchLimits,
 ) -> Result<WorkList<ExternLibrary<'a>, 8>, Error> {
-    let provider = row.preferred_provider.as_ref().expect("provider job");
     let item = workspace
         .item(owner)
-        .ok_or_else(|| failure(&row.job.id, "missing consumer"))?;
+        .ok_or_else(|| failure(job, "missing consumer"))?;
     let byte = item
         .body
         .as_ref()
-        .ok_or_else(|| failure(&row.job.id, "consumer has no body"))?
+        .ok_or_else(|| failure(job, "consumer has no body"))?
         .start_byte
         + 1;
     let libraries = code
         .extern_libraries_at(owner, byte)
-        .map_err(|error| path_error(workspace, owner, &row.job.id, &provider.package, error))?;
+        .map_err(|error| path_error(workspace, owner, job, provider, error))?;
     let mut roots = WorkList::new();
     for library in libraries {
         let package = workspace
             .package(library.package())
-            .ok_or_else(|| failure(&row.job.id, "admitted library has no package"))?;
+            .ok_or_else(|| failure(job, "admitted library has no package"))?;
         charge(
-            &row.job.id,
+            job,
             limits,
-            (provider.package.len() + library.rust_name().len() + package.name.len()) as u64 + 1,
+            (provider.len() + library.rust_name().len() + package.name.len()) as u64 + 1,
         )?;
-        if !selects(&provider.package, library.rust_name(), &package.name) {
+        if !selects(provider, library.rust_name(), &package.name) {
             continue;
         }
-        configured(workspace, library.root(), &row.job.id)?;
+        configured(workspace, library.root(), job)?;
         if roots.len() >= limits.states {
-            return Err(failure(
-                &row.job.id,
-                "provider library-state limit exhausted",
-            ));
+            return Err(failure(job, "provider library-state limit exhausted"));
         }
         roots
             .try_push(library)
             .map_err(|source| Error::PatternStorage {
-                pattern: format!("provider:{}", row.job.id),
+                pattern: format!("provider:{job}"),
                 source,
             })?;
     }
     if roots.is_empty() {
         return Err(failure(
-            &row.job.id,
+            job,
             &format!(
-                "provider {:?} has no admitted dependency route from this consumer; supply its exact locked library source",
-                provider.package
+                "provider {provider:?} has no admitted dependency route from this consumer; supply its exact locked library source"
             ),
         ));
     }
@@ -96,8 +92,18 @@ pub(super) fn allowed<'a>(
     owner: ItemId,
     limits: &mut MatchLimits,
 ) -> Result<Allowed<'a>, Error> {
-    let roots = roots(workspace, code, row, owner, limits)?;
-    let provider = row.preferred_provider.as_ref().expect("provider job");
+    let provider = row
+        .preferred_provider
+        .as_ref()
+        .ok_or_else(|| failure(&row.job.id, "job has no preferred provider"))?;
+    let roots = roots(
+        workspace,
+        code,
+        &row.job.id,
+        &provider.package,
+        owner,
+        limits,
+    )?;
     let mut allowed = Allowed::default();
     for api in &provider.entry_points {
         charge(&row.job.id, limits, api.len() as u64 + 1)?;

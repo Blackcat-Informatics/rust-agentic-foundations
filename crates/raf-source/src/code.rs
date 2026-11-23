@@ -141,10 +141,30 @@ pub struct CodeResolver<'a> {
     usage: Usage,
 }
 
+impl fmt::Debug for CodeResolver<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CodeResolver")
+            .field("home_count", &self.homes.len())
+            .field("usage", &self.usage)
+            .finish_non_exhaustive()
+    }
+}
+
 /// One import in the module index, with its exact target and reading context.
 pub struct IndexedImport<'query, 'workspace> {
     code: &'query CodeResolver<'workspace>,
     position: usize,
+}
+
+impl fmt::Debug for IndexedImport<'_, '_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let (target, path, line) = self.site();
+        f.debug_struct("IndexedImport")
+            .field("target", &target)
+            .field("file", &path)
+            .field("line", &line)
+            .finish_non_exhaustive()
+    }
 }
 
 impl IndexedImport<'_, '_> {

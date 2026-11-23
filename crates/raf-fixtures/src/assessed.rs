@@ -55,6 +55,10 @@ pub fn assess_on_disk(root: &Path, change: &str) -> Vec<String> {
 }
 
 /// As [`assess_on_disk`], with the verdict `verdict` by `by`.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 pub fn assess_on_disk_as(
     root: &Path,
     change: &str,

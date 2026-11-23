@@ -24,6 +24,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )]
     fn work_limit_refuses_zero_and_names_the_flag() {
         let refused = parse_work("0").unwrap_err();
         assert!(refused.contains("--max-work"), "{refused}");
@@ -51,6 +55,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     fn version_components_and_prerelease_precedence_keep_their_width_and_order() {
         let version = |text| Version::parse(text).expect("a version");
         let ordered = [
@@ -86,6 +94,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     fn count_callers_preserve_padding_width_suffixes_and_misplaced_totals() {
         let padded = format!("+{}42", "0".repeat(256));
         assert_eq!(parse_work(&padded), Ok(42));
@@ -109,6 +121,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )]
     fn the_child_is_given_the_limit_it_was_asked_for() {
         for limit in [1, 42, Budget::Work.limit() - 1] {
             let args: Vec<String> = child_args(Path::new("/r/a-1.0.0"), limit)
@@ -159,6 +175,10 @@ mod tests {
 
     /// A crate directory holding a hub of `n` globs, in a scratch directory
     /// owned by the native fixture library.
+    #[expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )]
     fn hub_crate(n: usize) -> purrdf_testkit::TempDir {
         let owned =
             purrdf_testkit::TempDir::new_in(std::env::temp_dir()).expect("a scratch directory");

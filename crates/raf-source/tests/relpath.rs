@@ -5,11 +5,19 @@
 
 use raf_source::{PathError, RelPath};
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn text(input: &str) -> String {
     RelPath::new(input).expect("accepted").as_str().to_owned()
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn dot_and_empty_segments_are_dropped() {
     for (input, normalized) in [("a/./b", "a/b"), ("./a", "a"), ("a//b/", "a/b"), ("", "")] {
         assert_eq!(text(input), normalized);
@@ -22,6 +30,10 @@ fn dot_and_empty_segments_are_dropped() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_parent_segment_below_the_root_is_kept_for_the_disk_to_resolve() {
     assert_eq!(text("a/../b"), "a/../b");
     assert_eq!(text("a/b/../.."), "a/b/../..");
@@ -52,6 +64,10 @@ fn a_parent_segment_above_the_root_is_refused_beside_the_one_that_stays_inside()
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn an_absolute_input_is_refused_beside_its_relative_form() {
     let refused = RelPath::new("/a").expect_err("absolute");
     assert!(matches!(refused, PathError::Absolute { .. }));
@@ -84,6 +100,10 @@ fn backslash_nul_and_drive_letter_inputs_are_refused_beside_plain_names() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn join_extends_a_path_and_checks_the_climb_against_the_whole() {
     let base = RelPath::new("a/b").expect("path");
     assert_eq!(base.join("c/./d").expect("joined").as_str(), "a/b/c/d");
@@ -100,6 +120,10 @@ fn join_extends_a_path_and_checks_the_climb_against_the_whole() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn parent_and_file_name_are_lexical() {
     let path = RelPath::new("a/b/c.rs").expect("path");
     assert_eq!(path.file_name(), Some("c.rs"));
@@ -122,6 +146,10 @@ fn parent_and_file_name_are_lexical() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn display_names_the_root_as_a_dot() {
     assert_eq!(RelPath::root().to_string(), ".");
     assert_eq!(RelPath::new("a/b").expect("path").to_string(), "a/b");

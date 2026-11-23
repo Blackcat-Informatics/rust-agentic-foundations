@@ -369,6 +369,13 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn each_variant_renders_its_facts() {
         let source = Error::Source {
             file: "src/a.rs".into(),

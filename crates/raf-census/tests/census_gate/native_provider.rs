@@ -34,6 +34,10 @@ fn context(name: &str) -> DeclaredConfiguration<'_> {
     )
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn ledger() -> String {
     let mut graph = provider_policy("purrdf-hash", "purrdf_hash::blake3::Hasher::new");
     for (subject, predicate, old) in [
@@ -71,6 +75,11 @@ fn ledger() -> String {
     graph.finish().unwrap().to_text(Format::Turtle).unwrap()
 }
 
+#[expect(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 pub(super) fn actual_registry_hasher() {
     // BLAKE3's official unkeyed vector for input bytes 0, 1, 2. The expected
     // bytes are fixed independently of every implementation exercised here.
@@ -110,8 +119,7 @@ pub(super) fn actual_registry_hasher() {
     let mut altered = archive.clone();
     altered[0] ^= 1;
     let invalid = RegistryArchiveTree::from_bytes(&catalog, native.id(), &altered, &options)
-        .err()
-        .expect("changed archive bytes must fail authentication");
+        .expect_err("changed archive bytes must fail authentication");
     assert!(invalid.to_string().contains("checksum"), "{invalid}");
     let manifest = "[package]\nname='demo'\nversion='1.0.0'\nedition='2024'\n[dependencies]\npurrdf-hash={version='=5'}\n";
     let ledger = ledger();
@@ -161,22 +169,18 @@ pub(super) fn actual_registry_hasher() {
     assert!(missing.to_string().contains("source"), "{missing}");
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn registry_archive(name: &str, version: &str) -> Vec<u8> {
     // Cache names only locate candidate bytes. The production constructor
     // authenticates their identity against the actual selected lock checksum.
-    let home = std::env::var_os("CARGO_HOME").map_or_else(
-        || {
-            std::path::PathBuf::from(
-                std::env::var_os("HOME").expect("native fixture needs a Cargo cache locator"),
-            )
-            .join(".cargo")
-        },
-        std::path::PathBuf::from,
-    );
-    let cache = home.join("registry/cache");
+    let cache = std::env::var_os("RAF_GATE_REGISTRY_CACHE")
+        .expect("set RAF_GATE_REGISTRY_CACHE to the directory printed by `make registry-archives`");
     let mut indexes: Vec<_> = std::fs::read_dir(&cache)
-        .expect("compiled registry packages require their Cargo archive cache")
-        .map(|entry| entry.expect("read Cargo cache index").path())
+        .expect("prepare the archive inputs with `make registry-archives`")
+        .map(|entry| entry.expect("read the build-owned archive index").path())
         .collect();
     indexes.sort();
     let archive = format!("{name}-{version}.crate");
@@ -184,6 +188,6 @@ fn registry_archive(name: &str, version: &str) -> Vec<u8> {
         .into_iter()
         .map(|index| index.join(&archive))
         .find(|path| path.is_file())
-        .expect("compiled registry package needs its original archive; restore the Cargo cache");
+        .expect("missing the locked archive; run `make registry-archives`");
     std::fs::read(path).expect("read the actual registry package archive")
 }

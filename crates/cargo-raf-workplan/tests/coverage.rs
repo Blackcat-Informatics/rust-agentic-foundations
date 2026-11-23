@@ -208,6 +208,10 @@ fn a_surface_that_cannot_be_listed_is_a_finding_of_the_code_report_only() {
 }
 
 /// The root of this repository.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn repository() -> String {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../..")

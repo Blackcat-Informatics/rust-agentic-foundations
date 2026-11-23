@@ -15,7 +15,7 @@ use super::{E, Error, LedgerJob};
 /// Keys are normalized local fragment ids, exactly as [`Value::iri`] presents
 /// owned references. The validator must check its own field meanings and schema;
 /// ownership validation does not attest their content or authorize a sanction.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct LedgerExtensionGraph<'a> {
     graph: &'a Graph,
     root: &'a str,
@@ -46,8 +46,14 @@ impl<'a> LedgerExtensionGraph<'a> {
     /// # Panics
     /// If the ledger's validated root-membership invariant is broken.
     #[must_use]
+    #[expect(
+        clippy::expect_used,
+        reason = "ledger admission resolves the private extension root in this immutable graph"
+    )]
     pub fn root(self) -> Node<'a> {
-        self.graph.get(self.root).expect("validated extension root")
+        self.graph
+            .get(self.root)
+            .expect("INVARIANT: validated extension root")
     }
 
     /// An owned subject, or `None` for a foreign, core or absolute id.
@@ -55,21 +61,33 @@ impl<'a> LedgerExtensionGraph<'a> {
     /// # Panics
     /// If the ledger's validated subject-membership invariant is broken.
     #[must_use]
+    #[expect(
+        clippy::expect_used,
+        reason = "ledger admission resolves each selected member in this immutable graph"
+    )]
     pub fn get(self, id: &str) -> Option<Node<'a>> {
-        self.members
-            .contains(id)
-            .then(|| self.graph.get(id).expect("validated extension member"))
+        self.members.contains(id).then(|| {
+            self.graph
+                .get(id)
+                .expect("INVARIANT: validated extension member")
+        })
     }
 
     /// Every owned subject in lexical local-id order, including the root.
     ///
     /// # Panics
     /// If the ledger's validated subject-membership invariant is broken.
+    #[expect(
+        clippy::expect_used,
+        reason = "ledger admission resolves every owned member in this immutable graph"
+    )]
     pub fn nodes(self) -> impl Iterator<Item = (&'a str, Node<'a>)> + use<'a> {
         self.members.iter().map(move |id| {
             (
                 id.as_str(),
-                self.graph.get(id).expect("validated extension member"),
+                self.graph
+                    .get(id)
+                    .expect("INVARIANT: validated extension member"),
             )
         })
     }

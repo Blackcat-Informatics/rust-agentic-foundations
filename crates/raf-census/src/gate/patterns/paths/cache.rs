@@ -104,18 +104,21 @@ impl<'w> OwnerCache<'w> {
                 let owners = self.read(workspace, file, byte, limits)?;
                 self.latest = Some((byte, owners));
             }
-            return Ok(&self
+            return self
                 .latest
                 .as_ref()
-                .expect("INVARIANT: the current owner lookup stores an entry before returning")
-                .1);
+                .map(|(_, owners)| owners.as_slice())
+                .ok_or_else(|| failure("paths", "the current owner lookup has no cached entry"));
         }
         charge("paths", limits, height_bound(self.entries.len()))?;
         if self.entries.get(&byte).is_none() {
             self.load(workspace, file, byte, limits)?;
         }
         charge("paths", limits, height_bound(self.entries.len()))?;
-        Ok(self.entries.get(&byte).expect("cached owner key"))
+        self.entries
+            .get(&byte)
+            .map(Vec::as_slice)
+            .ok_or_else(|| failure("paths", "the owner lookup has no cached entry"))
     }
 
     fn load(
@@ -196,7 +199,7 @@ impl<'w> OwnerCache<'w> {
         let spans = self
             .spans
             .as_deref()
-            .expect("INVARIANT: an owner lookup installs the file span index first");
+            .ok_or_else(|| failure("paths", "the owner lookup has no file span index"))?;
         let mut rank = (usize::MAX, true);
         let mut count = 0;
         OwnerSpan::visit_at(spans, byte, limits, &mut |span| {
@@ -288,6 +291,13 @@ mod tests {
     use super::{IndexAdmission, MatchLimits, Memory, StorageError};
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn native_storage_failures_keep_their_typed_cause() {
         let mut resident = purrdf_lex::allocation::Resident;
         let mut memory = Memory::new(&mut resident);
@@ -308,6 +318,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn index_growth_retains_the_original_grant_and_old_storage_on_refusal() {
         let mut limits = MatchLimits {
             steps: 10_000,

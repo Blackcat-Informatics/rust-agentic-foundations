@@ -11,14 +11,14 @@ use purrdf_lex::{
 };
 
 /// A borrowed asserted subject of originally admitted immutable storage.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct AdmittedNode<'a> {
     view: GraphView<'a>,
     id: TermId,
 }
 
 /// A borrowed term of originally admitted immutable storage.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct AdmittedValue<'a> {
     view: GraphView<'a>,
     id: TermId,

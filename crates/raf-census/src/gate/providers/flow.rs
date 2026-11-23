@@ -235,11 +235,15 @@ impl Proof<'_> {
         }
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "the proof is created only for an admitted consumer and a job with a preferred provider"
+    )]
     fn refused(&self, reason: &str) -> Error {
         let owner = self
             .workspace
             .item(self.expected.owner)
-            .expect("checked owner");
+            .expect("INVARIANT: checked owner");
         Error::Source {
             file: owner.file.to_string(),
             line: owner.name_line,
@@ -250,7 +254,7 @@ impl Proof<'_> {
                     .row
                     .preferred_provider
                     .as_ref()
-                    .expect("provider")
+                    .expect("INVARIANT: preferred provider job")
                     .package
             ),
         }
@@ -450,6 +454,10 @@ impl Proof<'_> {
         Ok(())
     }
 
+    #[expect(
+        clippy::expect_used,
+        reason = "the mutable provider targets are admitted from existing bindings and this call mutates only their provenance"
+    )]
     fn call(&mut self, call: &syn::ExprCall) -> Result<(Value, bool), Error> {
         self.callee(call)?;
         let mut targets = OrderedTable::default();
@@ -490,7 +498,7 @@ impl Proof<'_> {
                 let Value::Provider(provenance) = &self
                     .bindings
                     .get(target)
-                    .expect("checked native binding")
+                    .expect("INVARIANT: checked native binding")
                     .value
                 else {
                     unreachable!("checked native state")
@@ -513,7 +521,7 @@ impl Proof<'_> {
                 let binding = self
                     .bindings
                     .get_mut(target)
-                    .expect("checked native binding");
+                    .expect("INVARIANT: checked native binding");
                 let Value::Provider(provenance) = &mut binding.value else {
                     unreachable!("checked native state")
                 };

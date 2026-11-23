@@ -13,6 +13,10 @@ pub(crate) const OTHER_DIGEST: &str =
     "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
 
 /// The digest of the symbol `path` of `source` as a record keeps it.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 pub(crate) fn digest_of(source: &Workspace, path: &str) -> String {
     Digest::symbol(source, path)
         .unwrap_or_else(|error| panic!("{path} has a digest: {error}"))

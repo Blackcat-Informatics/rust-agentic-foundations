@@ -13,6 +13,13 @@ use std::path::Path;
 struct Scratch(purrdf_testkit::TempDir);
 
 impl Scratch {
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn new() -> Self {
         let binary = std::env::current_exe().expect("the test binary");
         let target = binary.parent().expect("the test target directory");
@@ -20,6 +27,14 @@ impl Scratch {
     }
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn staged(root: &Path, guarded: bool) -> (Vec<Staged>, Rollback) {
     fs::create_dir(root).expect("create target directory");
     let authority = Root::open(root).expect("open native publication root");
@@ -55,6 +70,14 @@ fn staged(root: &Path, guarded: bool) -> (Vec<Staged>, Rollback) {
     (files, rollback)
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn staged_original(root: &Path) -> std::path::PathBuf {
     fs::read_dir(root)
         .unwrap()
@@ -70,6 +93,14 @@ fn staged_original(root: &Path) -> std::path::PathBuf {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn a_late_rename_failure_preserves_published_files_and_discards_the_tail() {
     let scratch = Scratch::new();
     for (case, guarded, expected) in [
@@ -172,6 +203,14 @@ fn a_late_rename_failure_preserves_published_files_and_discards_the_tail() {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn rollback_retains_the_original_when_its_destination_changes() {
     let scratch = Scratch::new();
     for (name, replaced) in [("owned-original", false), ("foreign-original", true)] {

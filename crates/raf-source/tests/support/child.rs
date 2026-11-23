@@ -79,6 +79,15 @@ pub(crate) fn run_child_if_requested(text_of: impl FnOnce(&str) -> String) {
 }
 
 /// Judge the same isolated load before publishing its existing outcome line.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
+#[expect(
+    clippy::exit,
+    clippy::print_stdout,
+    reason = "the executable reports its results through its output and status"
+)]
 pub(crate) fn run_child_if_requested_with(
     text_of: impl FnOnce(&str) -> String,
     compare: impl FnOnce(&MemoryTree, &Result<Workspace, LoadError>),
@@ -110,6 +119,10 @@ pub(crate) fn run_child_if_requested_with(
 }
 
 /// Run the test named `test` of this binary as a child on `selector`.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 pub(crate) fn run_child(test: &str, selector: &str) -> Outcome {
     let executable: PathBuf = env::current_exe().expect("the test binary has a path");
     let output = Command::new(executable)
@@ -202,6 +215,10 @@ pub(crate) fn classify(code: Option<i32>, signaled: bool, stdout: &str, stderr: 
     }
 }
 
+#[expect(
+    clippy::string_slice,
+    reason = "the test requires a valid UTF-8 span from the fixture or checked operation"
+)]
 fn tail(text: &str) -> String {
     const KEEP: usize = 4000;
     let start = text.char_indices().rev().nth(KEEP).map_or(0, |(at, _)| at);

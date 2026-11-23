@@ -14,6 +14,13 @@ fn reach_item_budget_error(limit: usize) -> String {
     )
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn golden_at_item_budget(golden: &Graph, limit: usize) -> Graph {
     let message = |limit| Triple {
         subject: local("#result/0/error/0"),
@@ -41,6 +48,14 @@ fn sorted_triples(text: &str) -> String {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn actual_reach_budget_refusal_projects_a_lines_error_without_partial_rows() {
     let tree = MemoryTree::from([
         ("Cargo.toml", "[package]\nname='demo'\nversion='0.1.0'\n"),

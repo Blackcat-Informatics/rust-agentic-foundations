@@ -9,6 +9,10 @@ use std::path::{Path, PathBuf};
 
 use raf_okf::{Body, DocType, Document, Location, Profile, RafDocument, Rule};
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn capability_document() -> String {
     let root = std::env::var_os("RAF_GATE_ROOT").map_or_else(
         || Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."),
@@ -18,6 +22,10 @@ fn capability_document() -> String {
 }
 
 /// The code of the first fenced block with this info string under `heading`.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn block_under(text: &str, heading: &str, info: &str) -> String {
     let body = Body::parse(text).expect("the document parses");
     let section = body
@@ -35,7 +43,11 @@ fn block_under(text: &str, heading: &str, info: &str) -> String {
                 && block.span().bytes.end <= content.bytes.end
         })
         .expect("the block");
-    let lines: Vec<&str> = text[fenced.span().bytes.clone()].lines().collect();
+    let lines: Vec<&str> = text
+        .get(fenced.span().bytes.clone())
+        .expect("fenced block has a valid byte span")
+        .lines()
+        .collect();
     let inner = &lines[1..lines.len() - 1];
     let mut code = inner.join("\n");
     code.push('\n');
@@ -43,6 +55,14 @@ fn block_under(text: &str, heading: &str, info: &str) -> String {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn the_examples_block_validates_between_fences_and_resource_is_rejected() {
     let text = capability_document();
     let yaml = block_under(&text, "Examples", "yaml");

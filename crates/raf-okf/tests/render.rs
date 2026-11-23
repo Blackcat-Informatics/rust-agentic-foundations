@@ -14,14 +14,26 @@ use raf_okf::{
     ListItem, MAX_TEXT_BYTES, MAX_YAML_DEPTH, Map, Profile, Scalar, ScalarStyle, Value,
 };
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn parse(text: &str) -> Document {
     Document::parse(text).unwrap_or_else(|error| panic!("{error} in {text:?}"))
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn scalar(text: &str) -> Scalar {
     Scalar::new(text).unwrap_or_else(|error| panic!("{text:?}: {error}"))
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn entry(key: &str, value: Value) -> Entry {
     Entry::new(key, value).unwrap_or_else(|error| panic!("{key}: {error}"))
 }
@@ -41,6 +53,10 @@ fn gate_root() -> PathBuf {
 
 /// The tracked Markdown documents under the document directories of every
 /// type.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn tracked_documents() -> Vec<String> {
     let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let output = Command::new("git")
@@ -73,6 +89,10 @@ fn tracked_documents() -> Vec<String> {
 
 /// The tracked documents of one directory, counted with a listing of that
 /// directory alone: the Markdown files other than the capability index.
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn tracked_in_directory(directory: &str) -> usize {
     let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let output = Command::new("git")
@@ -94,6 +114,18 @@ fn tracked_in_directory(directory: &str) -> usize {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn every_tracked_document_renders_to_its_own_bytes() {
     let paths = tracked_documents();
     let root = gate_root();
@@ -193,6 +225,14 @@ const FIXTURES: [(&str, DocType, &str, &str); DocType::ALL.len()] = [
 ];
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn each_fixture_document_renders_to_its_own_bytes_and_validates() {
     for (name, doc_type, path, text) in FIXTURES {
         let document = parse(text);
@@ -250,6 +290,10 @@ fn each_fixture_document_renders_to_its_own_bytes_and_validates() {
     dataset_refusals();
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn shape_refusal(rows: &[purrdf_core::RdfQuad], path: &str, expected: &str) {
     let error = Document::from_dataset(&dataset_rows(rows), path).unwrap_err();
     assert!(
@@ -261,6 +305,10 @@ fn shape_refusal(rows: &[purrdf_core::RdfQuad], path: &str, expected: &str) {
 #[expect(
     clippy::too_many_lines,
     reason = "The closed carrier refusal table shares one independently validated model and valid neighbor."
+)]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
 )]
 fn dataset_refusals() {
     use purrdf_core::{RdfLiteral, RdfQuad, RdfTerm};
@@ -359,7 +407,7 @@ fn dataset_refusals() {
         ),
         (
             RdfQuad::new(
-                root.clone(),
+                root,
                 format!("{NS}body"),
                 RdfTerm::Literal(RdfLiteral::simple("other")),
             )
@@ -458,6 +506,10 @@ fn dataset_refusals() {
     profiled_carrier_refusals(document);
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn profiled_carrier_refusals(document: Document) {
     let wrong_path = "docs/architecture/other.md";
     let expected = Profile.validate(&document, wrong_path).unwrap_err();
@@ -480,6 +532,10 @@ fn profiled_carrier_refusals(document: Document) {
     ));
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn dataset_layer_refusal(rows: &[purrdf_core::RdfQuad], path: &str) {
     use purrdf_core::RdfDatasetBuilder;
     let mut builder = RdfDatasetBuilder::new();
@@ -496,6 +552,10 @@ fn dataset_layer_refusal(rows: &[purrdf_core::RdfQuad], path: &str) {
     );
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn dataset_budget_refusals() {
     use purrdf_core::RdfDatasetBuilder;
     for (count, subjects, expected) in [
@@ -529,6 +589,14 @@ fn dataset_budget_refusals() {
     }
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn dataset_round_trip(document: &Document, path: &str) {
     use purrdf_rdf::{
         NativeRdfFormat, ParseOptions, SerializeGraph, SerializeOptions, StatementLayer,
@@ -631,7 +699,7 @@ fn the_body_span_locates_the_body_in_the_text() {
     let text = "---\ntype: Architecture\n# c\nid: arch:x\n---\nfirst\nsecond\n";
     let document = parse(text);
     let span = document.body().span();
-    assert_eq!(&text[span.bytes.clone()], document.body().text());
+    assert_eq!(text.get(span.bytes.clone()), Some(document.body().text()));
     assert_eq!(document.body().text(), "first\nsecond\n");
     assert_eq!(span.lines, 6..8);
     let empty = parse("---\na: b\n---\n");
@@ -688,6 +756,10 @@ body
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn record_keys_out_of_order_render_in_table_order_and_validate() {
     let shuffled = "---\nlimits:\n  peak_mib: 64\nby: agent\nfor: [cap:x]\nverdict: pass\n\
         values:\n  peak_mib: 41\ninputs:\n  - kind: symbol\n    name: x::y\n    \
@@ -758,6 +830,14 @@ fn a_document_of_an_unknown_type_keeps_input_order() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn comments_attach_to_the_next_key_and_trailing_comments_stay_on_their_line() {
     let text = "---
 # first header
@@ -887,6 +967,14 @@ fn equality_compares_keys_as_a_map_with_comments_and_body_bytes() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn a_change_document_built_from_constructors_renders_and_reads_back_equal() {
     let claim = |text: &str, outcome: Option<&str>| {
         let mut entries = vec![text_entry("claim", text)];
@@ -968,6 +1056,10 @@ Built.
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_built_document_with_sorted_tags_equals_what_it_reads_back_as() {
     let tags = List::flow(vec![scalar("alpha"), scalar("zed")]).expect("flow");
     let map = Map::new(vec![
@@ -980,6 +1072,10 @@ fn a_built_document_with_sorted_tags_equals_what_it_reads_back_as() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn constructors_choose_a_style_the_reader_reads_back() {
     for (text, style) in [
         ("word", ScalarStyle::Plain),
@@ -1031,6 +1127,10 @@ fn constructors_choose_a_style_the_reader_reads_back() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn every_escape_round_trips_and_other_control_characters_are_refused() {
     for (name, value) in ESCAPES {
         let text = format!("a{value}b");
@@ -1069,6 +1169,10 @@ fn every_escape_round_trips_and_other_control_characters_are_refused() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn constructors_refuse_what_the_reader_would_not_read_back() {
     assert_eq!(Map::new(vec![]).map(|_| ()), Err(ConstructError::EmptyMap));
     for key in ["", "a b", "a:b", "é", "<<"] {
@@ -1124,7 +1228,7 @@ fn constructors_refuse_what_the_reader_would_not_read_back() {
         .expect("scalar")
         .clone();
     assert_eq!(
-        List::flow(vec![plain.clone()]).map(|_| ()),
+        List::flow(vec![plain]).map(|_| ()),
         Err(ConstructError::NotFlowSafe {
             text: "a, b".to_string()
         })
@@ -1160,6 +1264,10 @@ fn a_parsed_empty_value_renders_as_an_empty_value() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn constructed_nesting_and_size_are_bounded_like_the_reader() {
     let mut value = Value::Map(Map::new(vec![text_entry("leaf", "v")]).expect("map"));
     for level in 1..MAX_YAML_DEPTH - 1 {
@@ -1195,6 +1303,10 @@ fn constructed_nesting_and_size_are_bounded_like_the_reader() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn unsorted_tags_render_sorted_and_the_document_equals_its_rendering_read_back() {
     use purrdf_core::{RdfLiteral, RdfTerm};
 
@@ -1253,12 +1365,16 @@ fn unsorted_tags_render_sorted_and_the_document_equals_its_rendering_read_back()
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_body_span_uses_the_coordinates_of_the_text_the_document_came_from() {
     // Parsed: coordinates of the source text, even when render reorders keys.
     let source = "---\nid: arch:x\ntype: Architecture\n---\nbody\n";
     let parsed = parse(source);
     let span = parsed.body().span();
-    assert_eq!(&source[span.bytes.clone()], "body\n");
+    assert_eq!(source.get(span.bytes.clone()), Some("body\n"));
     assert_eq!(span.lines, 5..6);
 
     // Built: coordinates of the rendered text.
@@ -1270,7 +1386,7 @@ fn the_body_span_uses_the_coordinates_of_the_text_the_document_came_from() {
     let built = Document::new(Frontmatter::new(map), "first\nsecond").expect("document");
     let rendered = built.render();
     let span = built.body().span();
-    assert_eq!(&rendered[span.bytes.clone()], "first\nsecond");
+    assert_eq!(rendered.get(span.bytes.clone()), Some("first\nsecond"));
     assert_eq!(span.lines, 5..7);
     assert_eq!(built.body().text(), "first\nsecond");
 }

@@ -97,6 +97,10 @@ fn forbidden_lines(source: &str) -> Vec<usize> {
     hits
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn rust_sources(directory: &Path, found: &mut Vec<PathBuf>) {
     for entry in fs::read_dir(directory).expect("source directory is readable") {
         let path = entry.expect("directory entry").path();
@@ -109,6 +113,10 @@ fn rust_sources(directory: &Path, found: &mut Vec<PathBuf>) {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_crate_sources_name_neither_the_file_system_nor_the_process_module() {
     let mut files = Vec::new();
     rust_sources(

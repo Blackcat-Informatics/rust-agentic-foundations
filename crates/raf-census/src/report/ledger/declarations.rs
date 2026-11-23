@@ -205,16 +205,16 @@ fn matcher(node: &Node<'_>) -> Result<PatternMatcher, E> {
 }
 
 fn method_on(source: &str) -> Result<PatternMatcher, E> {
-    let invalid = || {
-        E::Value(
-            "methodOn requires an indexed type path and method, such as demo::Type::run".into(),
-        )
-    };
-    let (receiver, written_method) = source.rsplit_once("::").ok_or_else(invalid)?;
+    const METHOD_ON_FORM: &str =
+        "methodOn requires an indexed type path and method, such as demo::Type::run";
+    let (receiver, written_method) = source
+        .rsplit_once("::")
+        .ok_or_else(|| E::Value(METHOD_ON_FORM.into()))?;
+    let invalid_syntax = |cause: syn::Error| E::Value(format!("{METHOD_ON_FORM}: {cause}"));
     let path = syn::Path::parse_mod_style
         .parse_str(receiver)
-        .map_err(|_| invalid())?;
-    let method = syn::parse_str::<syn::Ident>(written_method).map_err(|_| invalid())?;
+        .map_err(invalid_syntax)?;
+    let method = syn::parse_str::<syn::Ident>(written_method).map_err(invalid_syntax)?;
     let segments = receiver.strip_prefix("::").unwrap_or(receiver).split("::");
     if path.segments.len() < 2
         || !segments.eq(path
@@ -223,7 +223,7 @@ fn method_on(source: &str) -> Result<PatternMatcher, E> {
             .map(|segment| segment.ident.to_string()))
         || method != written_method
     {
-        return Err(invalid());
+        return Err(E::Value(METHOD_ON_FORM.into()));
     }
     Ok(PatternMatcher::MethodOn {
         receiver: receiver.to_owned(),

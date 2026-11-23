@@ -28,6 +28,14 @@ fn excessive_jobs(text: &str) -> Result<Vec<String>, String> {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn every_workflow_job_has_an_explicit_execution_budget() {
     assert_eq!(
         excessive_jobs("jobs: {fast: {timeout-minutes: 15}}"),

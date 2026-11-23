@@ -612,6 +612,10 @@ impl<'p> Paths<'_, 'p, '_, '_> {
             .as_deref()
             .is_some_and(|observer| !observer.interested(self.file, signature))
     }
+    #[expect(
+        clippy::expect_used,
+        reason = "this method checks that the observer is installed before entering the body scope"
+    )]
     fn observe_function(
         &mut self,
         signature: &syn::Signature,
@@ -634,7 +638,7 @@ impl<'p> Paths<'_, 'p, '_, '_> {
                 if let Err(error) = this
                     .observer
                     .as_deref_mut()
-                    .expect("function observer")
+                    .expect("INVARIANT: function observer remains installed in the body scope")
                     .observe(
                         this.file,
                         &mut this.scopes,

@@ -11,6 +11,13 @@ const CORE: &str = "let x = input + 1; let y = x * 3; sink(y, x, input, 7);";
 const RENAMED: &str =
     "let renamed = other + 1; let result = renamed * 3; sink(result, renamed, other, 7);";
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn load(source: &str) -> Workspace {
     Workspace::load(
         &MemoryTree::from([
@@ -25,6 +32,13 @@ fn load(source: &str) -> Workspace {
     .unwrap()
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )
+)]
 fn analyze(
     workspace: &Workspace,
     work: usize,
@@ -40,6 +54,14 @@ fn analyze(
     find(source, limits)
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::string_slice,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn text<'a>(matches: &'a Matches<'a>, site: Site) -> &'a str {
     let function = &matches.analysis.functions[site.function];
     let (file, _) = function.origin.source().unwrap();
@@ -56,6 +78,14 @@ fn text<'a>(matches: &'a Matches<'a>, site: Site) -> &'a str {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn an_embedded_helper_survives_unrelated_locals_and_a_conflicting_surrounding_binding_map() {
     let source = format!(
         "#![no_implicit_prelude]\nfn small(input: i32) {{ let conflict = input; emit(conflict, conflict); {CORE} }}\nfn large(other: i32) {{ let noise = other; let conflict = other; emit(conflict, noise); {RENAMED} tail(); }}"
@@ -102,6 +132,13 @@ fn an_embedded_helper_survives_unrelated_locals_and_a_conflicting_surrounding_bi
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn repetition_counts_distinct_disjoint_occurrences_while_short_input_and_boilerplate_stay_empty() {
     let block = format!("{{ {CORE} }}");
     let source =
@@ -203,6 +240,13 @@ fn repetition_counts_distinct_disjoint_occurrences_while_short_input_and_boilerp
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn selected_hash_collisions_remain_candidates_without_coarse_or_binding_proof() {
     for (changed, coarse) in [
         (CORE.replace("+ 1", "- 1"), false),
@@ -271,6 +315,13 @@ fn selected_hash_collisions_remain_candidates_without_coarse_or_binding_proof() 
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn indexing_repetition_and_failed_candidates_share_exact_original_grants_without_partial_results() {
     let workspace = load(&format!(
         "#![no_implicit_prelude]\nfn one(input:i32) {{ {CORE} }} fn two(other:i32) {{ {RENAMED} }}"

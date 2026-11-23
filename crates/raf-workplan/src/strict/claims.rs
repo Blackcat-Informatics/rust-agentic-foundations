@@ -381,12 +381,12 @@ fn rows<'b>(body: &'b Body, section: &Section) -> Vec<Row<'b>> {
 fn without_comments(raw: &str) -> String {
     let mut out = String::with_capacity(raw.len());
     let mut rest = raw;
-    while let Some(open) = rest.find("<!--") {
-        let Some(close) = rest[open + 4..].find("-->") else {
+    while let Some((before, after_open)) = rest.split_once("<!--") {
+        let Some((_, after_close)) = after_open.split_once("-->") else {
             break;
         };
-        out.push_str(&rest[..open]);
-        rest = &rest[open + 4 + close + 3..];
+        out.push_str(before);
+        rest = after_close;
     }
     out.push_str(rest);
     out
@@ -494,8 +494,8 @@ fn contract_words(body: &Body, section: &Section) -> usize {
 /// line is not indented, so a paragraph of a list item is never a clause.
 fn bold_lead(raw: &str) -> Option<&str> {
     let rest = raw.strip_prefix("**")?;
-    let close = rest.find("**")?;
-    let lead = rest[..close].trim();
+    let (lead, _) = rest.split_once("**")?;
+    let lead = lead.trim();
     (!lead.is_empty()).then_some(lead)
 }
 
@@ -627,8 +627,9 @@ fn constraints(rows: &[Row<'_>]) -> Vec<Unit> {
 
 /// Whether a line, without its indentation, is an ATX heading.
 fn is_heading(trimmed: &str) -> bool {
-    let marks = trimmed.bytes().take_while(|b| *b == b'#').count();
-    (1..=6).contains(&marks) && trimmed[marks..].starts_with([' ', '\t'])
+    let after = trimmed.trim_start_matches('#');
+    let marks = trimmed.len() - after.len();
+    (1..=6).contains(&marks) && after.starts_with([' ', '\t'])
 }
 
 /// The unit of the Constraints from row `first` to row `last`, its key the
@@ -751,6 +752,13 @@ mod tests {
     }
 
     /// The section, key, first line and tests of each unit of `text`.
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn read(text: &str) -> Vec<(&'static str, String, usize, Vec<String>)> {
         let body = Body::parse(text).expect("a body");
         units(&body)

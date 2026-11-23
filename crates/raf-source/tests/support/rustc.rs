@@ -65,6 +65,10 @@ fn tool() -> std::ffi::OsString {
 }
 
 /// The version text of the compiler, for the report.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 pub(crate) fn version() -> String {
     let output = Command::new(tool())
         .arg("-vV")
@@ -106,6 +110,10 @@ fn texts(diagnostic: &Value, into: &mut String) {
     }
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 pub(crate) fn diagnostic_level(value: &Value) -> &str {
     value
         .get("level")
@@ -114,6 +122,10 @@ pub(crate) fn diagnostic_level(value: &Value) -> &str {
 }
 
 /// Compile `source` as a library root and return its diagnostics.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 pub(crate) fn compile(source: &str) -> Vec<Diagnostic> {
     let scratch = Scratch::new();
     let file = scratch.file("lib.rs", source);
@@ -384,6 +396,10 @@ fn assertion(at: usize, decl: &Decl) -> String {
 /// The verdicts, naming the item of each accepted probe by a second compile.
 /// `Err` holds the lines of declarations that the compile refuses and the
 /// first one did not report.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn identify(
     program: &Program,
     accepted: &[usize],

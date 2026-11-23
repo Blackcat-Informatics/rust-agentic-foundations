@@ -13,11 +13,19 @@ use support::shapes::{
     bangs, bars, block_condition_else_ifs, else_ifs, generics, lifetime_refs, parens, refs,
 };
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn file() -> RelPath {
     RelPath::new("src/shape.rs").expect("path")
 }
 
 /// The budget a refusal names, after checking it names the file too.
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn refusal(text: &str) -> Option<Budget> {
     match parse_source(&file(), text, |_| ()) {
         Ok(()) => None,
@@ -34,6 +42,11 @@ fn refusal(text: &str) -> Option<Budget> {
     }
 }
 
+#[expect(
+    clippy::panic,
+    clippy::string_slice,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn parses(text: &str) {
     if let Some(budget) = refusal(text) {
         panic!("refused for {budget}: {}", &text[..text.len().min(80)]);
@@ -92,6 +105,10 @@ fn delimiter_nesting_is_refused_at_one_hundred_twenty_nine_beside_one_hundred_tw
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_refusal_names_the_line_where_the_count_went_over() {
     let text = format!("fn g() {{}}\n\n{}", generics(65));
     let error = parse_source(&file(), &text, |_| ()).expect_err("refused");
@@ -213,6 +230,10 @@ fn a_lifetime_between_reference_marks_does_not_end_the_run() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_syntax_error_reports_its_own_line_and_column_beside_a_parsing_neighbour() {
     let at_line_three = "fn ok() {}\n\nfn 1 {}\n";
     let error = parse_source(&file(), at_line_three, |_| ()).expect_err("syntax");
@@ -576,6 +597,10 @@ fn chains_that_overflowed_the_parse_stack_are_refused_by_the_recursion_budget() 
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_eighty_kilobyte_box_pattern_is_refused_by_the_pre_scan_before_the_parser_runs() {
     // The visit runs only on a tree the parser built, so a flag it sets shows
     // whether the parser ran.
@@ -607,6 +632,10 @@ fn the_eighty_kilobyte_box_pattern_is_refused_by_the_pre_scan_before_the_parser_
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_recursion_refusal_names_the_line_where_the_count_went_over() {
     let over = support::shapes::returns(limit() - support::shapes::RETURNS_BASE + 1);
     let text = format!("fn g() {{}}\n\n{over}");

@@ -9,6 +9,10 @@ use raf_source::{ExportError, MemoryTree, Namespace, ResolveError, Workspace};
 use support::program::Program;
 use support::random::Draw;
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn load(source: &str) -> Workspace {
     let tree: MemoryTree = [
         (
@@ -40,6 +44,10 @@ fn returning_private_glob_sources() -> [(&'static str, usize); 2] {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_late_namespace_refuses_the_whole_import_including_its_bound_peer() {
     for (source, at) in returning_private_glob_sources() {
         let program = Program::parse(source).expect("fixture parses");
@@ -71,6 +79,10 @@ fn a_late_namespace_refuses_the_whole_import_including_its_bound_peer() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_private_type_shadow_does_not_poison_its_independent_value_glob() {
     let source = include_str!(
         "../../../fuzz/corpus/rustc-oracle/a_private_type_shadow_does_not_poison_its_independent_value_glob.rs"
@@ -130,6 +142,10 @@ fn a_private_type_shadow_does_not_poison_its_independent_value_glob() {
     }
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn assert_named_reference(ws: &Workspace, expected: bool) {
     let inspect = ws
         .resolve_in("demo::inspect", Namespace::Value)
@@ -151,6 +167,10 @@ fn assert_named_reference(ws: &Workspace, expected: bool) {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_late_bound_peer_cannot_escape_through_named_and_glob_copies_or_exports() {
     let source = returning_private_glob_sources()[0]
         .0
@@ -238,6 +258,10 @@ fn a_late_bound_peer_cannot_escape_through_named_and_glob_copies_or_exports() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_direct_visible_definition_makes_the_neighboring_import_determinate() {
     for (source, at, before, after, ty, value, expected) in [
         (
@@ -295,6 +319,10 @@ fn a_direct_visible_definition_makes_the_neighboring_import_determinate() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_fixed_module_prefix_decides_absence_before_an_unrelated_glob_widens_a_name() {
     let source = "
 pub mod m2 {
@@ -317,7 +345,7 @@ const _: () = assert!(Probe() == 7);
     ] {
         let source = source.replace("PRIVATE_GLOB", private_glob);
         let program = Program::parse(&source).expect("fixture parses");
-        let mut variants = vec![source.clone()];
+        let mut variants = vec![source];
         let mut draw = Draw::seeded(0x0a11_ce07);
         for _ in 0..16 {
             variants.push(program.shuffled(&mut draw).to_text());
@@ -348,6 +376,10 @@ const _: () = assert!(Probe() == 7);
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_named_import_reading_back_through_its_module_is_not_a_settled_expression() {
     let source = include_str!(
         "../../../fuzz/corpus/rustc-oracle/import_cycle_rustc_cannot_determine_through_a_named_import_and_two_globs.rs"
@@ -396,6 +428,10 @@ fn a_named_import_reading_back_through_its_module_is_not_a_settled_expression() 
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn late_visibility_refusals_and_their_neighbors_are_stable_across_declaration_orders() {
     let named = include_str!("../../../fuzz/corpus/rustc-oracle/import_cycle_rustc_cannot_determine_through_a_named_import_and_two_globs.rs")
         .replace("pub use crate::m0::A;", "pub use crate::m0::A;\nuse crate::m2::A as Probe;");

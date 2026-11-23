@@ -176,12 +176,11 @@ impl<'m> Transient<'m> {
         file: &RelPath,
         line: Option<usize>,
     ) -> Result<(), LoadError> {
-        let retained = owner.bytes.get().checked_add(bytes);
-        if !std::ptr::eq(self.meter, owner.meter)
-            || std::ptr::eq(self, owner)
-            || bytes > self.bytes.get()
-            || retained.is_none()
-        {
+        let Some(retained) = owner.bytes.get().checked_add(bytes).filter(|_| {
+            std::ptr::eq(self.meter, owner.meter)
+                && !std::ptr::eq(self, owner)
+                && bytes <= self.bytes.get()
+        }) else {
             return Err(LoadError::new(
                 file,
                 line,
@@ -190,10 +189,8 @@ impl<'m> Transient<'m> {
                         .to_owned(),
                 },
             ));
-        }
-        owner
-            .bytes
-            .set(retained.expect("checked destination grant"));
+        };
+        owner.bytes.set(retained);
         self.bytes.set(self.bytes.get() - bytes);
         Ok(())
     }
@@ -729,12 +726,16 @@ impl Meter {
     }
 
     /// Release `bytes` of glob scope tables charged before and now freed.
+    #[expect(
+        clippy::expect_used,
+        reason = "each owner releases only bytes charged to its live item account"
+    )]
     pub(crate) fn release_globs(&self, bytes: usize) {
         let held = self
             .glob_bytes
             .get()
             .checked_sub(bytes)
-            .expect("only what was charged is released");
+            .expect("INVARIANT: only charged glob bytes are released");
         self.glob_bytes.set(held);
     }
 
@@ -861,6 +862,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::unwrap_used,
+            reason = "a failed fixture operation is a test failure at the point of use"
+        )
+    )]
     fn native_recovery_preserves_nested_provenance_and_restores_its_own_refusal() {
         let account = RelPath::new("account/Cargo.toml").unwrap();
         let nested = RelPath::new("nested/src/lib.rs").unwrap();
@@ -902,6 +910,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn native_storage_preserves_the_item_limit_and_cumulative_charges() {
         let file = RelPath::new("Cargo.toml").expect("path");
         let meter = Meter::new(&LoadOptions {
@@ -928,6 +943,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn native_storage_capacity_failure_has_its_original_error_source() {
         let file = RelPath::new("Cargo.toml").expect("path");
         let meter = Meter::new(&LoadOptions::default());
@@ -957,6 +979,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn work_up_to_the_limit_is_accepted_and_the_charge_that_passes_it_is_refused() {
         let file = RelPath::new("src/lib.rs").expect("path");
         let meter = meter(10);
@@ -981,6 +1010,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn work_is_never_released_and_each_meter_counts_from_zero() {
         let file = RelPath::new("src/lib.rs").expect("path");
         let first = meter(100);
@@ -998,6 +1034,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn transient_reservations_refuse_atomically_and_release_on_every_exit() {
         let file = RelPath::new("src/imports.rs").expect("path");
         for limit in [63, 64] {
@@ -1053,6 +1096,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn retained_payload_moves_its_original_grant_without_readmission() {
         let file = RelPath::new("src/imports.rs").expect("path");
         let options = LoadOptions {
@@ -1087,6 +1137,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn native_emission_spill_preserves_cumulative_item_admission() {
         let file = RelPath::new("src/lib.rs").expect("path");
         let run = |count, limit| {
@@ -1130,6 +1187,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(
+        test,
+        expect(
+            clippy::expect_used,
+            reason = "fixture prerequisites and required observations carry their assertion messages"
+        )
+    )]
     fn native_graph_storage_preserves_overlapping_grants_and_typed_refusals() {
         let file = RelPath::new("src/imports.rs").expect("path");
         let graph = [vec![1], vec![0, 2], vec![]];

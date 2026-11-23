@@ -163,6 +163,15 @@ pub(super) struct Record<'m> {
     entries: Entries<'m>,
 }
 
+impl std::fmt::Debug for Record<'_> {
+    fn fmt(&self, output: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        output
+            .debug_struct("Record")
+            .field("run_usage", &self.entries.meter().usage())
+            .finish_non_exhaustive()
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum Comparison {
     Unchanged,

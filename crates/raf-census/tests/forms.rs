@@ -14,6 +14,10 @@ use raf_census::{
 };
 use support::fixtures::{Expect, Fixture, registry};
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn normalizer(min_tokens: usize) -> Normalizer {
     Normalizer::new(
         &CensusOptions::default()
@@ -22,6 +26,10 @@ fn normalizer(min_tokens: usize) -> Normalizer {
     )
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn tower(fixture: &Fixture) -> Tower {
     Tower::new(&fixture.slice()).unwrap_or_else(|e| panic!("{}: {e}", fixture.id))
 }
@@ -31,6 +39,10 @@ fn texts(tower: &Tower, level: Level) -> Vec<String> {
 }
 
 #[test]
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn every_registered_pair_compares_as_registered() {
     let registry = registry();
     let by_id: BTreeMap<&str, &Fixture> = registry
@@ -132,6 +144,10 @@ fn the_tower_is_monotone_over_every_registry_pair() {
     assert!(equal_pairs > 40, "the property is exercised by equal pairs");
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn print_of(params: &[&str], text: &str, min_tokens: usize) -> raf_census::Print {
     normalizer(min_tokens)
         .print(&Slice::new("f.rs", 1, text).params(params.iter().copied()))
@@ -139,6 +155,10 @@ fn print_of(params: &[&str], text: &str, min_tokens: usize) -> raf_census::Print
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn shim_forms_exist_for_six_to_twenty_nine_tokens() {
     let registry = registry();
     let print = |id: &str| {
@@ -196,6 +216,10 @@ fn the_body_print_needs_min_tokens() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_literal_tier_boundary_is_thirty_value_tokens() {
     let registry = registry();
     let print = |id: &str| {
@@ -213,6 +237,10 @@ fn the_literal_tier_boundary_is_thirty_value_tokens() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_value_form_keeps_binary_operators_and_drops_borrows() {
     let value = |params: &[&str], text: &str| {
         let slice = Slice::new("f.rs", 1, text).params(params.iter().copied());
@@ -255,6 +283,10 @@ fn the_value_adapters_are_the_eleven_of_the_page() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn below_the_tier_the_final_sequence_keeps_literals_and_above_it_abstracts_them() {
     let small = Tower::new(&Slice::new("f.rs", 1, "f(\"a\", 7)")).expect("lexes");
     assert_eq!(
@@ -268,6 +300,10 @@ fn below_the_tier_the_final_sequence_keeps_literals_and_above_it_abstracts_them(
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn parameters_and_locals_are_numbered_together_by_first_appearance() {
     let slice = Slice::new("f.rs", 1, "let t = b + a; t").params(["a", "b"]);
     let tower = Tower::new(&slice).expect("lexes");
@@ -288,6 +324,10 @@ fn parameters_and_locals_are_numbered_together_by_first_appearance() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn self_is_not_a_parameter_and_a_field_named_like_one_is_kept() {
     let slice = Slice::new("f.rs", 1, "self.x + x").params(["self", "x"]);
     let tower = Tower::new(&slice).expect("lexes");
@@ -295,6 +335,11 @@ fn self_is_not_a_parameter_and_a_field_named_like_one_is_kept() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn an_unlexable_slice_is_a_source_error_with_a_valid_neighbour() {
     let refused = Tower::new(&Slice::new("src/a.rs", 10, "f(1);\ng(\"unterminated)"))
         .expect_err("an unterminated string does not lex");
@@ -316,6 +361,10 @@ fn an_unlexable_slice_is_a_source_error_with_a_valid_neighbour() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn nesting_at_the_budget_lexes_and_one_deeper_is_refused() {
     let nest = |depth: usize| purrdf_testkit::text::nested("(", "x", ")", depth);
     assert_eq!(MAX_NESTING, 128);
@@ -326,6 +375,10 @@ fn nesting_at_the_budget_lexes_and_one_deeper_is_refused() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn explain_names_the_levels_and_the_first_differing_token_with_its_line() {
     let n = normalizer(1);
     let same = n
@@ -373,7 +426,7 @@ fn explain_names_the_levels_and_the_first_differing_token_with_its_line() {
     let (a, b) = (first.a.expect("a token"), first.b.expect("a token"));
     assert_eq!((a.text.as_str(), a.line), ("2", 41));
     assert_eq!((b.text.as_str(), b.line), ("3", 71));
-    assert_eq!(&"let x = 1;\nf(x, 2)"[a.at.clone()], "2");
+    assert_eq!("let x = 1;\nf(x, 2)".get(a.at), Some("2"));
 
     let longer = n
         .explain(
@@ -386,6 +439,10 @@ fn explain_names_the_levels_and_the_first_differing_token_with_its_line() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_digest_is_blake3_of_length_prefixed_tokens() {
     // `f(x, 1)` is `f ( $0 , 1 )`. The expected bytes are written out by hand:
     // each token is its UTF-8 length as four little-endian bytes, then the
@@ -416,6 +473,10 @@ fn the_digest_is_blake3_of_length_prefixed_tokens() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_fingerprint_displays_and_parses_back() {
     let accepted = [
         "body:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
@@ -448,6 +509,10 @@ fn a_fingerprint_displays_and_parses_back() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn human_abbreviations_do_not_replace_complete_identity() {
     let first = [0; 32];
     let mut second = first;
@@ -468,6 +533,10 @@ fn human_abbreviations_do_not_replace_complete_identity() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn fingerprint_refusals_escape_untrusted_controls_beside_valid_names() {
     for text in ["\u{1b}", "\u{1b}:x", "table:\u{1b}", "rule:\u{1b}"] {
         let message = text
@@ -515,6 +584,10 @@ fn literal_value_introspection_selects_the_production_default() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn self_callee_query_distinguishes_generic_types_from_calls() {
     let cases = [
         ("take::<Self::Assoc<fn()>>()", false),
@@ -538,6 +611,10 @@ fn self_callee_query_distinguishes_generic_types_from_calls() {
 type Refusal = fn(&ParseFingerprintError) -> bool;
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_fingerprint_refuses_every_malformed_spelling() {
     let refused: [(&str, Refusal); 11] = [
         ("source:fedcba9876543210", |e| {
@@ -582,6 +659,10 @@ fn a_fingerprint_refuses_every_malformed_spelling() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn fingerprints_sort_by_kind_then_value() {
     let mut all: Vec<Fingerprint> = [
         "rule:a",
@@ -608,6 +689,10 @@ fn fingerprints_sort_by_kind_then_value() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn doc_comments_are_attribute_tokens_while_ordinary_comments_are_erased() {
     let plain =
         Tower::new(&Slice::new("plain.rs", 1, "let value = input + 1; value")).expect("plain body");
@@ -639,6 +724,10 @@ fn doc_comments_are_attribute_tokens_while_ordinary_comments_are_erased() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn local_binding_names_apply_to_the_whole_body_beside_preserved_unbound_items() {
     let form = |body| {
         texts(
@@ -657,6 +746,10 @@ fn local_binding_names_apply_to_the_whole_body_beside_preserved_unbound_items() 
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_names_of_an_attribute_are_kept_beside_a_local_of_the_same_name() {
     let slice = Slice::new(
         "fixture.rs",
@@ -674,6 +767,10 @@ fn the_names_of_an_attribute_are_kept_beside_a_local_of_the_same_name() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn every_threshold_counts_the_value_form() {
     let registry = registry();
     for fixture in &registry.fixtures {
@@ -743,6 +840,10 @@ fn copies_with_reordered_parameters_share_a_body_print_and_forwarders_keep_their
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn explain_reports_reordered_parameters_as_equal_from_the_literal_tier() {
     let body = "let mut n = 0; for x in xs { if x == k { n += 1; } } n";
     let a = Slice::new("f.rs", 1, body).params(["xs", "k"]);

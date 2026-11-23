@@ -134,7 +134,11 @@ impl Basis {
 }
 
 pub(super) fn typed(path: &RelPath, document: &Document) -> io::Result<RafDocument> {
-    Profile
-        .validate(document, path.as_str())
-        .map_err(|_| refused(path, "destination text is not an owned typed document"))
+    let Ok(typed) = Profile.validate(document, path.as_str()) else {
+        return Err(refused(
+            path,
+            "destination text is not an owned typed document",
+        ));
+    };
+    Ok(typed)
 }

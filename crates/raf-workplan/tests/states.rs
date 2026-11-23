@@ -129,6 +129,10 @@ fn rejects_delivered_with_proposed_block() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn rejects_delivered_with_open_change_record() {
     let findings = mutated(
         CHANGE,
@@ -163,6 +167,10 @@ fn rejects_designed_with_proposed_block() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn rejects_proposed_section_missing_from_affects() {
     let repo = mutate(CHANGE, "  - cap:beta#purpose\n", "  - cap:beta#usage\n");
     let findings = check(&repo);
@@ -283,6 +291,10 @@ fn surfaces_the_single_document_state_rules_from_the_profile() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_record_that_lists_two_capabilities_must_affect_the_section_of_each() {
     // The change lists alpha and beta and affects a section of beta only.
     // Alpha is implementing, so it may hold a block, in its Purpose.
@@ -338,6 +350,10 @@ fn a_broken_record_does_not_make_the_capabilities_it_lists_unlisted() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn the_blocks_of_a_capability_that_does_not_validate_still_name_a_record() {
     let mut repo = mutate(BETA, "change:add-alpha", "change:ghost");
     let beta = repo.get_mut(BETA).expect("beta");

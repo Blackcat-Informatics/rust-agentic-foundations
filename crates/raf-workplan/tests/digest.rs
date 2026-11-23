@@ -13,16 +13,28 @@ use raf_workplan::digest::{Digest, SymbolDigestError};
 
 const MANIFEST: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n";
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn workspace(files: &[(&str, &str)]) -> Workspace {
     let mut tree: Vec<(&str, &str)> = vec![("Cargo.toml", MANIFEST)];
     tree.extend_from_slice(files);
     Workspace::load(&tree.into_iter().collect::<MemoryTree>(), &["."]).expect("the workspace loads")
 }
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn body(text: &str) -> Body {
     Body::parse(text).unwrap_or_else(|error| panic!("{error}: {text}"))
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn contract(text: &str) -> Digest {
     Digest::section(&body(text), CapabilitySection::Contract).expect("the body has a Contract")
 }
@@ -38,6 +50,10 @@ fn contract(text: &str) -> Digest {
 /// printf 'artifact\0log/a.bin\0%s\0x\r\ny' 4 | sha256sum
 /// ```
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn each_kind_hashes_its_documented_encoding() {
     assert_eq!(
         contract("# T\n\n## Contract\n\nIt holds.\n").to_string(),
@@ -66,6 +82,10 @@ fn each_kind_hashes_its_documented_encoding() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_symbol_and_a_record_with_equal_bytes_differ() {
     // The span text of `demo::f` is exactly `pub fn f() {}`, the text of the
     // record: only the kind and the name separate the two.
@@ -79,6 +99,10 @@ fn a_symbol_and_a_record_with_equal_bytes_differ() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_digest_is_the_same_on_every_run() {
     let text = "# T\n\n## Contract\n\nIt holds.\n\n## Usage\n\nRun it.\n";
     assert_eq!(contract(text), contract(text));
@@ -96,6 +120,10 @@ fn a_digest_is_the_same_on_every_run() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn crlf_and_lf_give_the_same_digest() {
     assert_eq!(
         contract("# T\r\n\r\n## Contract\r\n\r\nIt holds.\r\n"),
@@ -157,6 +185,10 @@ fn a_regenerated_block_leaves_the_section_digest_and_an_edit_moves_it() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_symbol_digest_reads_the_definitions_of_the_path() {
     let base = "/// Doc.\npub fn f() {}\npub fn other() {}\npub use f as alias;\n";
     let source = workspace(&[("src/lib.rs", base)]);
@@ -179,6 +211,10 @@ fn a_symbol_digest_reads_the_definitions_of_the_path() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_type_digest_excludes_method_bodies_but_its_definition_and_method_digests_move() {
     let lib = "pub struct Window { pub value: u32 }\nimpl Window { pub fn read(&self) -> u32 { self.value } }\n";
     let original = workspace(&[("src/lib.rs", lib)]);
@@ -207,6 +243,10 @@ fn a_type_digest_excludes_method_bodies_but_its_definition_and_method_digests_mo
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn every_definition_of_a_path_counts_once_in_file_order() {
     let lib = "#[cfg(unix)]\npub fn g() {}\n#[cfg(not(unix))]\npub fn g() {}\n";
     let source = workspace(&[("src/lib.rs", lib)]);
@@ -240,6 +280,10 @@ fn every_definition_of_a_path_counts_once_in_file_order() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_path_that_names_no_single_symbol_has_no_digest() {
     let source = workspace(&[(
         "src/lib.rs",
@@ -266,6 +310,11 @@ fn a_path_that_names_no_single_symbol_has_no_digest() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    clippy::string_slice,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
 fn a_digest_is_written_and_read_as_sixty_four_lowercase_hex_digits() {
     let digest = Digest::record("x");
     let text = digest.to_string();
@@ -300,6 +349,10 @@ fn a_digest_is_written_and_read_as_sixty_four_lowercase_hex_digits() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_module_stands_for_its_files_and_the_modules_below_it_and_a_sibling_does_not_move_it() {
     let files = [
         (
@@ -363,6 +416,10 @@ fn a_module_stands_for_its_files_and_the_modules_below_it_and_a_sibling_does_not
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_crate_root_stands_for_its_own_file_and_an_edit_below_it_leaves_its_digest() {
     let files = [
         ("src/lib.rs", "pub mod tools;\npub fn r() {}\n"),

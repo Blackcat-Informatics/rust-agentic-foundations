@@ -19,6 +19,13 @@ const WORK_BUDGET: usize = 100_000_000;
 const RENAMED: &str =
     "let renamed = other + 1; let result = renamed * 3; sink(result, renamed, other, 7);";
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn load(reverse: bool) -> Workspace {
     let small = format!("fn small(input:i32) {{ {CORE} }}");
     let large = format!("fn large(other:i32) {{ prefix(); {RENAMED} tail(); }}");
@@ -45,6 +52,13 @@ fn load(reverse: bool) -> Workspace {
     Workspace::load(&tree, &["."]).unwrap()
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn analyze(workspace: &Workspace, reverse: bool) -> pairing::Matches<'_> {
     let mut analysis = workspace::collect(workspace, WORK_BUDGET, 10_000_000).unwrap();
     if reverse {
@@ -59,6 +73,14 @@ fn analyze(workspace: &Workspace, reverse: bool) -> pairing::Matches<'_> {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::string_slice,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn canonical_reports_keep_actual_spans_and_all_owners_under_source_and_collection_reordering() {
     let mut expected = None;
     for reverse in [false, true] {
@@ -134,6 +156,13 @@ fn canonical_reports_keep_actual_spans_and_all_owners_under_source_and_collectio
     fixture::exhausted_report(&analyze(&workspace, false), WORK_BUDGET);
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn replace(builder: &mut Builder, graph: &Graph, id: &str, field: &str, value: Term) {
     let before = one(graph.get(id).unwrap(), field).unwrap().to_owned();
     assert!(builder.remove(assertion(id, field, before)).unwrap());
@@ -141,6 +170,14 @@ fn replace(builder: &mut Builder, graph: &Graph, id: &str, field: &str, value: T
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn imported_claims_refuse_unknown_profiles_impossible_ranges_and_invalid_support_beside_valid_evidence()
  {
     let meter = Meter::new(100_000_000, 10_000_000);
@@ -222,6 +259,13 @@ fn imported_claims_refuse_unknown_profiles_impossible_ranges_and_invalid_support
     }
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn rename_nodes(graph: &Graph, names: &std::collections::BTreeMap<String, String>) -> Graph {
     let mut builder = Builder::new();
     for mut triple in graph.assertions() {
@@ -238,6 +282,13 @@ fn rename_nodes(graph: &Graph, names: &std::collections::BTreeMap<String, String
 
 // Consistently re-name fixture records after changing their claimed facts.
 // These cases must reach semantic refusal, rather than fail on stale node IDs.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn remint(graph: &Graph, kind: &str) -> Graph {
     let names = graph
         .nodes()
@@ -268,6 +319,13 @@ fn remint(graph: &Graph, kind: &str) -> Graph {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )
+)]
 fn reminted_claims_cannot_alias_native_paths_exceed_the_source_or_bypass_the_match_floor() {
     let workspace = load(false);
     let matches = analyze(&workspace, false);
@@ -342,6 +400,14 @@ fn reminted_claims_cannot_alias_native_paths_exceed_the_source_or_bypass_the_mat
 /// INVARIANT: the admitted renderer accepts a report at its output limit and
 /// refuses that same report when its length exceeds the limit by one byte.
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        clippy::unwrap_used,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn rendering_a_report_refuses_one_byte_over_the_limit_beside_the_same_report_at_it() {
     let workspace = load(false);
     let matches = analyze(&workspace, false);

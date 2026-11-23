@@ -23,16 +23,16 @@ path = "src/main.rs"
 purrdf-toml.workspace = true
 purrdf-lex.workspace = true
 purrdf-rdf.workspace = true
-raf-source = { path = "../raf-source", version = "0.8.0" }
-raf-rdf = { path = "../raf-rdf", version = "0.8.0" }
+raf-source.workspace = true
+raf-rdf.workspace = true
 # Parsing only. The default features add colour output and its terminal
 # handling, which the binary does not use.
-clap = { version = "4.6.7", default-features = false, features = ["std", "derive", "help", "usage", "error-context", "suggestions"] }
-raf-okf = { path = "../raf-okf", version = "0.8.0" }
-raf-workplan = { path = "../raf-workplan", version = "0.8.0" }
+clap.workspace = true
+raf-okf.workspace = true
+raf-workplan.workspace = true
 
 [dev-dependencies]
-raf-fixtures = { path = "../raf-fixtures" }
+raf-fixtures.workspace = true
 purrdf-testkit.workspace = true
 purrdf-xsd.workspace = true
 

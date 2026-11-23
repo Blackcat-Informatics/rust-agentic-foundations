@@ -87,6 +87,10 @@ fn tree(other: &str, policy: &str) -> MemoryTree {
     .collect()
 }
 
+#[expect(
+    clippy::print_stdout,
+    reason = "this executable writes its results to the caller's standard output"
+)]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let gate = Gate::workspace(".").without_production_lints();
     let policy = ledger()?;

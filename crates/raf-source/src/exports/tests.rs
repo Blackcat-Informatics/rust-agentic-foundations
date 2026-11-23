@@ -27,6 +27,13 @@ const CEILING: usize = 64 * UNIT;
 const DEMO: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n";
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn native_surface_storage_preserves_physical_failure_and_budget_ownership() {
     use crate::meter::{Meter, NativeAdmission, push_item_work};
     use crate::{Budget, ExportError, LoadErrorKind, RelPath};
@@ -91,10 +98,25 @@ fn tree(lib: &str) -> MemoryTree {
         .collect()
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::panic,
+        reason = "the assertion reports the unexpected outcome and terminates the test"
+    )
+)]
 fn load(lib: &str) -> Workspace {
     Workspace::load(&tree(lib), &["."]).unwrap_or_else(|e| panic!("{e}"))
 }
 
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        clippy::panic,
+        reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+    )
+)]
 fn list(ws: &Workspace) -> Exports {
     let target = ws
         .target_ids()
@@ -130,6 +152,13 @@ fn assert_linear(kind: Work, build: impl Fn(usize) -> String, check: impl Fn(&Ex
 }
 
 /// A module of `n` globs of modules that each hold a function.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn pub_globs(n: usize) -> String {
     let mut lib = String::new();
     for i in 0..n {
@@ -140,6 +169,13 @@ fn pub_globs(n: usize) -> String {
 
 /// A module of `n` globs of modules that each carry a re-export, and `n`
 /// globs of modules that all bind two names, one of which the reader shadows.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn carrying_globs(n: usize) -> String {
     let mut lib = String::new();
     for i in 0..n {
@@ -195,6 +231,13 @@ fn a_module_of_pub_globs_that_each_carry_a_re_export_is_listed_in_walk_steps_lin
 
 /// A reader with `n` globs of modules that each carry a re-export of their
 /// own name, beside `n` globs of modules that each bind that name privately.
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn sibling_shadows(n: usize) -> String {
     let mut lib = String::new();
     for i in 0..n {
@@ -208,6 +251,13 @@ fn sibling_shadows(n: usize) -> String {
 }
 
 #[test]
+#[cfg_attr(
+    test,
+    expect(
+        clippy::expect_used,
+        reason = "fixture prerequisites and required observations carry their assertion messages"
+    )
+)]
 fn readers_of_carried_names_beside_sibling_shadows_list_in_linear_work_and_bounded_bytes() {
     let check = |listed: &Exports, size: usize| assert_eq!(listed.reexports.len(), size);
     // Walking the reach again for each shadowed name grows with the square

@@ -141,6 +141,10 @@ impl Handle {
     }
 
     /// The pinned object must retain its name and original-root ancestry.
+    #[expect(
+        clippy::map_err_ignore,
+        reason = "failed identity probes prove no containment and use the same OutsideRoot refusal as an identity mismatch"
+    )]
     pub(super) fn recheck(&self, tree: &DiskTree, shown: &str) -> Result<(), TreeError> {
         verify_linux_link(&tree.root, &descriptor_path(&self.reference), shown)?;
         let start = match &self.parent {

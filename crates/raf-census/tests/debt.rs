@@ -11,6 +11,10 @@ use raf_census::{
 use raf_fixtures::layout;
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn oversized_records_refuse_before_parsing_beside_a_readable_record() {
     let text = " ".repeat(MAX_DEBT_BYTES + 1);
     assert!(
@@ -40,6 +44,10 @@ fn oversized_records_refuse_before_parsing_beside_a_readable_record() {
 }
 use raf_rdf::{Builder, Format, Graph, TermValue, Triple, vocab};
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn group(members: &[&str]) -> DebtGroup {
     DebtGroup::new(
         GroupKind::Body,
@@ -48,6 +56,10 @@ fn group(members: &[&str]) -> DebtGroup {
     .unwrap()
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn record(members: &[&str], copies: usize) -> DebtRecord {
     let groups = if members.is_empty() {
         vec![]
@@ -62,6 +74,10 @@ fn record(members: &[&str], copies: usize) -> DebtRecord {
     DebtRecord::new(NORMAL_FORM, groups, jobs).unwrap()
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn site(file: &str, rule: &str, literal: &str) -> DebtSite {
     DebtSite::new(file, rule, SiteKey::digest("demo::f", Some(literal))).unwrap()
 }
@@ -71,6 +87,10 @@ fn ratcheted(sites: &[(&str, &str, usize)]) -> DebtRecord {
     ratcheted_rules(&["banned"], sites)
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn ratcheted_rules(rules: &[&str], sites: &[(&str, &str, usize)]) -> DebtRecord {
     DebtRecord::new(NORMAL_FORM, [], BTreeMap::new())
         .unwrap()
@@ -85,6 +105,10 @@ fn ratcheted_rules(rules: &[&str], sites: &[(&str, &str, usize)]) -> DebtRecord 
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn counted_cfg_members_round_trip_and_lower_without_changing_symbol_identity() {
     let counted = |count| {
         DebtRecord::new(
@@ -143,6 +167,10 @@ fn counted_cfg_members_round_trip_and_lower_without_changing_symbol_identity() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn counted_nodes_refuse_redundant_counts_and_unowned_assertions() {
     let original = DebtRecord::new(
         NORMAL_FORM,
@@ -248,6 +276,10 @@ fn counted_nodes_refuse_redundant_counts_and_unowned_assertions() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn new_groups_supersets_and_rising_copy_counts_are_growth() {
     let empty = record(&[], 0);
     let original = record(&["a", "b"], 2);
@@ -279,6 +311,10 @@ fn new_groups_supersets_and_rising_copy_counts_are_growth() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn ratcheted_sites_grow_on_new_keys_and_rising_counts_and_lower_on_falls_and_stale_rows() {
     let recorded = ratcheted(&[("src/a.rs", "alpha", 1), ("src/b.rs", "beta", 2)]);
     assert_eq!(recorded.compare(&recorded).unwrap(), []);
@@ -366,6 +402,10 @@ fn ratcheted_sites_grow_on_new_keys_and_rising_counts_and_lower_on_falls_and_sta
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn a_present_superset_cannot_hide_a_missing_exact_recorded_group() {
     let smaller = group(&["a", "b"]);
     let larger = group(&["a", "b", "c"]);
@@ -390,6 +430,10 @@ fn a_present_superset_cannot_hide_a_missing_exact_recorded_group() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn resolved_groups_strict_subsets_and_falling_counts_require_a_lower_record() {
     let original = record(&["a", "b", "c"], 3);
     for present in [
@@ -406,6 +450,10 @@ fn resolved_groups_strict_subsets_and_falling_counts_require_a_lower_record() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn a_group_of_a_different_kind_is_new_debt() {
     let original = record(&["a", "b"], 0);
     let shim = DebtGroup::new(GroupKind::Shim, ["a".into(), "b".into()]).unwrap();
@@ -420,6 +468,10 @@ fn a_group_of_a_different_kind_is_new_debt() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn both_native_spellings_round_trip_and_input_order_does_not_change_bytes() {
     let original = record(&["a", "b", "c"], 3);
     let turtle = original.to_turtle().unwrap();
@@ -482,6 +534,10 @@ fn both_native_spellings_round_trip_and_input_order_does_not_change_bytes() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn commas_percent_signs_and_unicode_do_not_alias_member_sets() {
     for members in [["a,b", "c"], ["a", "b,c"], ["%2C", "é"]] {
         let original = record(&members, 0);
@@ -497,6 +553,10 @@ fn commas_percent_signs_and_unicode_do_not_alias_member_sets() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn other_versions_can_be_read_but_cannot_be_compared() {
     let old = DebtRecord::new(NORMAL_FORM + 1, [], BTreeMap::new()).unwrap();
     let decoded = DebtRecord::from_turtle(&old.to_turtle().unwrap()).unwrap();
@@ -507,6 +567,10 @@ fn other_versions_can_be_read_but_cannot_be_compared() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn invalid_groups_and_zero_copy_rows_are_refused() {
     assert!(DebtGroup::new(GroupKind::Body, ["a".into()]).is_err());
     assert!(DebtGroup::new(GroupKind::Body, ["a".into(), "a".into()]).is_err());
@@ -553,6 +617,10 @@ fn invalid_groups_and_zero_copy_rows_are_refused() {
 }
 
 #[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn recomputing_a_digest_does_not_admit_foreign_classes_or_unknown_properties() {
     let original = record(&["a", "b"], 1);
     let graph = Graph::from_text(&original.to_turtle().unwrap(), Format::Turtle).unwrap();

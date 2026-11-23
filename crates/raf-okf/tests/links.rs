@@ -6,6 +6,10 @@
 
 use raf_okf::{Body, ErrorKind, Link, LinkError, LinkForm, LinkTarget};
 
+#[expect(
+    clippy::panic,
+    reason = "the assertion reports the unexpected outcome and terminates the test"
+)]
 fn body(text: &str) -> Body {
     Body::parse(text).unwrap_or_else(|error| panic!("{error} in {text:?}"))
 }
@@ -172,6 +176,10 @@ fn a_split_link_does_not_hide_a_link_after_it() {
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "fixture prerequisites and required observations carry their assertion messages"
+)]
 fn a_destination_or_title_of_exactly_4096_bytes_is_read_and_one_more_is_refused() {
     let at = "x".repeat(4096);
     let over = "x".repeat(4097);

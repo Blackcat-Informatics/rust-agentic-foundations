@@ -51,7 +51,11 @@ fn clock_suffix(text: &str) -> Option<&str> {
     let suffix = text.get(19..)?;
     if let Some(fraction) = suffix.strip_prefix('.') {
         let digits = fraction.bytes().take_while(u8::is_ascii_digit).count();
-        (digits != 0).then(|| &fraction[digits..])
+        if digits == 0 {
+            None
+        } else {
+            fraction.get(digits..)
+        }
     } else {
         Some(suffix)
     }

@@ -754,7 +754,12 @@ fn extension(
     let Some(id) = &job.extension else {
         return Ok(());
     };
-    let graph = ledger.extension(id).expect("validated extension closure");
+    let graph = ledger.extension(id).ok_or_else(|| {
+        policy(&format!(
+            "job {:?}: missing extension closure {id}",
+            job.job.id
+        ))
+    })?;
     if graph
         .root()
         .properties()

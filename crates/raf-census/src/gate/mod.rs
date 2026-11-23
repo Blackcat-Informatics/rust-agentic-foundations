@@ -29,6 +29,7 @@ pub use reference::{ExternalReference, ReferenceRoot};
 pub use registry::{ArchiveCache, LockedRegistry};
 pub use visibility::visibility;
 
+use std::fmt;
 use std::path::{Component, Path, PathBuf};
 
 use purrdf_jsonschema::ecma::MatchLimits;
@@ -64,8 +65,8 @@ pub struct DebtWrite {
     pub sites: usize,
 }
 
-impl std::fmt::Display for DebtWrite {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for DebtWrite {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "{}: {} groups, {} jobs with copies",
@@ -161,6 +162,21 @@ pub struct Gate {
     module_paths_in_package: bool,
     extensions: Vec<Box<dyn LedgerExtension>>,
     matching_limits: MatchLimits,
+}
+
+impl fmt::Debug for Gate {
+    fn fmt(&self, output: &mut fmt::Formatter<'_>) -> fmt::Result {
+        output
+            .debug_struct("Gate")
+            .field("dir", &self.dir)
+            .field("reference_roots", &self.reference_roots.len())
+            .field("external_references", &self.external_references.len())
+            .field("rules", &self.rules.len())
+            .field("required_rules", &self.required_rules.len())
+            .field("module_paths_in_package", &self.module_paths_in_package)
+            .field("extensions", &self.extensions.len())
+            .finish_non_exhaustive()
+    }
 }
 
 impl Gate {
@@ -443,6 +459,10 @@ impl Gate {
     /// # Panics
     /// Panics with all findings, or the actionable failure that prevented a
     /// verdict. Missing tools, files and executable rules never count as clean.
+    #[expect(
+        clippy::panic,
+        reason = "assert_clean is the explicit assertion API and promises a panic on a failed or unavailable verdict"
+    )]
     pub fn assert_clean(&self) {
         match self.check() {
             Ok(report) if report.is_clean() => {}
@@ -750,7 +770,7 @@ impl Gate {
 }
 
 fn read_ledger(tree: &impl Tree) -> Result<Ledger, Error> {
-    let path = RelPath::new(LEDGER_FILE).expect("literal ledger path");
+    let path = RelPath::new(LEDGER_FILE).map_err(|error| evaluate::policy(&error.to_string()))?;
     let text = tree
         .read(&path, MAX_LEDGER_BYTES as u64)
         .map_err(|source| Error::Tree {
@@ -793,7 +813,7 @@ fn check_debt(tree: &impl Tree, mut report: GateReport) -> Result<GateReport, Er
 }
 
 fn read_debt(tree: &impl Tree) -> Result<Option<DebtRecord>, Error> {
-    let path = RelPath::new(DEBT_FILE).expect("literal debt path");
+    let path = RelPath::new(DEBT_FILE).map_err(|error| evaluate::policy(&error.to_string()))?;
     if tree
         .entry(&path)
         .map_err(|source| Error::Tree {
@@ -828,12 +848,17 @@ fn disk_root(dir: &Path) -> Result<PathBuf, Error> {
     let boundary = canonical
         .ancestors()
         .last()
-        .expect("absolute path has a root");
+        .ok_or_else(|| evaluate::policy("canonical workspace path has no filesystem root"))?;
     let tree = DiskTree::new(boundary).map_err(|source| Error::Tree {
         file: boundary.display().to_string(),
         source,
     })?;
-    let relative = canonical.strip_prefix(boundary).expect("ancestor prefix");
+    let relative = canonical
+        .strip_prefix(boundary)
+        .map_err(|cause| Error::Io {
+            file: canonical.display().to_string(),
+            source: std::io::Error::other(cause),
+        })?;
     let components = relative
         .components()
         .map(|component| match component {
