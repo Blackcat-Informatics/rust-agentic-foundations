@@ -13,12 +13,8 @@ if [[ -z $hooks || $(realpath -m -- "$hooks") != "$top/.githooks" ||
     exit 1
 fi
 
-# Keep the snapshot outside linked worktree directories so Cargo can reuse
-# its existing build cache without seeding the snapshot as a new worktree.
-common=$(git rev-parse --path-format=absolute --git-common-dir)
-scratch_root="${common%/*}/.stage"
-mkdir -p "$scratch_root"
-scratch=$(mktemp -d "$scratch_root/static-gate.XXXXXXXX")
+mkdir -p .stage
+scratch=$(mktemp -d "$top/.stage/static-gate.XXXXXXXX")
 trap 'rm -rf -- "$scratch"' EXIT
 snapshot="$scratch/snapshot"
 mkdir "$snapshot"
@@ -31,6 +27,9 @@ GIT_INDEX_FILE="$scratch/tree-index" git read-tree "$tree"
 GIT_INDEX_FILE="$scratch/tree-index" git checkout-index --all --ignore-skip-worktree-bits --prefix="$snapshot/"
 git ls-tree --full-tree -rz "$tree" > "$scratch/tracked"
 
+# Git exports the commit's index to the hook. The snapshot and its inventory
+# carry those inputs from here, so child tools use their ordinary Git context.
+unset GIT_INDEX_FILE
 target=$(realpath -m -- "${CARGO_TARGET_DIR:-$top/target}")
 CARGO_TARGET_DIR="$target" CARGO_ENCODED_RUSTFLAGS=-Dwarnings \
     cargo run --quiet --locked -p raf-docs-contract \
