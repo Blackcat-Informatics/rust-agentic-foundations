@@ -43,7 +43,7 @@ inputs:
     digest: 0aaf0554a74bd7e8cd963b4319f6c27502db3a386cd8873efb3e7eeb58200b06
   - kind: symbol
     name: raf_source::cfg_requires_test
-    digest: c807768505e0f9f4b43b1d295962ea428e73e155c7a2d81ec82abeac61f102c7
+    digest: 7dc09ae92de5f3e670d4cf9bb0da252399fef6456499fb93b7a99843d7901c80
   - kind: symbol
     name: raf_source::visit_grouped_import
     digest: 53918660e10aa7de9d8bdc878718f3d449887c9f5fed3df485af9315346c255d

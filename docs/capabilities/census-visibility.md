@@ -89,7 +89,8 @@ without production evidence, `test-only` when the observed demand is in
 tests, and `no-known-use` when there is no classified cross-target use.
 Use contexts are `production`, `test`, `other-nonshipping`, and `unknown`.
 An explicit block-local test guard selects the test prelude, including dev
-dependencies. A feature guard on an enclosing module or a block import
+dependencies. A test-only local binding shadows an import in its test context.
+A feature guard on an enclosing module or a block import
 keeps the resolved use conditional, including when a named import supplies
 the prefix of a glob. An equivalent unguarded glob route supplies the same
 definition without that guard. The structural index reflects authored

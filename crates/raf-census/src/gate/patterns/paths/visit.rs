@@ -790,14 +790,12 @@ impl<'p> Paths<'_, 'p, '_, '_> {
         if self.error.is_some() {
             return;
         }
-        let id = self.compiled.first().map_or(
-            if self.path_uses.is_some() {
-                VISIBILITY
-            } else {
-                "preferred-provider"
-            },
-            |compiled| compiled.pattern.id.as_str(),
-        );
+        let id = self
+            .compiled
+            .first()
+            .map_or("preferred-provider", |compiled| {
+                compiled.pattern.id.as_str()
+            });
         let candidate = match self.receiver_candidate(pattern, ty, initializer) {
             Ok(candidate) => candidate,
             Err(error) => {
@@ -806,8 +804,9 @@ impl<'p> Paths<'_, 'p, '_, '_> {
             }
         };
         let mut pending = None;
-        let live_binding = self.receiver_matcher.is_some();
-        let result = self.scopes.bind(pattern, live_binding, |scopes, name| {
+        let activation = (self.receiver_matcher.is_some(), self.test_visibility);
+        let scopes = &mut self.scopes;
+        let result = scopes.bind_context(pattern, activation, |scopes, name| {
             if let Some(inventory) = &self.enum_hits {
                 return enum_pattern_binding(
                     (self.workspace, self.code, self.file),
@@ -1601,12 +1600,12 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
                     }
                 }
             });
+            let initializer = this.receiver_matcher.and_then(|_| {
+                let initializer = node.init.as_ref()?.expr.as_ref();
+                crate::syntax::inert_attributes(&node.attrs).then_some(initializer)
+            });
+            this.bind_with_receiver(&node.pat, None, initializer);
         });
-        let initializer = self.receiver_matcher.and_then(|_| {
-            let initializer = node.init.as_ref()?.expr.as_ref();
-            crate::syntax::inert_attributes(&node.attrs).then_some(initializer)
-        });
-        self.bind_with_receiver(&node.pat, None, initializer);
         self.receiver_matcher = matcher;
     }
 

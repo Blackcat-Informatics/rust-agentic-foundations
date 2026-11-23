@@ -331,7 +331,10 @@ impl ScopedGlob<'_> {
     fn guarded(&self) -> bool {
         self.declaration.attributes != AliasAttributes::Inert
             || self.expanded.guarded_alias
-            || self.chained.get().is_some_and(|(route, _)| route.guarded)
+            || self
+                .chained
+                .get()
+                .is_some_and(|(route, _)| route.guarded.get())
     }
 
     fn prefix(&self) -> &str {
@@ -378,7 +381,7 @@ impl ScopedGlob<'_> {
 struct GlobRoute {
     path: String,
     sites: Vec<ItemId>,
-    guarded: bool,
+    guarded: Cell<bool>,
 }
 
 #[derive(Clone)]
@@ -1133,10 +1136,12 @@ impl Lookup<'_, '_> {
                 },
                 limits,
             )?;
+            if target.definition.is_some() {
+                glob.guarded = target.guarded || alias.guarded_alias;
+            }
             glob.definition = target.definition;
             glob.opaque = glob.opaque.or(target.opaque);
             glob.conditional_variant |= target.conditional_variant;
-            glob.guarded |= target.guarded;
             glob.variant = target.variant;
         }
         Ok(glob)
@@ -1252,7 +1257,7 @@ impl Lookup<'_, '_> {
                 GlobBinding::Item(GlobRoute {
                     path: text,
                     sites,
-                    guarded: candidate.guarded,
+                    guarded: Cell::new(candidate.guarded),
                 })
             })
         };
@@ -1663,21 +1668,45 @@ impl Lookup<'_, '_> {
         if scopes.receiver_lookup() {
             self.propagate_glob_uncertainty(&globs, limits)?;
         }
-        // A later anchored chain can introduce a second candidate in the
-        // declaration scope. Recheck each inferred prefix against that scope.
-        for glob in globs.iter().filter(|glob| glob.relative_prefix().is_some()) {
-            let settled = self.chain_glob(glob, &globs, limits)?;
-            if glob.direct.is_none()
-                && settled.as_ref().map(|route| &route.sites)
-                    != glob.chained.get().map(|(route, _)| &route.sites)
-            {
-                return Err(failure(
-                    self.label,
-                    "chained block glob prefix changes binding as imports resolve",
-                ));
+        self.recheck_glob_routes(&globs, limits)?;
+        Ok(globs)
+    }
+
+    fn recheck_glob_routes(
+        &self,
+        globs: &GlobPrefixes<'_>,
+        limits: &mut MatchLimits,
+    ) -> Result<(), Error> {
+        let demand = matches!(self.visibility, Some((_, VisibilityConsumer::Target(_))));
+        loop {
+            let mut changed = false;
+            for glob in globs.iter().filter(|glob| glob.relative_prefix().is_some()) {
+                let settled = self.chain_glob(glob, globs, limits)?;
+                let previous = glob.chained.get().map(|(route, _)| route);
+                if glob.direct.is_none()
+                    && settled.as_ref().map(|route| &route.sites)
+                        != previous.map(|route| &route.sites)
+                {
+                    return Err(failure(
+                        self.label,
+                        "chained block glob prefix changes binding as imports resolve",
+                    ));
+                }
+                // A later equivalent unguarded route can remove a guard.
+                // Repeat until that proof reaches every dependent prefix.
+                if demand
+                    && let (Some(previous), Some(settled)) = (previous, settled)
+                    && previous.guarded.get()
+                    && !settled.guarded.get()
+                {
+                    previous.guarded.set(false);
+                    changed = true;
+                }
+            }
+            if !changed {
+                return Ok(());
             }
         }
-        Ok(globs)
     }
 
     fn prepare_glob_frame<'s>(
@@ -1866,10 +1895,10 @@ impl Lookup<'_, '_> {
         {
             return Ok(None);
         }
-        let GlobBinding::Item(mut route) = binding else {
+        let GlobBinding::Item(route) = binding else {
             return Ok(None);
         };
-        route.guarded |= selected.guarded;
+        route.guarded.set(selected.guarded);
         let route = if tail.is_empty() {
             route
         } else {
@@ -1953,7 +1982,7 @@ impl Lookup<'_, '_> {
             .map(|sites| GlobRoute {
                 path,
                 sites,
-                guarded: false,
+                guarded: Cell::new(false),
             }))
     }
 
@@ -2376,15 +2405,15 @@ fn cross_package_uses(
             receiver_workspace: None,
             enum_impl: None,
         };
-        let LexicalPath::Accessible(expanded) =
-            lookup.lexical(scopes, &written, absolute, limits)?
-        else {
-            continue;
-        };
-        let glob = lookup.glob_occurrence(scopes, &written, absolute, expanded.as_ref(), limits)?;
-        let definition = match glob.definition {
-            Some(definition) => definition,
-            None => lookup.resolve(&raw, expanded.as_ref(), limits)?,
+        let (expanded, glob) = scopes.with_test_locals(test || site.test, || {
+            lookup.visibility_binding(scopes, &written, absolute, limits)
+        })?;
+        let (definition, guarded) = match glob.definition {
+            Some(definition) => (definition, glob.guarded),
+            None => (
+                lookup.resolve(&raw, expanded.as_ref(), limits)?,
+                expanded.as_ref().is_some_and(|path| path.guarded_alias),
+            ),
         };
         let actual = visible_definitions(&definition, &lookup, &raw, textual_macro)?;
         if site.role == Role::Pattern
@@ -2402,10 +2431,7 @@ fn cross_package_uses(
             target,
             test,
             paths.demand.is_some() && !actual.is_empty(),
-            (
-                &raw,
-                glob.guarded || expanded.as_ref().is_some_and(|path| path.guarded_alias),
-            ),
+            (&raw, guarded),
         )?;
         let provenance = (site, glob.opaque.as_deref());
         for &definition in actual {
@@ -2418,6 +2444,18 @@ fn cross_package_uses(
 }
 
 impl Lookup<'_, '_> {
+    fn visibility_binding(
+        &self,
+        scopes: &Scopes,
+        written: &[String],
+        absolute: bool,
+        limits: &mut MatchLimits,
+    ) -> Result<(Option<Expanded>, GlobLookup), Error> {
+        let expanded = self.visible_expansion(scopes, written, absolute, None, limits)?;
+        let glob = self.glob_occurrence(scopes, written, absolute, expanded.as_ref(), limits)?;
+        Ok((expanded, glob))
+    }
+
     fn use_site(
         &self,
         target: TargetId,

@@ -2731,6 +2731,17 @@ fn write_demand_fixture(root: &Path) {
             pub fn disabled_only() {}\n\
             pub fn local_only() {}\n\
             pub fn local() { local_only(); }\n\
+            pub mod controls {\n\
+                pub fn match_ready() -> bool { true }\n\
+                pub fn shipping() {}\n\
+                pub fn overshadowed() {}\n\
+                pub const K: u8 = 0;\n\
+                pub mod chained { pub fn path_use() {} }\n\
+            }\n\
+            pub mod alternative { pub fn overshadowed() {} }\n\
+            pub mod paths_guarded { pub use crate::controls::chained as chain; }\n\
+            pub mod paths_unconditional { pub use crate::controls::chained as chain; }\n\
+            pub mod root_route { pub use crate::paths_unconditional as provider; }\n\
             pub struct Model;\n\
             impl Model { pub fn implicit(&self) {} }\n",
             ),
@@ -2752,10 +2763,6 @@ fn write_demand_fixture(root: &Path) {
                 "[package]\nname='test-support'\nversion='0.1.0'\nedition='2024'\n",
             ),
             (
-                "test-support/src/lib.rs",
-                "pub fn guarded() {}\npub fn compound_guarded() {}\npub mod api { pub fn ping() {} }\n",
-            ),
-            (
                 "client/Cargo.toml",
                 "[package]\nname='client'\nversion='0.1.0'\nedition='2024'\n\
             [dependencies]\nbase={path='../base'}\nbridge={path='../bridge'}\n\
@@ -2767,6 +2774,8 @@ fn write_demand_fixture(root: &Path) {
                 "pub fn library() { bridge::forward(); base::Model.implicit(); }\n\
             pub fn conditional() { #[cfg(test)] use test_support::guarded; }\n\
             pub fn compound() { #[cfg(all(test, target_os = \"linux\"))] use test_support::compound_guarded; }\n\
+            pub fn negated() { #[cfg(not(not(test)))] use test_support::negated_guarded; }\n\
+            mod guards;\n\
             pub fn mixed_preludes() {\n\
                 drop(());\n\
                 #[cfg(test)] use test_support::api::*;\n\
@@ -2789,10 +2798,6 @@ fn write_demand_fixture(root: &Path) {
             #[cfg(feature = \"optional\")] mod optional;\n\
             #[cfg(test)] mod tests { use base::test_only; fn call() { test_only(); } }\n",
             ),
-            (
-                "client/src/optional.rs",
-                "use base::conditional_feature; pub fn call() { conditional_feature(); }\n",
-            ),
             ("client/src/main.rs", "fn main() { bridge::forward(); }\n"),
             (
                 "client/tests/integration.rs",
@@ -2800,7 +2805,43 @@ fn write_demand_fixture(root: &Path) {
             ),
         ],
     );
+    files::write(root, DEMAND_GUARD_SOURCES);
 }
+
+const DEMAND_GUARD_SOURCES: &[(&str, &str)] = &[
+    (
+        "test-support/src/lib.rs",
+        "pub fn guarded() {}\npub fn compound_guarded() {}\npub fn negated_guarded() {}\npub mod api { pub fn ping() {} }\n",
+    ),
+    (
+        "client/src/optional.rs",
+        "use base::conditional_feature; pub fn call() { conditional_feature(); }\n",
+    ),
+    (
+        "client/src/guards.rs",
+        "pub fn test_local() {\n\
+            use base::controls::*;\n\
+            #[cfg(test)] let shipping = || ();\n\
+            shipping();\n\
+            #[cfg(test)] shipping();\n\
+            #[cfg(test)] let K = 1u8 else { return; };\n\
+        }\n\
+        pub fn arm_guard() {\n\
+            match Some(()) { Some(_) if base::controls::match_ready() => {}, _ => {} }\n\
+        }\n\
+        pub fn selected_glob() {\n\
+            #[cfg(feature = \"optional\")] use base::alternative::overshadowed;\n\
+            { use base::controls::*; overshadowed(); }\n\
+        }\n\
+        pub fn settled_glob() {\n\
+            #[cfg(feature = \"optional\")] use base::paths_guarded::*;\n\
+            use chain::*;\n\
+            use provider::*;\n\
+            use base::root_route::*;\n\
+            path_use();\n\
+        }\n",
+    ),
+];
 
 /// Keep each consumer's target and test reach visible through a re-export.
 /// Unresolved dot calls and macros remain evidence gaps.
@@ -2890,7 +2931,11 @@ fn visibility_demand_distinguishes_shipping_test_and_incomplete_evidence() {
 }
 
 fn assert_guarded_demand(graph: &raf_rdf::Graph) {
-    for symbol in ["test_support::guarded", "test_support::compound_guarded"] {
+    for symbol in [
+        "test_support::guarded",
+        "test_support::compound_guarded",
+        "test_support::negated_guarded",
+    ] {
         let guarded = demand_declaration(graph, symbol);
         assert_eq!(visibility_value(guarded, "demand"), "test-only");
         assert!(visibility_nodes(graph, guarded, "use").any(|row| {
@@ -2930,6 +2975,31 @@ fn assert_guarded_demand(graph: &raf_rdf::Graph) {
             "production",
         ),
         ("test_support::api::ping", "ping", "test", "test-only"),
+        ("base::controls::K", "K", "test", "test-only"),
+        (
+            "base::controls::shipping",
+            "shipping",
+            "production",
+            "production",
+        ),
+        (
+            "base::controls::match_ready",
+            "base::controls::match_ready",
+            "production",
+            "production",
+        ),
+        (
+            "base::controls::overshadowed",
+            "overshadowed",
+            "production",
+            "production",
+        ),
+        (
+            "base::controls::chained::path_use",
+            "path_use",
+            "production",
+            "production",
+        ),
     ] {
         let alias = demand_declaration(graph, symbol);
         assert_eq!(visibility_value(alias, "demand"), demand, "{symbol}");
@@ -2940,6 +3010,14 @@ fn assert_guarded_demand(graph: &raf_rdf::Graph) {
                     .any(|path| path.literal().is_some_and(|(text, _)| text == written))
         }));
     }
+    assert!(
+        !visibility_nodes(
+            graph,
+            demand_declaration(graph, "base::controls::shipping"),
+            "use"
+        )
+        .any(|row| visibility_value(row, "context") == "test")
+    );
     let disabled = demand_declaration(graph, "base::disabled_only");
     assert_eq!(visibility_value(disabled, "demand"), "no-known-use");
     assert_eq!(visibility_nodes(graph, disabled, "use").count(), 0);

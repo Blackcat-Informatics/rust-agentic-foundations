@@ -21,7 +21,10 @@ use syn::{Expr, ExprLit, Lit, Meta, Token};
 /// # Errors
 /// Refuses malformed syntax or an invalid operator in a configuration predicate.
 pub fn cfg_requires_test(tokens: &proc_macro2::TokenStream) -> Result<bool, String> {
-    parse_predicate(tokens).map(|predicate| predicate.implies_test())
+    parse_predicate(tokens).map(|predicate| {
+        predicate.known_for_test(false) == Some(false)
+            && predicate.known_for_test(true) != Some(false)
+    })
 }
 
 pub(crate) fn parse_predicate(tokens: &proc_macro2::TokenStream) -> Result<CfgExpr, String> {
@@ -49,6 +52,30 @@ pub(crate) enum CfgExpr {
 }
 
 impl CfgExpr {
+    /// A definite result after substituting the test flag alone.
+    fn known_for_test(&self, enabled: bool) -> Option<bool> {
+        match self {
+            Self::Boolean(value) => Some(*value),
+            Self::Test => Some(enabled),
+            Self::Not(predicate) => predicate.known_for_test(enabled).map(|value| !value),
+            Self::All(operands) => Self::known_junction(operands, enabled, true),
+            Self::Any(operands) => Self::known_junction(operands, enabled, false),
+            Self::Other(_) => None,
+        }
+    }
+
+    fn known_junction(operands: &[Self], enabled: bool, identity: bool) -> Option<bool> {
+        let mut known = Some(identity);
+        for predicate in operands {
+            match predicate.known_for_test(enabled) {
+                Some(value) if value != identity => return Some(value),
+                None => known = None,
+                Some(_) => {}
+            }
+        }
+        known
+    }
+
     /// True when the predicate holds only in a test build.
     ///
     /// `test` does; `all(..)` does when any operand does; `any(..)` does when
