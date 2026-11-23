@@ -13,8 +13,12 @@ if [[ -z $hooks || $(realpath -m -- "$hooks") != "$top/.githooks" ||
     exit 1
 fi
 
-mkdir -p .stage
-scratch=$(mktemp -d "$top/.stage/static-gate.XXXXXXXX")
+# Keep the snapshot outside linked worktree directories so Cargo can reuse
+# its existing build cache without seeding the snapshot as a new worktree.
+common=$(git rev-parse --path-format=absolute --git-common-dir)
+scratch_root="${common%/*}/.stage"
+mkdir -p "$scratch_root"
+scratch=$(mktemp -d "$scratch_root/static-gate.XXXXXXXX")
 trap 'rm -rf -- "$scratch"' EXIT
 snapshot="$scratch/snapshot"
 mkdir "$snapshot"
