@@ -144,6 +144,14 @@ fn check_links(root: &Path, directory: &Path, cached: &raf_workplan::diagram::Di
     }
     assert!(links > 0);
     let html = fs::read_to_string(page).unwrap();
+    // The offline explorer loads nothing: its script is inline and no page or
+    // SVG asset names a remote resource, so it works from any directory.
+    assert!(html.contains("<script>"));
+    assert!(!html.contains("<script src"));
+    assert!(!html.contains("<link "));
+    assert!(!html.contains("src=\"http"));
+    assert!(!html.contains("href=\"http"));
+    assert!(!svg.contains("<image href=\"http"));
     for detail in cached.details() {
         assert!(html.contains(&format!("{}.html", detail.view().name())));
         assert!(
