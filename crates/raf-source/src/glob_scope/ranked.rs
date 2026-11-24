@@ -685,7 +685,8 @@ impl<'a> Ranked<'a, '_> {
                 read.glob,
                 self.index
                     .known_delivered(module, &own.class, known, source),
-                (&mut scratch.seen, &mut scratch.hidden),
+                &mut scratch.seen,
+                &mut scratch.hidden,
             );
         }
         self.index

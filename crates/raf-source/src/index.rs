@@ -180,13 +180,15 @@ pub(crate) enum NamedNamespaces {
     All,
     /// `use path::{self}` and `use path::{self as name}`.
     TypeOnly,
+    /// A proven `std::rc::Rc` import.
+    StandardRc,
 }
 
 impl NamedNamespaces {
     pub(crate) fn spaces(self) -> &'static [Namespace] {
         match self {
             Self::All => &Namespace::ALL,
-            Self::TypeOnly => &[Namespace::Type],
+            Self::TypeOnly | Self::StandardRc => &[Namespace::Type],
         }
     }
 }
@@ -344,6 +346,8 @@ pub(crate) struct Module {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Index {
     pub(crate) items: Vec<Item>,
+    /// Modules whose expansion or glob routes can alter a known standard export.
+    pub(crate) opaque_standard_routes: Vec<bool>,
     pub(crate) unexpanded: Vec<Unexpanded>,
     pub(crate) disabled_syntax: Vec<DisabledSyntax>,
     /// The items in the order of [`crate::Workspace::items`].
@@ -1159,6 +1163,7 @@ impl Index {
     fn empty(targets: &[Target]) -> Self {
         Self {
             items: Vec::new(),
+            opaque_standard_routes: Vec::new(),
             unexpanded: Vec::new(),
             disabled_syntax: Vec::new(),
             order: Vec::new(),
@@ -1306,6 +1311,7 @@ impl Index {
         index.order_imports();
         index.build_scopes();
         index.settle_agreed(store.meter)?;
+        index.settle_standard_types(files, store.meter)?;
         index.attach_impls(impls, &mut store)?;
         sort_observations(store.meter, &mut index.unexpanded, |row| {
             (&row.file, &row.span, &row.module, row.target)

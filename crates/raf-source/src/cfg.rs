@@ -52,6 +52,16 @@ pub(crate) enum CfgExpr {
 }
 
 impl CfgExpr {
+    /// Whether this condition applies a `cfg` guard that excludes shipping.
+    /// The declaration remains possible in tests if the condition can be
+    /// inactive or the applied guard can admit it there.
+    pub(crate) fn cfg_attr_requires_test(&self, guard: &Self) -> bool {
+        self.known_for_test(false) == Some(true)
+            && guard.known_for_test(false) == Some(false)
+            && (self.known_for_test(true) != Some(true)
+                || guard.known_for_test(true) != Some(false))
+    }
+
     /// A definite result after substituting the test flag alone.
     fn known_for_test(&self, enabled: bool) -> Option<bool> {
         match self {

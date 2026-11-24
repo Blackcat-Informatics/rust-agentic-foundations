@@ -905,7 +905,7 @@ impl Index {
             if matches!(
                 decl.kind,
                 UseKind::Named {
-                    namespaces: NamedNamespaces::TypeOnly,
+                    namespaces: NamedNamespaces::TypeOnly | NamedNamespaces::StandardRc,
                     ..
                 }
             ) {

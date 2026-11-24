@@ -12,7 +12,7 @@ use support::random::{Draw, random_crate};
 
 use raf_source::{
     Budget, ExportError, ExportOptions, Exports, LoadErrorKind, LoadOptions, MemoryTree,
-    ResolveError, SymbolKind, TargetId, TargetKind, Workspace,
+    ResolveError, StandardType, SymbolKind, TargetId, TargetKind, Workspace,
 };
 
 const DEMO: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n";
@@ -1002,16 +1002,204 @@ fn a_carried_re_export_is_kept_out_exactly_where_every_route_passes_a_module_tha
 }
 
 #[test]
-fn an_item_and_a_carried_outside_re_export_of_one_name_are_both_listed_and_not_ambiguous() {
+fn a_carried_standard_type_conflicts_with_an_indexed_type_glob() {
     let ws = load(&[(
         "src/lib.rs",
         "mod a { pub struct Rc; }\nmod b { pub use std::rc::Rc; }\npub use a::*;\npub use b::*;\n",
     )]);
-    assert_eq!(surface(&ws), pairs(&[("demo::Rc", "demo::a::Rc")]));
+    assert!(matches!(
+        ws.exported_items(target(&ws, TargetKind::Lib)),
+        Err(ExportError::AmbiguousStandardType {
+            path,
+            standard: StandardType::Rc,
+            indexed,
+        }) if path == "demo::Rc"
+            && indexed.len() == 1
+            && ws.item(indexed[0]).is_some_and(|item| item.path == "demo::a::Rc")
+    ));
+
+    let ws = load(&[(
+        "src/lib.rs",
+        "mod a { #[cfg(test)] pub struct Rc {} }\nmod b { pub use std::rc::Rc; }\npub use a::*;\npub use b::*;\n",
+    )]);
+    let listed = exports(&ws, TargetKind::Lib, false);
+    assert_eq!(listed.reexports.len(), 1);
+    assert_eq!(listed.reexports[0].path, "demo::Rc");
+    assert_eq!(listed.reexports[0].standard_type, Some(StandardType::Rc));
+}
+
+#[test]
+fn a_renamed_standard_type_is_carried_beside_a_value_and_shadowed_by_a_type() {
+    let ws = load(&[
+        (
+            "src/lib.rs",
+            "mod upstream;\npub use upstream::*;\npub fn Handle() {}\n",
+        ),
+        ("src/upstream.rs", "pub use std::rc::Rc as Handle;\n"),
+    ]);
+    let listed = exports(&ws, TargetKind::Lib, false);
+    assert_eq!(surface(&ws), pairs(&[("demo::Handle", "demo::Handle")]));
+    assert_eq!(listed.reexports.len(), 1);
+    let carried = &listed.reexports[0];
+    assert_eq!(carried.path, "demo::Handle");
+    assert_eq!(carried.standard_type, Some(StandardType::Rc));
+    assert!(carried.item.is_none());
+    assert_eq!(carried.file.as_str(), "src/upstream.rs");
+    assert_eq!(carried.line, 1);
+
+    for source in [
+        "mod functions { pub fn Handle() {} }\npub use functions::*;\npub use std::rc::Rc as Handle;\n",
+        "mod functions { pub fn Handle() {} }\nmod upstream { pub use crate::functions::*; pub use std::rc::Rc as Handle; }\npub use upstream::*;\n",
+    ] {
+        let ws = load(&[("src/lib.rs", source)]);
+        let listed = exports(&ws, TargetKind::Lib, false);
+        assert_eq!(
+            surface(&ws),
+            pairs(&[("demo::Handle", "demo::functions::Handle")])
+        );
+        assert_eq!(listed.reexports.len(), 1);
+        assert_eq!(listed.reexports[0].standard_type, Some(StandardType::Rc));
+    }
+
+    let ws = load(&[
+        (
+            "src/lib.rs",
+            "mod upstream;\npub use upstream::*;\npub type Handle = u8;\n",
+        ),
+        ("src/upstream.rs", "pub use std::rc::Rc as Handle;\n"),
+    ]);
+    let listed = exports(&ws, TargetKind::Lib, false);
+    assert_eq!(listed.items.len(), 1);
+    assert_eq!(listed.items[0].kind, SymbolKind::TypeAlias);
+    assert_eq!(listed.reexports, []);
+
+    for shadow in [
+        "#[cfg(test)] pub type Handle = u8;",
+        "pub struct Local {} #[cfg(test)] pub use self::Local as Handle;",
+    ] {
+        let source = format!("mod upstream;\npub use upstream::*;\n{shadow}");
+        let ws = load(&[
+            ("src/lib.rs", &source),
+            ("src/upstream.rs", "pub use std::rc::Rc as Handle;\n"),
+        ]);
+        let listed = exports(&ws, TargetKind::Lib, false);
+        assert_eq!(listed.reexports.len(), 1);
+        assert_eq!(listed.reexports[0].path, "demo::Handle");
+        assert_eq!(listed.reexports[0].standard_type, Some(StandardType::Rc));
+    }
+}
+
+#[test]
+fn a_standard_type_carry_requires_clear_intermediate_modules() {
+    for (expansion, carried) in [("", true), ("supply!();", false)] {
+        let source = format!(
+            "pub mod carrier {{ pub use ::std::rc::Rc as Shared; }}\n\
+             mod middle {{ pub use crate::carrier::*;\n\
+                 macro_rules! supply {{ () => {{ pub struct Shared {{}} }}; }}\n\
+                 {expansion}\n\
+             }}\n\
+             pub mod facade {{ pub use crate::middle::*; }}\n"
+        );
+        let ws = load(&[("src/lib.rs", &source)]);
+        let listed = exports(&ws, TargetKind::Lib, false);
+        let known: Vec<_> = listed
+            .reexports
+            .iter()
+            .filter(|export| export.standard_type == Some(StandardType::Rc))
+            .map(|export| export.path.as_str())
+            .collect();
+        assert_eq!(
+            known,
+            if carried {
+                vec!["demo::carrier::Shared", "demo::facade::Shared"]
+            } else {
+                vec!["demo::carrier::Shared"]
+            }
+        );
+    }
+}
+
+#[test]
+#[expect(clippy::expect_used, reason = "the controlled manifest must load")]
+fn standard_type_identity_requires_an_unshadowed_implicit_std_root() {
+    let authored = "pub use std::rc::Rc as Handle;\n";
+    let normal = load(&[("src/lib.rs", authored)]);
+    let listed = exports(&normal, TargetKind::Lib, false);
+    assert_eq!(listed.reexports[0].standard_type, Some(StandardType::Rc));
+    let alternative = load(&[
+        (
+            "src/lib.rs",
+            "#[cfg(not(test))] pub mod implementation;\n#[cfg(test)] #[path = \"test_impl.rs\"] pub mod implementation;",
+        ),
+        ("src/implementation.rs", authored),
+        (
+            "src/test_impl.rs",
+            "#![test_expansion]\npub fn test_helper() {}",
+        ),
+    ]);
+    let listed = exports(&alternative, TargetKind::Lib, false);
+    assert_eq!(listed.reexports.len(), 1);
+    assert_eq!(listed.reexports[0].path, "demo::implementation::Handle");
+    assert_eq!(listed.reexports[0].standard_type, Some(StandardType::Rc));
+
+    let macro_scope = load(&[(
+        "src/lib.rs",
+        "#[macro_use] mod macros { macro_rules! unused { () => {} } }\npub use ::std::rc::Rc as Handle;\n",
+    )]);
     assert_eq!(
-        reexports_of(&ws, false),
-        triples(&[("demo::Rc", "std::rc::Rc", false)])
+        exports(&macro_scope, TargetKind::Lib, false).reexports[0].standard_type,
+        Some(StandardType::Rc)
     );
+
+    let manifest = DEMO.replace("2021", "2015");
+    let old = MemoryTree::from([("Cargo.toml", manifest.as_str()), ("src/lib.rs", authored)]);
+    let old = Workspace::load(&old, &["."]).expect("the older-edition fixture loads");
+    assert_eq!(
+        exports(&old, TargetKind::Lib, false).reexports[0].standard_type,
+        Some(StandardType::Rc)
+    );
+
+    let cargo_alias =
+        format!("{DEMO}\n[dependencies]\nstd = {{ package = 'decoy', version = '1' }}\n");
+    let alias = MemoryTree::from([
+        ("Cargo.toml", cargo_alias.as_str()),
+        ("src/lib.rs", authored),
+    ]);
+    let ws = Workspace::load(&alias, &["."]).expect("the structural Cargo alias loads");
+    let listed = exports(&ws, TargetKind::Lib, false);
+    assert_eq!(listed.reexports.len(), 1);
+    assert_eq!(listed.reexports[0].standard_type, None);
+
+    for prefix in [
+        "#![no_implicit_prelude]\n",
+        "extern crate core as std;\n",
+        "macro_rules! supply { () => { mod std {} }; }\nsupply!();\n",
+        "mod decoy { pub use unrelated::*; }\nuse decoy::*;\n",
+        "#[derive(GenerateStd)] struct Marker;\n",
+        "#[cfg_attr(test, cfg(test))] #[rewrite_import] use core::marker::PhantomData;\n",
+        "#[rewrite_import]\n",
+    ] {
+        let source = format!("{prefix}{authored}");
+        let ws = load(&[("src/lib.rs", &source)]);
+        let listed = exports(&ws, TargetKind::Lib, false);
+        assert_eq!(listed.reexports.len(), 1, "{source}");
+        assert_eq!(listed.reexports[0].standard_type, None, "{source}");
+    }
+
+    let glob = format!("mod decoy {{ pub use core as std; }}\nuse decoy::*;\n{authored}");
+    let ws = load(&[("src/lib.rs", &glob)]);
+    assert!(matches!(
+        ws.exported_items(target(&ws, TargetKind::Lib)),
+        Err(ExportError::Resolve(ResolveError::Ambiguous(_)))
+    ));
+
+    let source = format!("mod std {{ pub mod rc {{ pub struct Rc; }} }}\n{authored}");
+    let ws = load(&[("src/lib.rs", &source)]);
+    assert_eq!(
+        surface(&ws),
+        pairs(&[("demo::Handle", "demo::std::rc::Rc")])
+    );
+    assert_eq!(exports(&ws, TargetKind::Lib, false).reexports, []);
 }
 
 #[test]
@@ -1342,9 +1530,10 @@ fn in_random_small_crates_a_carried_re_export_is_listed_hidden_or_absent_as_the_
     for seed in [0x5eed_0001_u64, 0x5eed_0002, 0x5eed_0003] {
         let mut draw = Draw(seed);
         for _ in 0..150 {
-            // Both versions are drawn from one state, so they share a shape.
+            // Both versions are drawn from one state. The record struct
+            // matches Cell's Type binding without a Value constructor.
             let state = draw.0;
-            let item = random_crate(&mut draw, "pub struct Cell;");
+            let item = random_crate(&mut draw, "pub struct Cell {}");
             draw.0 = state;
             let outside = random_crate(&mut draw, "pub use std::cell::Cell;");
             let as_item = cells(&load(&[("src/lib.rs", item.as_str())]));
