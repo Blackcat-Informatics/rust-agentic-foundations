@@ -1386,6 +1386,12 @@ fn depends_is_a_list_of_cap_ids_and_does_not_need_the_capability_to_exist() {
                 expected: "a list of cap ids",
             },
         ),
+        (
+            "depends:\n  - a: b\n  - c: d",
+            Rule::WrongShape {
+                expected: "a list of cap ids",
+            },
+        ),
     ] {
         let found = violations(&mutate(&alpha(), "depends: [cap:beta]", to), ALPHA_PATH);
         assert_hit(&found, &key("depends"), &rule);
