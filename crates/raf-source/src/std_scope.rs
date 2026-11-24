@@ -8,7 +8,7 @@ use purrdf_lex::walk::WorkList;
 use std::collections::BTreeMap;
 use std::mem::size_of;
 
-use crate::facts::{AttrFact, has_expansion_attributes};
+use crate::facts::{AttrFact, TestRole, has_expansion_attributes};
 use crate::glob_scope::reserve_next;
 use crate::index::{Index, NamedNamespaces, UseKind};
 use crate::item::Namespace;
@@ -34,8 +34,11 @@ impl Index {
     ) -> Result<(), LoadError> {
         let mut from = NamedNamespaces::All;
         loop {
-            let changes = self.standard_type_changes(files, meter, from)?;
+            let (changes, opaque) = self.standard_type_changes(files, meter, from)?;
             let Some(&first) = changes.first() else {
+                if from == NamedNamespaces::StandardRc {
+                    self.opaque_standard_routes = opaque;
+                }
                 return Ok(());
             };
             let to = match from {
@@ -64,7 +67,7 @@ impl Index {
         files: &BTreeMap<RelPath, SourceFile>,
         meter: &Meter,
         from: NamedNamespaces,
-    ) -> Result<Vec<usize>, LoadError> {
+    ) -> Result<(Vec<usize>, Vec<bool>), LoadError> {
         let selected = self.uses.iter().enumerate().filter(|(_, decl)| {
             !decl.test
                 && matches!(&decl.kind, UseKind::Named { namespaces, segs, .. }
@@ -72,9 +75,9 @@ impl Index {
         });
         let mut selected = selected.peekable();
         let Some((_, site)) = selected.peek() else {
-            return Ok(Vec::new());
+            return Ok((Vec::new(), Vec::new()));
         };
-        let scope = StdScope::new(self, files, meter, &site.file)?;
+        let scope = StdScope::build_scope(self, files, meter, &site.file, false)?;
         let was_proven = from == NamedNamespaces::StandardRc;
         let mut changes = Vec::new();
         for (position, decl) in selected {
@@ -91,7 +94,11 @@ impl Index {
                 changes.push(position);
             }
         }
-        Ok(changes)
+        let mut opaque = scope.opaque_routes;
+        for (opaque, uncertain) in opaque.iter_mut().zip(scope.uncertain_globs) {
+            *opaque |= uncertain;
+        }
+        Ok((changes, opaque))
     }
 }
 
@@ -106,25 +113,23 @@ impl From<StorageError> for BuildError {
 pub(crate) struct StdScope {
     pub(crate) disabled: Vec<bool>,
     pub(crate) uncertain_globs: Vec<bool>,
+    prelude_disabled: Vec<bool>,
     opaque_routes: Vec<bool>,
 }
 
-fn disables(attrs: &[AttrFact]) -> bool {
+fn disables(attrs: &[AttrFact], macro_scope: bool) -> bool {
+    let disabling = |word| {
+        matches!(word, "no_implicit_prelude" | "no_std" | "no_core")
+            || (macro_scope && word == "macro_use")
+    };
     attrs.iter().any(|attr| {
         work::add(Work::ReachFormatBytes, attr.path.len() + attr.args.len());
-        matches!(
-            attr.path.as_str(),
-            "no_implicit_prelude" | "no_std" | "no_core" | "macro_use"
-        ) || (attr.path == "cfg_attr"
-            && attr
-                .args
-                .split(|ch: char| !ch.is_alphanumeric() && ch != '_')
-                .any(|word| {
-                    matches!(
-                        word,
-                        "no_implicit_prelude" | "no_std" | "no_core" | "macro_use"
-                    )
-                }))
+        disabling(attr.path.as_str())
+            || (attr.path == "cfg_attr"
+                && attr
+                    .args
+                    .split(|ch: char| !ch.is_alphanumeric() && ch != '_')
+                    .any(disabling))
     })
 }
 
@@ -135,6 +140,16 @@ impl StdScope {
         meter: &Meter,
         file: &RelPath,
     ) -> Result<Self, LoadError> {
+        Self::build_scope(index, files, meter, file, true)
+    }
+
+    fn build_scope(
+        index: &Index,
+        files: &BTreeMap<RelPath, SourceFile>,
+        meter: &Meter,
+        file: &RelPath,
+        include_tests: bool,
+    ) -> Result<Self, LoadError> {
         meter.items(size_of::<Self>(), file, None)?;
         let mut admission = ItemAdmission::new(meter, file);
         let steps = Steps::QueryItems {
@@ -143,7 +158,7 @@ impl StdScope {
             line: None,
         };
         let built = Memory::new(&mut admission)
-            .try_scope(|memory| Self::build(index, files, memory, steps));
+            .try_scope(|memory| Self::build(index, files, memory, steps, include_tests));
         built.map_err(|error| match error {
             BuildError::Storage(error) => admission.error(error),
             BuildError::Read(error) => error,
@@ -155,14 +170,26 @@ impl StdScope {
         files: &BTreeMap<RelPath, SourceFile>,
         memory: &mut Memory<'_, impl Admission>,
         steps: Steps<'_>,
+        include_tests: bool,
     ) -> Result<Self, BuildError> {
         let mut disabled = Vec::new();
         memory.reserve(&mut disabled, index.modules.len())?;
         disabled.resize(index.modules.len(), false);
+        let mut prelude_disabled = Vec::new();
+        memory.reserve(&mut prelude_disabled, index.modules.len())?;
+        prelude_disabled.resize(index.modules.len(), false);
         let mut opaque_routes = Vec::new();
         memory.reserve(&mut opaque_routes, index.modules.len())?;
         opaque_routes.resize(index.modules.len(), false);
-        Self::mark_modules(index, files, &mut disabled, &mut opaque_routes, memory)?;
+        Self::mark_modules(
+            index,
+            files,
+            &mut disabled,
+            &mut prelude_disabled,
+            &mut opaque_routes,
+            memory,
+            include_tests,
+        )?;
         let mut children = Vec::new();
         memory.reserve(&mut children, index.modules.len())?;
         children.resize_with(index.modules.len(), Vec::<usize>::new);
@@ -172,6 +199,7 @@ impl StdScope {
             }
         }
         Self::propagate(&mut disabled, &children, memory)?;
+        Self::propagate(&mut prelude_disabled, &children, memory)?;
         Self::propagate(&mut opaque_routes, &children, memory)?;
         Self::release_edges(children, memory)?;
         let mut uncertain_globs = Vec::new();
@@ -183,6 +211,9 @@ impl StdScope {
         for (module, uncertain) in uncertain_globs.iter_mut().enumerate() {
             for &position in index.globs_of(module) {
                 work::add(Work::ReachFormatTokens, 1);
+                if !include_tests && index.uses[position].test {
+                    continue;
+                }
                 match index
                     .reach_outcome(index.glob_targets(position, steps), steps)
                     .map_err(BuildError::Read)?
@@ -204,6 +235,7 @@ impl StdScope {
         Ok(Self {
             disabled,
             uncertain_globs,
+            prelude_disabled,
             opaque_routes,
         })
     }
@@ -212,8 +244,10 @@ impl StdScope {
         index: &Index,
         files: &BTreeMap<RelPath, SourceFile>,
         disabled: &mut [bool],
+        prelude_disabled: &mut [bool],
         opaque: &mut [bool],
         memory: &mut Memory<'_, impl Admission>,
+        include_tests: bool,
     ) -> Result<(), StorageError> {
         for file in files.values() {
             for reach in &file.reached {
@@ -222,20 +256,35 @@ impl StdScope {
                 else {
                     continue;
                 };
-                disabled[module] |= disables(&file.facts.attrs);
+                disabled[module] |= disables(&file.facts.attrs, true);
+                prelude_disabled[module] |= disables(&file.facts.attrs, false);
                 opaque[module] |= has_expansion_attributes(&file.facts.attrs);
                 let mut pending = WorkList::<_, 8>::default();
                 pending.try_push_admitted((module, &file.facts.body), memory)?;
                 while let Some((module, body)) = pending.pop() {
                     work::add(Work::ReachFormatTokens, 1);
-                    disabled[module] |= body.items.iter().any(|item| disables(&item.attrs));
-                    opaque[module] |= body.expansion_attributes
-                        || !body.unexpanded.is_empty()
-                        || body
-                            .items
+                    let items = || {
+                        body.items
                             .iter()
-                            .any(|item| has_expansion_attributes(&item.attrs));
+                            .filter(|item| include_tests || item.test == TestRole::None)
+                    };
+                    disabled[module] |= items().any(|item| disables(&item.attrs, true));
+                    prelude_disabled[module] |= items().any(|item| disables(&item.attrs, false));
+                    let expansion = if include_tests {
+                        body.expansion_attributes
+                    } else {
+                        body.shipping_expansion_attributes
+                    };
+                    opaque[module] |= expansion
+                        || body
+                            .unexpanded
+                            .iter()
+                            .any(|item| include_tests || item.test == TestRole::None)
+                        || items().any(|item| has_expansion_attributes(&item.attrs));
                     for child in &body.mods {
+                        if !include_tests && child.test != TestRole::None {
+                            continue;
+                        }
                         opaque[module] |= has_expansion_attributes(&child.attrs);
                         disabled[module] |= child.attrs.iter().any(|attr| {
                             attr.path == "macro_use"
@@ -257,7 +306,8 @@ impl StdScope {
                         else {
                             continue;
                         };
-                        disabled[child_module] |= disables(&child.attrs);
+                        disabled[child_module] |= disables(&child.attrs, true);
+                        prelude_disabled[child_module] |= disables(&child.attrs, false);
                         if let Some(body) = &child.inline {
                             pending.try_push_admitted((child_module, body), memory)?;
                         }
@@ -303,8 +353,19 @@ impl StdScope {
         memory.release_vec(edges)
     }
 
-    fn implicit_available(&self, index: &Index, module: usize, test: bool) -> bool {
-        !self.disabled[module]
+    fn implicit_available(
+        &self,
+        index: &Index,
+        module: usize,
+        test: bool,
+        macro_scope: bool,
+    ) -> bool {
+        let disabled = if macro_scope {
+            &self.disabled
+        } else {
+            &self.prelude_disabled
+        };
+        !disabled[module]
             && !index.no_std(module)
             && index.extern_name(module, "std", test).is_none()
     }
@@ -318,7 +379,9 @@ impl StdScope {
         own: Option<usize>,
         steps: Steps<'_>,
     ) -> Result<bool, LoadError> {
-        if !self.implicit_available(index, module, test) || index.edition(module) < 2018 {
+        if !self.implicit_available(index, module, test, own.is_none())
+            || index.edition(module) < 2018
+        {
             return Ok(false);
         }
         let root = index.modules[module].root;
@@ -375,7 +438,7 @@ impl StdScope {
                 steps,
             )?
         } else {
-            self.implicit_available(index, module, decl.test)
+            self.implicit_available(index, module, decl.test, false)
                 && !self.uncertain_globs[root]
                 && !index.blocked(root, "std", Namespace::Type, Some(position))
                 && index

@@ -1017,6 +1017,15 @@ fn a_carried_standard_type_conflicts_with_an_indexed_type_glob() {
             && indexed.len() == 1
             && ws.item(indexed[0]).is_some_and(|item| item.path == "demo::a::Rc")
     ));
+
+    let ws = load(&[(
+        "src/lib.rs",
+        "mod a { #[cfg(test)] pub struct Rc {} }\nmod b { pub use std::rc::Rc; }\npub use a::*;\npub use b::*;\n",
+    )]);
+    let listed = exports(&ws, TargetKind::Lib, false);
+    assert_eq!(listed.reexports.len(), 1);
+    assert_eq!(listed.reexports[0].path, "demo::Rc");
+    assert_eq!(listed.reexports[0].standard_type, Some(StandardType::Rc));
 }
 
 #[test]
@@ -1063,6 +1072,51 @@ fn a_renamed_standard_type_is_carried_beside_a_value_and_shadowed_by_a_type() {
     assert_eq!(listed.items.len(), 1);
     assert_eq!(listed.items[0].kind, SymbolKind::TypeAlias);
     assert_eq!(listed.reexports, []);
+
+    for shadow in [
+        "#[cfg(test)] pub type Handle = u8;",
+        "pub struct Local {} #[cfg(test)] pub use self::Local as Handle;",
+    ] {
+        let source = format!("mod upstream;\npub use upstream::*;\n{shadow}");
+        let ws = load(&[
+            ("src/lib.rs", &source),
+            ("src/upstream.rs", "pub use std::rc::Rc as Handle;\n"),
+        ]);
+        let listed = exports(&ws, TargetKind::Lib, false);
+        assert_eq!(listed.reexports.len(), 1);
+        assert_eq!(listed.reexports[0].path, "demo::Handle");
+        assert_eq!(listed.reexports[0].standard_type, Some(StandardType::Rc));
+    }
+}
+
+#[test]
+fn a_standard_type_carry_requires_clear_intermediate_modules() {
+    for (expansion, carried) in [("", true), ("supply!();", false)] {
+        let source = format!(
+            "pub mod carrier {{ pub use ::std::rc::Rc as Shared; }}\n\
+             mod middle {{ pub use crate::carrier::*;\n\
+                 macro_rules! supply {{ () => {{ pub struct Shared {{}} }}; }}\n\
+                 {expansion}\n\
+             }}\n\
+             pub mod facade {{ pub use crate::middle::*; }}\n"
+        );
+        let ws = load(&[("src/lib.rs", &source)]);
+        let listed = exports(&ws, TargetKind::Lib, false);
+        let known: Vec<_> = listed
+            .reexports
+            .iter()
+            .filter(|export| export.standard_type == Some(StandardType::Rc))
+            .map(|export| export.path.as_str())
+            .collect();
+        assert_eq!(
+            known,
+            if carried {
+                vec!["demo::carrier::Shared", "demo::facade::Shared"]
+            } else {
+                vec!["demo::carrier::Shared"]
+            }
+        );
+    }
 }
 
 #[test]
@@ -1072,6 +1126,14 @@ fn standard_type_identity_requires_an_unshadowed_implicit_std_root() {
     let normal = load(&[("src/lib.rs", authored)]);
     let listed = exports(&normal, TargetKind::Lib, false);
     assert_eq!(listed.reexports[0].standard_type, Some(StandardType::Rc));
+    let macro_scope = load(&[(
+        "src/lib.rs",
+        "#[macro_use] mod macros { macro_rules! unused { () => {} } }\npub use ::std::rc::Rc as Handle;\n",
+    )]);
+    assert_eq!(
+        exports(&macro_scope, TargetKind::Lib, false).reexports[0].standard_type,
+        Some(StandardType::Rc)
+    );
 
     let manifest = DEMO.replace("2021", "2015");
     let old = MemoryTree::from([("Cargo.toml", manifest.as_str()), ("src/lib.rs", authored)]);

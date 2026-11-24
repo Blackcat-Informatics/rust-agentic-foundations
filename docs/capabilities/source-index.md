@@ -778,6 +778,7 @@ bindings:
     - raf_source::test_crate::exported_items::a_carried_re_export_is_kept_out_exactly_where_every_route_passes_a_module_that_binds_its_name
     - raf_source::test_crate::exported_items::a_carried_standard_type_conflicts_with_an_indexed_type_glob
     - raf_source::test_crate::exported_items::a_renamed_standard_type_is_carried_beside_a_value_and_shadowed_by_a_type
+    - raf_source::test_crate::exported_items::a_standard_type_carry_requires_clear_intermediate_modules
     - raf_source::test_crate::exported_items::standard_type_identity_requires_an_unshadowed_implicit_std_root
     - raf_source::test_crate::rustc_oracle::standard_type_globs_follow_the_compiler_across_value_and_type_bindings
     - raf_source::exports::tests::readers_of_carried_names_beside_sibling_shadows_list_in_linear_work_and_bounded_bytes
@@ -3476,9 +3477,17 @@ A proven `std::rc::Rc` import yields `Reexport::standard_type` with its
 canonical standard-library Type and preserves the written path, file and
 line. A direct rename of the standard import and public workspace globs
 preserve that identity. A same-named Value can appear beside it. On a
-glob route, an explicit Type binding shadows the carried Type. A distinct
-indexed Type brought in by another glob makes the public path ambiguous.
-<!-- raf:tested-by raf_source::test_crate::exported_items::a_renamed_standard_type_is_carried_beside_a_value_and_shadowed_by_a_type,raf_source::test_crate::exported_items::a_carried_standard_type_conflicts_with_an_indexed_type_glob -->
+glob route, an explicit shipping Type binding shadows the carried Type.
+A distinct shipping Type brought in by another glob makes the public path
+ambiguous. Test-only declarations neither supply nor shadow these Type
+bindings. A public glob carries the proven standard Type when its module and
+glob scopes allow Source to rule out a competing opaque binding.
+Source follows the shipping Type candidates through settled glob visibility
+and the terminal scopes of indexed named imports. An ambiguity companion
+needs a visible shipping binding. Independent support for the standard Type
+can replace a glob read whose routes to that Type all return through the
+reading module.
+<!-- raf:tested-by raf_source::test_crate::exported_items::a_renamed_standard_type_is_carried_beside_a_value_and_shadowed_by_a_type,raf_source::test_crate::exported_items::a_carried_standard_type_conflicts_with_an_indexed_type_glob,raf_source::test_crate::exported_items::a_standard_type_carry_requires_clear_intermediate_modules,raf_source::test_crate::rustc_oracle::standard_type_globs_follow_the_compiler_across_value_and_type_bindings -->
 
 `#[doc(hidden)]` hides a path when it is on the item, on a module of the path (on
 its declaration, or as `#![doc(hidden)]` in the module's file), on the `use`
@@ -4319,8 +4328,9 @@ delegates to that library or enforce preferred-provider policy.
 Standard `Rc` identity requires a confirmed implicit `std` root in the
 selected edition and import scope on native Linux. Competing roots,
 disabled preludes and expansion that can affect the import scope prevent
-that proof. Settlement applies the proven namespace and rechecks the
-root after resolving the refined namespace tables.
+that proof. A macro-only import by itself leaves the standard Type root
+available. Settlement applies the proven namespace and rechecks the root
+after resolving the refined namespace tables.
 <!-- raf:tested-by raf_source::test_crate::exported_items::standard_type_identity_requires_an_unshadowed_implicit_std_root -->
 
 ## Explanation
@@ -5781,6 +5791,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::exported_items::a_re_export_two_globs_carry_is_written_as_the_first_glob_that_carries_it` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::a_renamed_standard_type_is_carried_beside_a_value_and_shadowed_by_a_type` | test | [Contract](#contract) |
 | `raf_source::test_crate::exported_items::a_restricted_or_private_re_export_is_not_exported_beside_a_pub_one_that_is` | test | [Verification](#verification) |
+| `raf_source::test_crate::exported_items::a_standard_type_carry_requires_clear_intermediate_modules` | test | [Contract](#contract) |
 | `raf_source::test_crate::exported_items::a_surface_over_the_item_budget_left_by_the_load_is_refused_beside_one_within_it` | test | [Contract](#contract) |
 | `raf_source::test_crate::exported_items::a_surface_refused_for_a_module_name_a_glob_cycle_carries_lists_the_same_candidates_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::an_ambiguous_a_cyclic_or_an_unresolved_public_name_fails_beside_a_neighbour_that_lists` | test | [Constraints](#constraints) |
@@ -6129,7 +6140,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::rustc_oracle::every_corpus_program_shows_the_divergence_it_records_and_no_other` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::rustc_oracle::external_carried_exports_and_carry_limits_have_named_compiler_boundaries` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_source::test_crate::rustc_oracle::serial_and_parallel_indices_and_reports_agree_on_all_oracle_source_data` | test | [Contract](#contract) |
-| `raf_source::test_crate::rustc_oracle::standard_type_globs_follow_the_compiler_across_value_and_type_bindings` | test | [Verification](#verification) |
+| `raf_source::test_crate::rustc_oracle::standard_type_globs_follow_the_compiler_across_value_and_type_bindings` | test | [Contract](#contract) |
 | `raf_source::test_crate::rustc_oracle::the_index_agrees_with_rustc_on_generated_programs_up_to_the_known_classes` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::rustc_oracle::the_minimiser_drops_what_a_divergence_does_not_need_and_keeps_its_class` | test | [Verification](#verification) |
 | `raf_source::test_crate::rustc_oracle::the_seed_base_is_read_in_hexadecimal_or_decimal_and_refuses_anything_else` | test | [Verification](#verification) |

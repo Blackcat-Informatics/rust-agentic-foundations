@@ -179,6 +179,7 @@ use purrdf_lex::allocation::{OrderedTable, StorageError};
 
 mod cut;
 mod ranked;
+mod shipping_type;
 use purrdf_lex::walk::WorkList;
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
@@ -3756,9 +3757,9 @@ impl Index {
     }
 
     /// Sort and merge candidate evidence under the caller's work account.
-    fn widest_charged(
+    fn widest_charged<T: Ord>(
         &self,
-        held: &mut Vec<Held>,
+        held: &mut Vec<(T, Level)>,
         charge: &impl Fn(usize) -> Result<(), LoadError>,
     ) -> Result<(), LoadError> {
         if held.len() < 2 {
@@ -3794,19 +3795,20 @@ impl Index {
         held: &[Held],
         into: (&mut Vec<Held>, &mut Vec<Held>),
     ) {
-        self.glob_held_iter(module, class, glob, held.iter().copied(), into);
+        let (seen, hidden) = into;
+        self.glob_held_iter(module, class, glob, held.iter().copied(), seen, hidden);
     }
 
     /// The same exposure policy for an admitted borrowed selection.
-    fn glob_held_iter(
+    fn glob_held_iter<T>(
         &self,
         module: usize,
         class: &[bool],
         glob: Level,
-        held: impl Iterator<Item = Held>,
-        into: (&mut Vec<Held>, &mut Vec<Held>),
+        held: impl Iterator<Item = (T, Level)>,
+        seen: &mut Vec<(T, Level)>,
+        hidden: &mut Vec<(T, Level)>,
     ) {
-        let (seen, hidden) = into;
         for (id, level) in held {
             let mut met = self.meet(glob, level).plain();
             if level.is_companion() {
@@ -3854,10 +3856,10 @@ impl Index {
     }
 
     /// Shared exposure retaining the caller's admitted backing buffers.
-    fn expose_in_place(
+    fn expose_in_place<T: Copy + Ord>(
         &self,
-        seen: &mut Vec<Held>,
-        hidden: &mut Vec<Held>,
+        seen: &mut Vec<(T, Level)>,
+        hidden: &mut Vec<(T, Level)>,
         charge: &impl Fn(usize) -> Result<(), LoadError>,
     ) -> Result<(), LoadError> {
         self.widest_charged(seen, charge)?;

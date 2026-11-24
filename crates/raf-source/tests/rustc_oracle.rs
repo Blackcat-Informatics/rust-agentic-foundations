@@ -182,18 +182,11 @@ fn external_carried_exports_and_carry_limits_have_named_compiler_boundaries() {
     export_boundaries::assert_inventory();
 }
 
-#[test]
-#[expect(
-    clippy::expect_used,
-    reason = "the controlled compiler fixture must load and yield its public surface"
-)]
-fn standard_type_globs_follow_the_compiler_across_value_and_type_bindings() {
-    use raf_source::{ExportError, MemoryTree, StandardType, Workspace};
-
-    let common = "mod upstream { pub use std::rc::Rc as Handle; }\npub use upstream::*;\n";
-    for (prefix, consumer, retained) in [
+const STANDARD_TYPE_GLOB_CASES: &[(&str, &str, Option<bool>)] = {
+    const COMMON: &str = "mod upstream { pub use std::rc::Rc as Handle; }\npub use upstream::*;\n";
+    &[
         (
-            common,
+            COMMON,
             "pub fn Handle() {}\npub fn probe(_: Handle<u8>) { Handle(); }",
             Some(true),
         ),
@@ -208,16 +201,102 @@ fn standard_type_globs_follow_the_compiler_across_value_and_type_bindings() {
             Some(true),
         ),
         (
-            common,
+            COMMON,
             "pub type Handle = u8;\npub fn probe(_: Handle) {}",
             Some(false),
         ),
         (
-            common,
+            COMMON,
             "mod competing { pub struct Handle<T> { pub value: T } }\npub use competing::*;\npub fn probe(_: Handle<u8>) {}",
             None,
         ),
-    ] {
+        (
+            COMMON,
+            "mod competing { pub struct Handle {} }\n#[cfg(test)] pub use competing::*;\npub fn Handle() {}\npub fn probe(_: Handle<u8>) { Handle(); }",
+            Some(true),
+        ),
+        (
+            COMMON,
+            "mod competing { pub struct Handle {} }\nmod middle { #[cfg(test)] pub use crate::competing::*; }\npub use middle::*;\npub fn Handle() {}\npub fn probe(_: Handle<u8>) { Handle(); }",
+            Some(true),
+        ),
+        (
+            COMMON,
+            "mod competing { pub struct Handle {} }\nmod middle { pub use crate::competing::*; #[cfg(test)] pub type Handle = (); }\npub use middle::*;\npub fn probe(_: Handle<u8>) {}",
+            None,
+        ),
+        (
+            COMMON,
+            "mod competing { pub struct Handle {} }\nuse competing::*;\npub fn probe(_: Handle<u8>) {}",
+            None,
+        ),
+        (
+            COMMON,
+            "mod competing { pub struct Handle {} }\nmod middle { pub use crate::competing::*; #[cfg(test)] pub type Handle = (); }\nuse middle::*;\npub fn probe(_: Handle<u8>) {}",
+            None,
+        ),
+        (
+            COMMON,
+            "mod competing { pub(crate) struct Handle {} }\nmod middle { pub use crate::competing::*; #[cfg(test)] pub type Handle = (); }\npub use middle::*;\npub fn probe(_: Handle<u8>) {}",
+            None,
+        ),
+        (
+            COMMON,
+            "mod competing { pub struct Handle {} }\nmod test_seed { pub struct Handle {} }\nmod middle { use crate::competing::*; #[cfg(test)] pub use crate::test_seed::*; }\npub use middle::*;\npub fn Handle() {}\npub fn probe(_: Handle<u8>) { Handle(); }",
+            Some(true),
+        ),
+        (
+            "",
+            "mod competing { pub struct Handle {} }\nmod near { pub use crate::competing::*; #[cfg(test)] pub type Handle = (); }\nmod upstream { pub use std::rc::Rc as Handle; }\nmod middle { use crate::near::*; pub use crate::upstream::*; pub fn probe(_: Handle<u8>) {} }\npub use middle::*;",
+            None,
+        ),
+        (
+            COMMON,
+            "mod rival { pub struct Named {} }\nmod chosen { pub fn Named() {} #[cfg(test)] pub use crate::rival::*; }\nmod competing { pub use crate::chosen::Named as Handle; }\npub use competing::*;\npub fn probe(_: Handle<u8>) { Handle(); }",
+            Some(true),
+        ),
+        (
+            "",
+            "mod upstream { pub use std::rc::Rc as Handle; }\nmod rival { pub struct Named {} }\nmod chosen { pub fn Named() {} #[cfg(test)] pub use crate::rival::*; }\nmod middle { pub use crate::chosen::Named as Handle; pub use crate::upstream::*; }\npub use middle::*;\npub fn probe(_: Handle<u8>) { Handle(); }",
+            Some(true),
+        ),
+        (
+            COMMON,
+            "mod real { pub struct Named {} }\nmod chosen { pub use crate::real::*; #[cfg(test)] pub type Named = (); }\nmod competing { pub use crate::chosen::Named as Handle; }\npub use competing::*;\npub fn probe(_: Handle<u8>) {}",
+            None,
+        ),
+        (
+            "",
+            "mod upstream { pub use ::std::rc::Rc as Handle; }\n#[cfg(test)] use std::cell::*;\npub use upstream::*;\npub fn Handle() {}\npub fn probe(_: Handle<u8>) { Handle(); }",
+            Some(true),
+        ),
+        (
+            "",
+            "mod upstream { pub use ::std::rc::Rc as Handle; }\n#[cfg(test)] #[cfg_attr(test, doc(hidden))] use std::cell::*;\npub use upstream::*;\npub fn Handle() {}\npub fn probe(_: Handle<u8>) { Handle(); }",
+            Some(true),
+        ),
+        (
+            "",
+            "mod a { pub use crate::b::*; pub use std::rc::Rc as Handle; }\nmod b { pub use crate::a::*; }\npub use b::*;\npub fn Handle() {}\npub fn probe(_: Handle<u8>) { Handle(); }",
+            Some(true),
+        ),
+        (
+            "",
+            "mod upstream { pub use std::rc::Rc as Handle; }\nmod competing { pub struct Handle {} }\nmod a { pub use crate::b::*; pub use crate::upstream::*; }\nmod b { pub use crate::a::*; pub use crate::competing::*; }\npub use a::*;\npub fn Handle() {}\npub fn probe(_: Handle<u8>) { Handle(); }",
+            Some(true),
+        ),
+    ]
+};
+
+#[test]
+#[expect(
+    clippy::expect_used,
+    reason = "the controlled compiler fixture must load and yield its public surface"
+)]
+fn standard_type_globs_follow_the_compiler_across_value_and_type_bindings() {
+    use raf_source::{ExportError, MemoryTree, StandardType, Workspace};
+
+    for &(prefix, consumer, retained) in STANDARD_TYPE_GLOB_CASES {
         let source = format!("{prefix}{consumer}");
         let tree = MemoryTree::from([
             (
@@ -238,7 +317,7 @@ fn standard_type_globs_follow_the_compiler_across_value_and_type_bindings() {
             .collect();
         let surface = workspace.exported_items(target);
         if let Some(retained) = retained {
-            assert!(errors.is_empty(), "{diagnostics:?}");
+            assert!(errors.is_empty(), "{source}\n{diagnostics:?}");
             let surface = surface.expect("the compiler accepted this surface");
             assert_eq!(
                 surface.reexports.iter().any(|export| {
@@ -248,12 +327,13 @@ fn standard_type_globs_follow_the_compiler_across_value_and_type_bindings() {
                 "{source}"
             );
             if retained {
-                assert!(
-                    surface.items.iter().any(|export| {
-                        export.path == "demo::Handle" && export.kind == raf_source::SymbolKind::Fn
-                    }),
-                    "{source}"
-                );
+                let kinds: Vec<_> = surface
+                    .items
+                    .iter()
+                    .filter(|export| export.path == "demo::Handle")
+                    .map(|export| export.kind)
+                    .collect();
+                assert_eq!(kinds, [raf_source::SymbolKind::Fn], "{source}");
             }
         } else {
             assert!(

@@ -531,6 +531,15 @@ pub(crate) struct ModBody {
     pub(crate) disabled: Vec<SpanFact>,
     /// A declaration whose attributes are summarized rather than retained may expand.
     pub(crate) expansion_attributes: bool,
+    /// A shipping declaration with summarized attributes may expand.
+    pub(crate) shipping_expansion_attributes: bool,
+}
+
+impl ModBody {
+    fn mark_expansion(&mut self, may_expand: bool, test: TestRole) {
+        self.expansion_attributes |= may_expand;
+        self.shipping_expansion_attributes |= may_expand && test == TestRole::None;
+    }
 }
 
 impl ModFact {
@@ -1527,8 +1536,8 @@ impl Extractor<'_> {
             }
             Item::ForeignMod(block) => {
                 let own = summarize(&block.attrs, &FactMeter::scratch())?;
-                body.expansion_attributes |= has_expansion_attributes(&own.facts);
                 let inside = role(own.own_test, inherited);
+                body.mark_expansion(has_expansion_attributes(&own.facts), inside);
                 for foreign in &block.items {
                     self.foreign(foreign, inside, body)?;
                 }
@@ -1540,7 +1549,7 @@ impl Extractor<'_> {
             }
             Item::Use(u) => {
                 let role = use_role(&u.attrs, inherited)?;
-                body.expansion_attributes |= role.expansion_attributes;
+                body.mark_expansion(role.expansion_attributes, role.test);
                 body.uses.push(self.use_fact(
                     role,
                     &u.vis,
@@ -1557,7 +1566,7 @@ impl Extractor<'_> {
                     // so the work stays linear in the text however many
                     // members share them.
                     let role = use_role(&group.attrs, inherited)?;
-                    body.expansion_attributes |= role.expansion_attributes;
+                    body.mark_expansion(role.expansion_attributes, role.test);
                     for member in &group.members {
                         body.uses.push(self.use_fact(
                             role,
@@ -1864,8 +1873,8 @@ impl Extractor<'_> {
         let whole = block.span();
         let line = block.impl_token.span.start().line;
         let summary = summarize(&block.attrs, &FactMeter::scratch())?;
-        body.expansion_attributes |= has_expansion_attributes(&summary.facts);
         let test = role(summary.own_test, inherited);
+        body.mark_expansion(has_expansion_attributes(&summary.facts), test);
         let mut items = Vec::new();
         for member in &block.items {
             if let syn::ImplItem::Macro(invocation) = member {

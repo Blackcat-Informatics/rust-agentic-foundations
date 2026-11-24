@@ -1061,7 +1061,7 @@ impl<'a> Surface<'a> {
     fn module(&mut self, visit: &Visit) -> Result<Vec<Visit>, ExportError> {
         let index = self.index;
         let (module, path) = (visit.module, visit.path.as_str());
-        self.unseen(visit)?;
+        let known_types = self.unseen(visit)?;
         let routes = self.routes(module)?;
         let mut names: BTreeSet<&'a str> =
             index.scopes[module].keys().map(String::as_str).collect();
@@ -1076,6 +1076,9 @@ impl<'a> Surface<'a> {
             // exported in and what binds it there.
             let mut found: BTreeMap<ItemId, (usize, By)> = BTreeMap::new();
             for ns in Namespace::ALL {
+                if ns == Namespace::Type && known_types.get(name) == Some(&true) {
+                    continue;
+                }
                 let at = slot(ns);
                 let Some((ids, from_glob)) = self.bound(module, ns, name)? else {
                     continue;
@@ -1122,13 +1125,14 @@ impl<'a> Surface<'a> {
     /// import of a name is carried when some route from the reader to its
     /// module passes no other module that binds the name itself (see
     /// [`Surface::carried`]).
-    fn unseen(&mut self, visit: &Visit) -> Result<(), ExportError> {
+    fn unseen(&mut self, visit: &Visit) -> Result<BTreeMap<&'a str, bool>, ExportError> {
         let index = self.index;
+        let mut known_types = BTreeMap::new();
         self.unseen_globs(visit, visit.module, false)?;
-        self.unbound_imports(visit, visit.module, false, None)?;
+        self.unbound_imports(visit, visit.module, false, None, &mut known_types)?;
         let reach = self.glob_reach(visit.module)?;
         if reach.is_empty() {
-            return Ok(());
+            return Ok(known_types);
         }
         let mut carry = Carry {
             graph: self.reach_graph(visit.module, &reach)?,
@@ -1184,9 +1188,9 @@ impl<'a> Surface<'a> {
         }
         for (module, hidden) in reach {
             self.unseen_globs(visit, module, hidden)?;
-            self.unbound_imports(visit, module, hidden, Some(&mut carry))?;
+            self.unbound_imports(visit, module, hidden, Some(&mut carry), &mut known_types)?;
         }
-        Ok(())
+        Ok(known_types)
     }
 
     /// Names with proven Type carriers are cut only by explicit Type bindings
@@ -1209,16 +1213,38 @@ impl<'a> Surface<'a> {
             tally::add(Work::WalkSteps, work);
             self.charge(work * WALK_STEP_BYTES, self.module_item(reader))?;
             for (name, entry) in scope {
-                if !entry.defs[at].is_empty() && names.carriers.contains_key(name.as_str()) {
+                if !names.carriers.contains_key(name.as_str()) {
+                    continue;
+                }
+                let defs = &entry.defs[at];
+                self.charge(defs.len() * WALK_STEP_BYTES, self.module_item(reader))?;
+                if defs.iter().any(|(id, origin)| {
+                    origin.link.is_none() && index.items[id.0].test == TestRole::None
+                }) {
                     record_node(&mut names.binders, name, node);
                 }
             }
+            let mut checked = None;
             for &position in imports {
-                if !index.use_free[position][at]
-                    && let UseKind::Named { name, .. } = &index.uses[position].kind
+                let decl = &index.uses[position];
+                if !decl.test
+                    && !index.use_free[position][at]
+                    && let UseKind::Named { name, .. } = &decl.kind
                     && names.carriers.contains_key(name.as_str())
+                    && checked != Some(name)
                 {
-                    record_node(&mut names.binders, name, node);
+                    checked = Some(name);
+                    let steps = Steps::QueryItems {
+                        meter: self.meter,
+                        file: &decl.file,
+                        line: Some(decl.line),
+                    };
+                    if index
+                        .shipping_type_cut(module, name, steps)
+                        .map_err(|error| ExportError::storage(error, None))?
+                    {
+                        record_node(&mut names.binders, name, node);
+                    }
                 }
             }
         }
@@ -1548,6 +1574,7 @@ impl<'a> Surface<'a> {
         module: usize,
         hidden: bool,
         mut carry: Option<&mut Carry<'a>>,
+        known_types: &mut BTreeMap<&'a str, bool>,
     ) -> Result<(), ExportError> {
         let index = self.index;
         let at_path = &index.modules[module].path;
@@ -1564,6 +1591,9 @@ impl<'a> Surface<'a> {
                 continue;
             };
             let standard = (*namespaces == NamedNamespaces::StandardRc).then_some(StandardType::Rc);
+            if standard.is_some() && carry.is_some() && index.opaque_standard_routes[visit.module] {
+                continue;
+            }
             let hidden = match carry.as_deref_mut() {
                 Some(carry) => match self.carried(
                     visit,
@@ -1581,10 +1611,12 @@ impl<'a> Surface<'a> {
                 None => hidden,
             };
             let binding = if let Some(standard) = standard {
-                if let Some((indexed, from_glob)) =
-                    self.bound(visit.module, Namespace::Type, name)?
-                    && (carry.is_some() || !from_glob)
-                {
+                let Some(indexed) =
+                    self.shipping_type_competitors(visit, decl, name, known_types)?
+                else {
+                    continue;
+                };
+                if !indexed.is_empty() {
                     return Err(ExportError::AmbiguousStandardType {
                         path: format!("{}::{name}", visit.path),
                         standard,
@@ -1620,6 +1652,40 @@ impl<'a> Surface<'a> {
             )?;
         }
         Ok(())
+    }
+
+    /// Keep one answer for each carried name under the reader. The shipping
+    /// query uses the real glob visibility classes before finding ambiguity.
+    fn shipping_type_competitors(
+        &self,
+        visit: &Visit,
+        decl: &UseDecl,
+        name: &'a str,
+        known_types: &mut BTreeMap<&'a str, bool>,
+    ) -> Result<Option<Vec<ItemId>>, ExportError> {
+        let account = |error| ExportError::storage(error, Some(format!("{}::{name}", visit.path)));
+        let steps = Steps::QueryItems {
+            meter: self.meter,
+            file: &decl.file,
+            line: Some(decl.line),
+        };
+        if let Some(&kept) = known_types.get(name) {
+            return Ok(kept.then(Vec::new));
+        }
+        let indexed = self
+            .index
+            .shipping_type_competitors(visit.module, name, steps)
+            .map_err(account)?;
+        let first = if known_types.is_empty() {
+            btree_map::<&str, bool>()
+        } else {
+            0
+        };
+        steps
+            .reserve(first + btree_entry::<&str, bool>())
+            .map_err(account)?;
+        known_types.insert(name, indexed.is_some());
+        Ok(indexed)
     }
 
     /// List the public binding of `id` under `name` in the module of `visit`:

@@ -346,6 +346,8 @@ pub(crate) struct Module {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Index {
     pub(crate) items: Vec<Item>,
+    /// Modules whose expansion or glob routes can alter a known standard export.
+    pub(crate) opaque_standard_routes: Vec<bool>,
     pub(crate) unexpanded: Vec<Unexpanded>,
     pub(crate) disabled_syntax: Vec<DisabledSyntax>,
     /// The items in the order of [`crate::Workspace::items`].
@@ -1161,6 +1163,7 @@ impl Index {
     fn empty(targets: &[Target]) -> Self {
         Self {
             items: Vec::new(),
+            opaque_standard_routes: Vec::new(),
             unexpanded: Vec::new(),
             disabled_syntax: Vec::new(),
             order: Vec::new(),
