@@ -1167,7 +1167,7 @@ fn mdbook_preserves_the_book_and_uses_the_shared_view() {
     let mut expected = Value::from(
         Object::new()
             .with(
-                "sections",
+                "items",
                 vec![
                     Value::from("Separator"),
                     Value::from(Object::new().with("PartTitle", "General")),
@@ -1186,11 +1186,7 @@ fn mdbook_preserves_the_book_and_uses_the_shared_view() {
     let input = repo.root().join("book-request.json");
     let before = repo.snapshot();
     let result = support::run_both_with_stdin(repo.root(), &["docs", "mdbook"], &input).expect(0);
-    let chapter = expected
-        .get_mut("sections")
-        .unwrap()
-        .as_array_mut()
-        .unwrap()[2]
+    let chapter = expected.get_mut("items").unwrap().as_array_mut().unwrap()[2]
         .get_mut("Chapter")
         .unwrap();
     *chapter.get_mut("content").unwrap() =
@@ -1285,7 +1281,7 @@ fn book_request(sections: Vec<purrdf_lex::json::Value>) -> purrdf_lex::json::Val
     use purrdf_lex::json::{Object, Value};
     Value::from(vec![
         Value::from(Object::new().with("renderer", "html")),
-        Value::from(Object::new().with("sections", sections)),
+        Value::from(Object::new().with("items", sections)),
     ])
 }
 
