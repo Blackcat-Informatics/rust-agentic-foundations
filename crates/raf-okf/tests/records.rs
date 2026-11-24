@@ -756,6 +756,19 @@ fn for_lists_at_least_one_capability_id() {
             entry: "okf-profile".to_string(),
         },
     );
+    let mappings = mutate(
+        &evidence(),
+        "for: [cap:okf-profile]",
+        "for:\n  - a: b\n  - c: d",
+    );
+    assert_only(
+        &mappings,
+        EVIDENCE_PATH,
+        &key("for"),
+        &Rule::WrongShape {
+            expected: "a list of cap ids",
+        },
+    );
 }
 
 #[test]
