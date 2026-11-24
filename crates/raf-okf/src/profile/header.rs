@@ -22,7 +22,10 @@ use purrdf_shapes::{
 };
 
 use super::{BINDING_KEYS, Check, DocType, Entry, ItemValue, Map, Rule};
-use super::{finite::Vocabulary, review::FindingStatus};
+use super::{
+    finite::{Vocabulary, requires_member},
+    review::FindingStatus,
+};
 use crate::frontmatter::value::List;
 
 const KEY: &str = "urn:raf:okf:key:";
@@ -112,6 +115,7 @@ impl From<RdfDiagnostic> for HeaderShapeError {
 pub(super) struct HeaderVerdicts<'a> {
     rejected: Vec<(&'static str, Rule)>,
     refused_ids: Vec<(&'static str, String)>,
+    emptied: Vec<&'a str>,
     pub(super) bindings_exact: bool,
     pub(super) items: Vec<RowKeys<'a>>,
     pub(super) debt_findings: Vec<RowKeys<'a>>,
@@ -127,6 +131,11 @@ impl HeaderVerdicts<'_> {
     pub(super) fn take_rejection(&mut self, key: &str) -> Option<Rule> {
         let index = self.rejected.iter().position(|(field, _)| *field == key)?;
         Some(self.rejected.swap_remove(index).1)
+    }
+
+    /// Whether the native shape found the list at `key` empty where it needs a member.
+    pub(super) fn is_emptied(&self, key: &str) -> bool {
+        self.emptied.contains(&key)
     }
 
     /// Whether the native shape refused `text` as a member of the list at `key`.
@@ -523,8 +532,9 @@ fn header_graph<'a>(
                 continue;
             };
             // Each list member is its own value. An empty list has none, except
-            // under a pattern key, whose required presence it must still show.
+            // under a pattern key that admits it, whose required presence it must still show.
             if texts.is_empty()
+                && !requires_member(entry.key())
                 && finite_fields(doc_type)
                     .any(|(key, vocabulary)| key == entry.key() && vocabulary.pattern().is_some())
             {
@@ -706,6 +716,11 @@ fn report_keys<'a>(
         let focus = focus_iri(&result.focus_node)?;
         let keys = match result.source_constraint_component.as_str() {
             CLOSED => &mut unknown,
+            MIN_COUNT if focus == header && requires_member(key) && map.get(key).is_some() => {
+                // A required key that carries no member is an empty list.
+                verdicts.emptied.extend(map.get(key).map(Entry::key));
+                continue;
+            }
             MIN_COUNT => &mut missing,
             IN if focus == header => {
                 let rejection = value_rejection(result, map, doc_type, key)?;

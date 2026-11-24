@@ -1446,6 +1446,26 @@ fn changes_is_a_non_empty_list_of_cap_ids() {
         let found = violations(&mutate(CHANGE, from, to), CHANGE_PATH);
         assert_hit(&found, &key("changes"), &rule);
     }
+    // An empty list is refused as empty, never as a missing key; an absent key is
+    // the reverse.
+    let empty = violations(&mutate(CHANGE, from, "changes: []"), CHANGE_PATH);
+    assert!(
+        !empty
+            .iter()
+            .any(|v| matches!(v.rule(), Rule::MissingKey { .. }))
+    );
+    let absent = violations(
+        &mutate(CHANGE, "changes: [cap:alpha, cap:beta]\n", ""),
+        CHANGE_PATH,
+    );
+    assert_hit(
+        &absent,
+        &key("changes"),
+        &Rule::MissingKey {
+            key: "changes".into(),
+        },
+    );
+    assert!(!absent.iter().any(|v| v.rule() == &Rule::EmptyChanges));
     clean(CHANGE, CHANGE_PATH);
 }
 

@@ -132,3 +132,9 @@ pub(super) fn decode<T>(
         .and_then(read)
         .ok_or(HeaderShapeError::UnexpectedReport)
 }
+
+/// Whether the list at `key` needs at least one member, so that the native shape
+/// reports an empty list through the key's required presence.
+pub(super) fn requires_member(key: &str) -> bool {
+    key == "changes"
+}

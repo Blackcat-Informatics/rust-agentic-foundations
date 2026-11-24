@@ -753,7 +753,7 @@ fn check_capability_ids(
         return None;
     };
     let mut valid = true;
-    if non_empty && ids.is_empty() {
+    if non_empty && keys.is_emptied(key) {
         check.key(key, Rule::EmptyChanges);
         valid = false;
     }
