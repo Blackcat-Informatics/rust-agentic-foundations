@@ -19,6 +19,7 @@ mod complete;
 mod completion;
 mod create;
 mod impact;
+mod retirement;
 mod session;
 mod source_impact;
 mod state;
@@ -32,6 +33,9 @@ pub use create::{
     AffectsProblem, CapabilityGuidance, NewChange, NewChangeError, NewChangeRequest, StateAdvice,
 };
 pub use impact::{Dependant, Impact, LinkingSection};
+pub use retirement::{
+    Retirement, RetirementError, RetirementLocation, SectionProblem, SourceProblem,
+};
 pub use session::{Lifecycle, LifecycleError, Side};
 pub use source_impact::{
     BindingImpact, GuaranteeImpact, ImpactReason, SectionImpact, SourceImpact, SymbolImpact,

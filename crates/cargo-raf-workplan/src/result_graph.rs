@@ -169,6 +169,7 @@ fn project(g: &mut Builder, id: &str, result: &CommandResult) -> Answer<()> {
         CommandResult::NewChange(change) => new_change_fields(g, id, change)?,
         CommandResult::Impact(impact) => impact_fields(g, id, impact)?,
         CommandResult::SourceImpact(impact) => source_impact_fields(g, id, impact)?,
+        CommandResult::Retirement(retirement) => retirement_fields(g, id, retirement)?,
         CommandResult::Obligation(obligation) => {
             class(g, id, "Obligation")?;
             obligation_fields(g, id, obligation)?;
@@ -681,6 +682,28 @@ fn source_impact_fields(
                     strings(g, &section_node, key, name, field, values)?;
                 }
             }
+        }
+    }
+    Ok(())
+}
+
+fn retirement_fields(
+    g: &mut Builder,
+    id: &str,
+    retirement: &raf_workplan::lifecycle::Retirement,
+) -> Answer<()> {
+    class(g, id, "Retirement")?;
+    text(g, id, "base", retirement.base.as_str())?;
+    for (property, class_name, locations) in [
+        ("section", "RetiredSection", &retirement.sections),
+        ("definition", "RetiredDefinition", &retirement.definitions),
+    ] {
+        for (ordinal, (name, location)) in locations.iter().enumerate() {
+            let node = child(g, id, property, class_name, ordinal)?;
+            text(g, &node, "id", name)?;
+            text(g, &node, "path", location.path.as_str())?;
+            number(g, &node, "first", location.lines.start)?;
+            number(g, &node, "last", location.lines.end - 1)?;
         }
     }
     Ok(())

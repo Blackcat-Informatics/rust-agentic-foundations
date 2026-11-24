@@ -3,7 +3,7 @@
 
 //! Validate the explicitly declared replacements of named decision sections.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use raf_okf::{Architecture, Body, Entry, Heading, Location};
 
@@ -14,6 +14,16 @@ use crate::{Finding, Loaded, Workplan};
 
 type Section<'a> = (&'a str, &'a str);
 type Replacements<'a> = BTreeMap<Section<'a>, (&'a str, usize, Vec<Section<'a>>)>;
+
+/// The targets of every admitted edge, including edges from historical sections.
+pub(crate) fn historical<'a>(plan: &'a Workplan<'_>) -> BTreeSet<Section<'a>> {
+    plan.architecture()
+        .iter()
+        .flat_map(|page| &page.value().supersedes)
+        .flat_map(raf_okf::DecisionSupersession::targets)
+        .map(|target| (target.architecture(), target.section()))
+        .collect()
+}
 
 #[derive(Default)]
 enum Endpoint {

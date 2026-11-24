@@ -11,7 +11,16 @@ bindings:
     - raf_workplan::rationale
     - raf_workplan::Workplan::current_design
     - raf_workplan::CurrentDesignError
+    - raf_workplan::lifecycle::Lifecycle::verify_retirement
+    - raf_workplan::lifecycle::Retirement
+    - raf_workplan::lifecycle::RetirementLocation
+    - raf_workplan::lifecycle::RetirementError
+    - raf_workplan::lifecycle::SectionProblem
+    - raf_workplan::lifecycle::SourceProblem
   tests:
+    - cargo_raf_workplan::test_crate::preview::retirement_preserves_current_design_and_locates_removed_material_in_git
+    - cargo_raf_workplan::test_crate::preview::retirement_refuses_current_resurrected_and_hidden_material
+    - cargo_raf_workplan::test_crate::preview::retirement_checks_the_original_source_behind_a_symlink
     - cargo_raf_workplan::test_crate::preview::current_design_keeps_surviving_sections_and_refuses_partial_output
     - raf_workplan::test_crate::rationale::a_partial_section_chain_can_cross_the_same_pages_in_both_directions
     - raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind
@@ -99,6 +108,33 @@ Read relative links in the cited source page. Architecture findings
 cause a `CurrentDesignError` before the view is returned.
 <!-- raf:tested-by cargo_raf_workplan::test_crate::preview::current_design_keeps_surviving_sections_and_refuses_partial_output -->
 
+**Retirement.** `Lifecycle::verify_retirement` verifies explicitly selected
+removals against HEAD or a local ancestor of HEAD. Every selected `arch:<slug>#<section>`
+must be superseded at the base and its anchor must be absent from its page in
+the checkout. Surviving historical sections retain a valid replacing edge.
+The complete authored text of each selected section may survive only as
+often as it appeared outside all selected sections at the base. The
+comparison ignores generated blocks, blank lines and whitespace around
+each line.
+The authored current design stays the same, apart from source locations and
+surrounding blank lines. This includes introductions, current named sections
+and unsectioned Decision blocks. Fix dangling references and other document
+findings before verification. The result gives the resolved commit and the
+original repository-relative blob paths and line ranges.
+
+Associate written definitions explicitly by their full indexed paths. The
+check accepts private as well as public definitions and requires one physical
+definition per selected path at the base. A module declaration is insufficient
+to identify implementation. Select the concrete definitions it contains.
+The path must disappear from the index and a matching name and kind must
+disappear from the former file. A retained file needs indexed text coverage,
+including the original blob behind a symlink. Opaque disabled declarations
+or unexpanded item-producing macro invocations in the former file prevent
+a proof.
+The check addresses written definitions. Establish semantic equivalence,
+generated code and runtime reachability independently.
+<!-- raf:tested-by cargo_raf_workplan::test_crate::preview::retirement_preserves_current_design_and_locates_removed_material_in_git,cargo_raf_workplan::test_crate::preview::retirement_refuses_current_resurrected_and_hidden_material,cargo_raf_workplan::test_crate::preview::retirement_checks_the_original_source_behind_a_symlink -->
+
 **Headings and lists.** The headings are ATX headings: up to three spaces, one to six
 `#` marks, then a space or a tab and the text. A setext heading, text underlined with
 `=` or `-`, is not a heading of these rules, so a decision or a conditions heading
@@ -147,6 +183,14 @@ The runnable API examples in `raf_workplan::rationale` demonstrate the heading a
 Run `cargo raf-workplan docs current-design` to read the resolved
 Architecture decisions together. Use the source locator to find an
 excerpt in its original page.
+
+Remove the superseded section, the associated definitions and stale references
+in the checkout. When an intermediate section also replaced an older section,
+connect a surviving replacement to the older section or retire the older
+section too. Remove a wholly retired Decision block with its introductory text.
+Run `cargo raf-workplan docs retire --base REV --section 'arch:earlier#node-order'`.
+Repeat `--section` and pass `--definition PATH` once per associated definition.
+Recover original material with `git show COMMIT:PATH` at the reported lines.
 
 - A capability author who makes a decision shared with another capability writes the
   decision once in an architecture page and links to it from each Explanation.
@@ -221,6 +265,14 @@ history in their working context.
 
 ## Verification
 
+A Git fixture retires an intermediate section and its Rust definition,
+retains the current sections and recovers the original text at the reported
+commit. Refusal cases cover current and retained headings, dangling links,
+a surviving older section without a replacing edge, reintroduced decision
+prose, and code obscured by visibility, configuration, a module tree change
+or removal of a symlink.
+<!-- raf:tested-by cargo_raf_workplan::test_crate::preview::retirement_preserves_current_design_and_locates_removed_material_in_git,cargo_raf_workplan::test_crate::preview::retirement_refuses_current_resurrected_and_hidden_material,cargo_raf_workplan::test_crate::preview::retirement_checks_the_original_source_behind_a_symlink -->
+
 - A fixture with a decision page linked from a capability, with its conditions,
   passes.
 - A fixture page that no document links to is reported by name. A link from the page
@@ -252,6 +304,9 @@ history in their working context.
 | Item | Kind | Section |
 | --- | --- | --- |
 | `cargo_raf_workplan::test_crate::preview::current_design_keeps_surviving_sections_and_refuses_partial_output` | test | [Contract](#contract) |
+| `cargo_raf_workplan::test_crate::preview::retirement_checks_the_original_source_behind_a_symlink` | test | [Contract](#contract) |
+| `cargo_raf_workplan::test_crate::preview::retirement_preserves_current_design_and_locates_removed_material_in_git` | test | [Contract](#contract) |
+| `cargo_raf_workplan::test_crate::preview::retirement_refuses_current_resurrected_and_hidden_material` | test | [Contract](#contract) |
 | `raf_workplan::rationale` | doctest | [Usage](#usage) |
 | `raf_workplan::rationale::tests::a_hundred_thousand_headings_are_each_read_once` | test | [Verification](#verification) |
 | `raf_workplan::rationale::tests::a_line_without_a_marker_or_without_text_is_no_list_item` | test | [Verification](#verification) |

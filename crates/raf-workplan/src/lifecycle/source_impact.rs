@@ -7,9 +7,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use raf_okf::CapabilitySection;
-use raf_source::{Item, ItemId, TargetKind, Workspace};
+use raf_source::{Item, ItemId, TargetKind};
 
-use super::{BaseTree, Lifecycle, LifecycleError, Side};
+use super::{Lifecycle, LifecycleError, Side};
 use crate::Workplan;
 use crate::assessment::{Naming, symbol_inputs};
 use crate::digest::Digest;
@@ -189,14 +189,8 @@ impl Lifecycle {
     /// documents and public surfaces that exceed the source index's bounds.
     pub fn source_impact(&self, base: &str) -> Result<SourceImpact, LifecycleError> {
         let base = git::resolve_revision(&self.repository, base)?;
-        let listing = git::tree_at(&self.repository, &base, &self.prefix)?;
-        let tree = BaseTree::at_revision(&self.repository, &base, &self.prefix, listing);
-        let source = Workspace::load(&tree, &self.gate.roots())
-            .map_err(|error| tree.take_failure().unwrap_or(LifecycleError::Index(error)))?;
-        let then = Workplan::load(&tree, &source);
-        if let Some(error) = tree.take_failure() {
-            return Err(error);
-        }
+        let (tree, source) = self.open_revision(&base)?;
+        let then = tree.workplan(&source)?;
         let now = self.opened.workplan();
         let old = Snapshot::read(&then, Side::Revision)?;
         let new = Snapshot::read(&now, Side::WorkingTree)?;
