@@ -22,7 +22,7 @@ use purrdf_shapes::{
 };
 
 use super::{BINDING_KEYS, Check, DocType, Entry, ItemValue, Map, Rule};
-use super::{finite::Vocabulary, review::FindingStatus, scalar_text};
+use super::{finite::Vocabulary, review::FindingStatus};
 use crate::frontmatter::value::List;
 
 const KEY: &str = "urn:raf:okf:key:";
@@ -483,9 +483,9 @@ fn header_graph<'a>(
             .ok_or(HeaderShapeError::KeyBytes)?;
     }
     let scalars = finite_fields(doc_type)
-        .filter_map(|(key, _)| Some((key, scalar_text(header.1.get(key)?)?)))
+        .filter_map(|(key, vocabulary)| Some((key, vocabulary.texts(header.1.get(key)?)?)))
         .collect::<Vec<_>>();
-    for (_, text) in &scalars {
+    for text in scalars.iter().flat_map(|(_, texts)| texts) {
         available = available
             .checked_sub(text.len())
             .ok_or(HeaderShapeError::KeyBytes)?;
@@ -494,18 +494,20 @@ fn header_graph<'a>(
     let present = graph.intern_iri(PRESENT)?;
     let mut focuses = Vec::with_capacity(maps.clone().count() + row_count);
     let mut project =
-        |graph: &mut RdfDatasetBuilder, (name, map): (&str, &Map), values: &[(&str, &str)]| {
+        |graph: &mut RdfDatasetBuilder, (name, map): (&str, &Map), values: &[(&str, Vec<&str>)]| {
             let focus = graph.intern_iri(name)?;
             focuses.push(NamedNode::from(name).into_term());
             for entry in map.entries() {
                 let predicate = graph.intern_iri(&format!("{KEY}{}", entry.key()))?;
-                let object =
-                    if let Some((_, text)) = values.iter().find(|(key, _)| *key == entry.key()) {
-                        graph.intern_literal(RdfLiteral::simple(*text))?
-                    } else {
-                        present
-                    };
-                graph.push_quad(focus, predicate, object, None)?;
+                let Some((_, texts)) = values.iter().find(|(key, _)| *key == entry.key()) else {
+                    graph.push_quad(focus, predicate, present, None)?;
+                    continue;
+                };
+                // Each list member is its own value; an empty list has none.
+                for text in texts {
+                    let object = graph.intern_literal(RdfLiteral::simple(*text))?;
+                    graph.push_quad(focus, predicate, object, None)?;
+                }
             }
             Ok::<_, HeaderShapeError>(focus)
         };
@@ -574,9 +576,9 @@ fn value_rejection(
     if focus_iri(&result.source_shape)? != format!("{SHAPE}{}:{key}", doc_type.name()) {
         return Err(HeaderShapeError::UnexpectedReport);
     }
-    match (scalar_text(entry), &result.value) {
-        (Some(text), Some(Term::Literal(value)))
-            if value.datatype_str() == XSD_STRING && value.value() == text => {}
+    match (vocabulary.texts(entry), &result.value) {
+        (Some(texts), Some(Term::Literal(value)))
+            if value.datatype_str() == XSD_STRING && texts.contains(&value.value()) => {}
         (None, Some(Term::NamedNode(value))) if value.as_str() == PRESENT => {}
         _ => return Err(HeaderShapeError::UnexpectedReport),
     }
@@ -658,6 +660,12 @@ fn report_keys<'a>(
             IN if focus == header => {
                 let rejection = value_rejection(result, map, doc_type, key)?;
                 if verdicts.rejected.iter().any(|(field, _)| *field == key) {
+                    // A list reports each refused member; one finding covers the key.
+                    if finite_fields(doc_type)
+                        .any(|(field, vocabulary)| field == key && vocabulary.is_list())
+                    {
+                        continue;
+                    }
                     return Err(HeaderShapeError::UnexpectedReport);
                 }
                 verdicts.rejected.push(rejection);

@@ -5,8 +5,12 @@
 
 use super::{
     Actor, AssessmentVerdict, ContractEffect, DocType, Entry, EvidenceVerdict, HeaderShapeError,
-    ReviewKind, ReviewVerdict, Rule, State, ValueKind, scalar_text,
+    ReviewKind, ReviewVerdict, Rule, State, ValueKind, scalar_text, strings,
 };
+
+/// The refusal text for a `review_required` list outside its closed, distinct kinds.
+pub(super) const REVIEW_KINDS_SHAPE: &str =
+    "a list of distinct security, correctness, design, performance or documentation kinds";
 
 const FLAGS: [(bool, &str); 2] = [(true, "true"), (false, "false")];
 
@@ -18,6 +22,7 @@ pub(super) enum Vocabulary {
     Actor,
     Verdict,
     ReviewKind,
+    ReviewKinds,
 }
 
 impl Vocabulary {
@@ -29,8 +34,24 @@ impl Vocabulary {
             ValueKind::Actor => Some(Self::Actor),
             ValueKind::Verdict => Some(Self::Verdict),
             ValueKind::ReviewKind => Some(Self::ReviewKind),
+            ValueKind::ReviewKinds => Some(Self::ReviewKinds),
             _ => None,
         }
+    }
+
+    /// The authored texts the shape judges: one scalar, or every member of an
+    /// all-scalar list. Any other value has no texts.
+    pub(super) fn texts(self, entry: &Entry) -> Option<Vec<&str>> {
+        if self.is_list() {
+            strings(entry.value())
+        } else {
+            scalar_text(entry).map(|text| vec![text])
+        }
+    }
+
+    /// Whether the key holds a list whose every member is drawn from the vocabulary.
+    pub(super) const fn is_list(self) -> bool {
+        matches!(self, Self::ReviewKinds)
     }
 
     pub(super) fn names(self, doc_type: DocType) -> Result<Vec<&'static str>, HeaderShapeError> {
@@ -45,7 +66,7 @@ impl Vocabulary {
                 DocType::Review => ReviewVerdict::ALL.map(ReviewVerdict::name).into(),
                 _ => return Err(HeaderShapeError::UnexpectedReport),
             },
-            Self::ReviewKind => ReviewKind::ALL.map(ReviewKind::name).into(),
+            Self::ReviewKind | Self::ReviewKinds => ReviewKind::ALL.map(ReviewKind::name).into(),
         };
         Ok(names)
     }
@@ -66,6 +87,9 @@ impl Vocabulary {
             },
             (Self::ReviewKind, _) => Rule::WrongShape {
                 expected: "security, correctness, design, performance or documentation",
+            },
+            (Self::ReviewKinds, _) => Rule::WrongShape {
+                expected: REVIEW_KINDS_SHAPE,
             },
             (Self::State | Self::Actor | Self::Verdict, None) => Rule::WrongShape {
                 expected: "a scalar",

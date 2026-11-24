@@ -364,8 +364,10 @@ fn check_values(
         let key = spec.key;
         if let Some(rule) = keys.take_rejection(key) {
             check.key(key, rule);
-            if spec.value == ValueKind::Flag {
-                *flag_slot(&mut found, key)? = Slot::Invalid;
+            match spec.value {
+                ValueKind::Flag => *flag_slot(&mut found, key)? = Slot::Invalid,
+                ValueKind::ReviewKinds => found.review_required = Slot::Invalid,
+                _ => {}
             }
             continue;
         }
@@ -383,7 +385,7 @@ fn check_values(
             }
             ValueKind::State => found.state = Some(finite::decode(entry, State::from_name)?),
             ValueKind::ReviewKinds => {
-                found.review_required = Slot::from_check(review::check_required(check, entry));
+                found.review_required = Slot::from_check(review::check_required(check, entry)?);
             }
             ValueKind::Bindings => {
                 found.bindings = check_bindings(check, entry, found.state, keys.bindings_exact);

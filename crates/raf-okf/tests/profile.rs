@@ -299,6 +299,7 @@ fn valid_documents_of_each_type_validate_to_typed_values() {
         ),
         ("[security, security]", None),
         ("[unknown]", None),
+        ("[security, unknown, bogus]", None),
         ("security", None),
     ] {
         let text = alpha().replace("depends:", &format!("review_required: {list}\ndepends:"));
@@ -309,10 +310,14 @@ fn valid_documents_of_each_type_validate_to_typed_values() {
                 };
                 assert_eq!(cap.review_required, expected);
             }
-            None => assert!(
+            // Every refused member is one finding at the key.
+            None => assert_eq!(
                 violations(&text, ALPHA_PATH)
                     .iter()
-                    .any(|v| v.at() == &key("review_required"))
+                    .filter(|v| v.at() == &key("review_required"))
+                    .count(),
+                1,
+                "{list}"
             ),
         }
     }

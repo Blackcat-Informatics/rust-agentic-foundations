@@ -4,7 +4,10 @@
 //! Code review claims and findings, independent of their storage or renderer.
 
 use super::typed::{Actor, Input, RecordHeader};
-use super::{Check, Rule, is_capability_id, is_kebab, records, scalar_text, strings};
+use super::{
+    Check, HeaderShapeError, Rule, finite, is_capability_id, is_kebab, records, scalar_text,
+    strings,
+};
 use crate::frontmatter::value::{Entry, Map};
 
 /// The question a code review answers.
@@ -319,32 +322,28 @@ impl ReviewScope {
     }
 }
 
-/// Capability policy accepts only distinct members of the same closed kind set.
-pub(super) fn check_required(check: &mut Check<'_>, entry: &Entry) -> Option<Vec<ReviewKind>> {
-    let values = strings(entry.value()).and_then(|values| {
-        values
-            .into_iter()
-            .map(ReviewKind::from_name)
-            .collect::<Option<Vec<_>>>()
-    });
-    if let Some(values) = values {
-        let mut seen = Vec::new();
-        for kind in &values {
-            if seen.contains(kind) {
-                check.key("review_required", Rule::WrongShape {
-                    expected: "a list of distinct security, correctness, design, performance or documentation kinds",
-                });
-                return None;
-            }
-            seen.push(*kind);
+/// Capability policy keeps distinct members of the closed kind set. The native
+/// header shape has already refused any other list or member.
+pub(super) fn check_required(
+    check: &mut Check<'_>,
+    entry: &Entry,
+) -> Result<Option<Vec<ReviewKind>>, HeaderShapeError> {
+    let values = strings(entry.value()).ok_or(HeaderShapeError::UnexpectedReport)?;
+    let mut kinds = Vec::with_capacity(values.len());
+    for value in values {
+        let kind = ReviewKind::from_name(value).ok_or(HeaderShapeError::UnexpectedReport)?;
+        if kinds.contains(&kind) {
+            check.key(
+                "review_required",
+                Rule::WrongShape {
+                    expected: finite::REVIEW_KINDS_SHAPE,
+                },
+            );
+            return Ok(None);
         }
-        Some(values)
-    } else {
-        check.key("review_required", Rule::WrongShape {
-            expected: "a list of distinct security, correctness, design, performance or documentation kinds",
-        });
-        None
+        kinds.push(kind);
     }
+    Ok(Some(kinds))
 }
 
 pub(super) enum FindingStatus {
