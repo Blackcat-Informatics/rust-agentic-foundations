@@ -223,7 +223,7 @@ pub use options::{DEFAULT_MAX_FILE_BYTES, LoadOptions};
 pub use parse::parallel::{ParallelOptions, ParallelOptionsError, ParallelTree, ParallelUsage};
 pub use parse::{
     LexedSource, PARSE_STACK_BYTES, ParsedSource, PreparedSource, parse_source,
-    parse_source_with_tokens, parse_sources, prepare_source,
+    parse_source_with_tokens, parse_sources, prepare_source, prepare_source_with_memory,
 };
 pub use path::{PathError, RelPath, SourceAuthorityId};
 pub use platform::{CompilerPlatform, CompilerPlatformError, TestPlatformGuard};

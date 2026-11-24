@@ -6,7 +6,7 @@
 use super::collect::{Facts, Failure};
 use super::error::InspectionError;
 use super::native_literals::Literals;
-use super::resource::{Meter, Refusal, TerminalAccount, TerminalSlot};
+use super::resource::{Grant, Meter, Refusal, TerminalAccount, TerminalSlot};
 use super::tokens::Tokens;
 use raf_source::SyntaxBound;
 
@@ -402,11 +402,18 @@ impl<'source> Analysis<'source> {
                 cause: Failure { byte: 0, cause },
             })?;
         let original = self.prepay_source(file)?;
-        let source = match raf_source::prepare_source(&file.path, &file.text) {
-            Ok(source) => source,
-            Err(cause) => {
+        let source = match self.prescan_source(&file.path, &file.text) {
+            Ok(Ok(source)) => source,
+            Ok(Err(cause)) => {
                 self.meter.refund_native(original);
                 return Err(self.native_failure(&file.path, cause, slot));
+            }
+            Err(cause) => {
+                self.meter.refund_native(original);
+                return Err(SourceFailure::Located {
+                    file: &file.path,
+                    cause: Failure { byte: 0, cause },
+                });
             }
         };
         let reserve = || {
@@ -441,6 +448,17 @@ impl<'source> Analysis<'source> {
             source,
             reserved,
         })
+    }
+
+    fn prescan_source(
+        &self,
+        file: &'source raf_source::RelPath,
+        text: &'source str,
+    ) -> Result<Result<raf_source::PreparedSource<'source>, raf_source::LoadError>, Refusal> {
+        let mut scratch = Grant::new(&self.meter);
+        let result =
+            scratch.raw_memory(|memory| raf_source::prepare_source_with_memory(file, text, memory));
+        scratch.captured().map_or(Ok(result), Err)
     }
 
     /// Fund source preparation, lexer buffers and parser-input storage.
@@ -898,7 +916,6 @@ impl<'source> Analysis<'source> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::resource::Grant;
     use super::*;
 
     #[expect(
@@ -1648,6 +1665,7 @@ mod tests {
     )]
     fn assert_native_preparation_funding(workspace: &raf_source::Workspace) {
         let path = raf_source::RelPath::new("src/dense.rs").expect("fixture path");
+        assert_prescan_grant(&path);
         let dense = workspace
             .file(&path)
             .expect("loaded punctuation-dense module");
@@ -1700,6 +1718,55 @@ mod tests {
             empty_analysis.meter().usage().1 >= 2 * fields + 2 * size_of::<usize>(),
             "dummy and root records and both initial line entries must be funded"
         );
+    }
+
+    #[expect(
+        clippy::expect_used,
+        reason = "each admitted boundary and refund is a required observation"
+    )]
+    fn assert_prescan_grant(file: &raf_source::RelPath) {
+        // Isolate the shared production guard step before lexer and parser
+        // reservations can hide its storage boundary.
+        let depth = raf_source::Budget::Delimiters.limit();
+        let open = "(".repeat(depth);
+        let too_deep = format!("probe!{open}\n(");
+        let valid = format!("probe!{open}\n{};", ")".repeat(depth));
+        let measured = Analysis::new(1_000_000, usize::MAX);
+        measured
+            .prescan_source(file, &valid)
+            .expect("the original account funds both stacks")
+            .expect("the delimiter limit itself is admitted");
+        let peak = measured.meter().usage().1;
+
+        let exact = Analysis::new(1_000_000, peak);
+        assert!(matches!(
+            exact.prescan_source(file, &too_deep),
+            Ok(Err(raf_source::LoadError {
+                file: located,
+                line: Some(2),
+                kind: raf_source::LoadErrorKind::Budget {
+                    budget: raf_source::Budget::Delimiters,
+                    limit,
+                },
+                ..
+            })) if located == *file && limit == depth
+        ));
+        exact
+            .prescan_source(file, &valid)
+            .expect("the original account refunds the refused guard's scratch")
+            .expect("a valid nested neighbor prepares at the same peak");
+        Grant::new(exact.meter())
+            .reserve_native(peak)
+            .expect("successful preparation also refunds the full scratch");
+
+        let short = Analysis::new(1_000_000, peak - 1);
+        assert!(matches!(
+            short.prescan_source(file, &too_deep),
+            Err(Refusal::Memory { limit }) if limit == peak - 1
+        ));
+        Grant::new(short.meter())
+            .reserve_native(peak - 1)
+            .expect("scratch charged before the short grant refused is refunded");
     }
 
     #[cfg_attr(

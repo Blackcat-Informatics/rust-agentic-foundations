@@ -6,11 +6,13 @@
 use std::panic;
 use std::thread;
 
+use purrdf_lex::allocation::{Admission, Memory, Resident};
+
 use crate::budget::Budget;
 use crate::error::{LoadError, LoadErrorKind};
 use crate::meter::{ConfigurationUsage, FactAllowance, Meter, NativeAdmission, Usage};
 use crate::path::RelPath;
-use crate::prescan::{Scan, prescan_file, shebang};
+use crate::prescan::{Scan, prescan_file, prescan_file_with_memory, shebang};
 use crate::{ActiveConfiguration, LoadOptions, TreeError};
 
 mod entry;
@@ -225,13 +227,30 @@ impl<'source> LexedSource<'source> {
 /// borrowed input. It performs no filesystem access or source mutation.
 ///
 /// # Errors
-/// Returns the located guard refusal, or storage-size overflow when the native
-/// token ceiling cannot be represented. Syntax is checked only when parsing.
+/// Returns the located guard or storage refusal. Syntax is checked only when
+/// parsing.
 pub fn prepare_source<'source>(
     file: &'source RelPath,
     text: &'source str,
 ) -> Result<PreparedSource<'source>, LoadError> {
     PreparedSource::new(file, text, Budget::FileTokens.limit())
+}
+
+/// Prepare borrowed source using the caller's memory for both delimiter stacks.
+///
+/// The original account funds the root entries and growth, including overlapping
+/// layouts during relocation. Both stacks die before the prepared ticket or a
+/// refusal returns. Successful preparation releases their entire charge.
+///
+/// # Errors
+/// Returns the located guard or storage refusal, including admission and refund
+/// failures. Syntax is checked only when parsing.
+pub fn prepare_source_with_memory<'source>(
+    file: &'source RelPath,
+    text: &'source str,
+    memory: &mut Memory<'_, impl Admission + ?Sized>,
+) -> Result<PreparedSource<'source>, LoadError> {
+    PreparedSource::with_memory(file, text, Budget::FileTokens.limit(), memory)
 }
 
 impl<'source> PreparedSource<'source> {
@@ -240,7 +259,16 @@ impl<'source> PreparedSource<'source> {
         text: &'source str,
         max_tokens: usize,
     ) -> Result<Self, LoadError> {
-        let scan = prescan_file(file, text, max_tokens)?;
+        Self::with_memory(file, text, max_tokens, &mut Memory::new(&mut Resident))
+    }
+
+    fn with_memory(
+        file: &'source RelPath,
+        text: &'source str,
+        max_tokens: usize,
+        memory: &mut Memory<'_, impl Admission + ?Sized>,
+    ) -> Result<Self, LoadError> {
+        let scan = prescan_file_with_memory(file, text, max_tokens, memory)?;
         let native_bound = scan
             .tokens
             .checked_mul(3)
@@ -476,7 +504,7 @@ pub fn parse_sources<R: Send>(
     on_worker(&worker_name, move || {
         let mut trees = Vec::new();
         let mut admission = NativeAdmission::items(&meter, &file, None, 0);
-        purrdf_lex::allocation::Memory::new(&mut admission)
+        Memory::new(&mut admission)
             .reserve(&mut trees, inputs.len())
             .map_err(|error| admission.graph_error(error.into()))?;
         for (path, text) in inputs {
@@ -538,7 +566,6 @@ fn lex_source(
     file: &RelPath,
     text: &str,
 ) -> Result<(proc_macro2::TokenStream, Option<String>), LoadError> {
-    use purrdf_lex::allocation::{Memory, Resident};
     let mut resident = Resident;
     let mut memory = Memory::new(&mut resident);
     let mut header = None;

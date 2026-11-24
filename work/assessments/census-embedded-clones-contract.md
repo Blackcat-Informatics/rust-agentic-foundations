@@ -7,13 +7,13 @@ subject: cap:census-embedded-clones#contract
 inputs:
   - kind: section
     name: cap:census-embedded-clones#contract
-    digest: 50224aca7ec0c2385004f8ce1c8db3b72c28a645fce991e1086487619de0082d
+    digest: d638591dc68d07a59cedcbdf1dce0a7607707a3a1b97d7d88f7389662de14d94
   - kind: symbol
     name: cargo_raf_census::embedded
     digest: 17484aa9cd680d40d7c8487ab7c6a71510ba15ef20abfc011055dd7842f7fd5c
   - kind: symbol
     name: raf_census::embedded
-    digest: a47c98c96d276695f13bcdee8d5f4dcf0f2ca3c327f65164c5b77ad4bfb3b972
+    digest: e299c95cd2faa178b9882e15bb6d257559140720bbcd9f75178ab0f01054d788
   - kind: symbol
     name: raf_census::embedded::analysis::Analysis
     digest: f4b3a6e4a11df3a07c9ea5dadafa8b9032c098efcdd6716be695a8a190a93cb7

@@ -12,6 +12,7 @@
 //! and a level that closes takes its count with it.
 
 use super::{Delimiter, Token};
+use purrdf_lex::allocation::{Admission, Memory, StorageError};
 
 /// The keywords that open a construct the parser reads, or the syntax tree
 /// holds, by recursion: an expression or a closure head, a pattern, or a type.
@@ -162,16 +163,32 @@ pub(super) struct Recursion {
 }
 
 impl Recursion {
-    pub(super) fn new() -> Self {
-        Self {
-            levels: vec![Level::default()],
+    pub(super) fn new(
+        memory: &mut Memory<'_, impl Admission + ?Sized>,
+    ) -> Result<Self, StorageError> {
+        Ok(Self {
+            levels: memory.collect([Level::default()])?,
             value: 0,
             peak: 0,
             attribute: false,
             after_lifetime: false,
             after_operand: false,
             macro_call: 0,
-        }
+        })
+    }
+
+    pub(super) fn reserve_open(
+        &mut self,
+        memory: &mut Memory<'_, impl Admission + ?Sized>,
+    ) -> Result<(), StorageError> {
+        super::reserve_level(&mut self.levels, memory)
+    }
+
+    pub(super) fn release(
+        self,
+        memory: &mut Memory<'_, impl Admission + ?Sized>,
+    ) -> Result<(), StorageError> {
+        memory.release_vec(self.levels)
     }
 
     /// The highest value the counter reached.

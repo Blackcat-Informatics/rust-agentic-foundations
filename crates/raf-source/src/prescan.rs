@@ -49,6 +49,7 @@
 use crate::budget::Budget;
 use crate::error::{LoadError, LoadErrorKind};
 use crate::path::RelPath;
+use purrdf_lex::allocation::{Admission, Memory, Resident, StorageError, growth_capacity};
 
 mod recursion;
 
@@ -126,14 +127,14 @@ struct Exceeded {
 }
 
 impl Counters {
-    fn new() -> Self {
-        Self {
-            levels: vec![Level::default()],
+    fn new(memory: &mut Memory<'_, impl Admission + ?Sized>) -> Result<Self, StorageError> {
+        Ok(Self {
+            levels: memory.collect([Level::default()])?,
             prefix_run: 0,
             closure_chain: 0,
             closure_pending_end: false,
             closure_head_depth: None,
-        }
+        })
     }
 
     /// The level currently open; the stack is never empty.
@@ -251,15 +252,7 @@ impl Counters {
 
     fn angle_and_delimiter(&mut self, token: Token<'_>, line: usize) -> Result<(), Exceeded> {
         match token {
-            Token::Open(_) => {
-                self.levels.push(Level::default());
-                if self.depth() > Budget::Delimiters.limit() {
-                    return Err(Exceeded {
-                        budget: Budget::Delimiters,
-                        line,
-                    });
-                }
-            }
+            Token::Open(_) => self.levels.push(Level::default()),
             Token::CloseBrace | Token::CloseOther => {
                 if self.levels.len() > 1 {
                     self.levels.pop();
@@ -289,6 +282,40 @@ impl Counters {
         }
         Ok(())
     }
+}
+
+fn reserve_level<T>(
+    levels: &mut Vec<T>,
+    memory: &mut Memory<'_, impl Admission + ?Sized>,
+) -> Result<(), StorageError> {
+    if levels.len() == levels.capacity() {
+        let capacity = growth_capacity::<T>(levels.capacity(), levels.len() + 1)?;
+        // The delimiter guard admits the next level before this call. Keep
+        // geometric slack within the delimiter limit plus the root slot.
+        memory.reserve(levels, capacity.min(Budget::Delimiters.limit() + 1))?;
+    }
+    Ok(())
+}
+
+fn reserve_open(
+    file: &RelPath,
+    line: usize,
+    counters: &mut Counters,
+    recursion: &mut Recursion,
+    memory: &mut Memory<'_, impl Admission + ?Sized>,
+) -> Result<(), LoadError> {
+    let budget = Budget::Delimiters;
+    let limit = budget.limit();
+    if counters.depth() >= limit {
+        return Err(LoadError::new(
+            file,
+            Some(line),
+            LoadErrorKind::Budget { budget, limit },
+        ));
+    }
+    reserve_level(&mut counters.levels, memory)
+        .and_then(|()| recursion.reserve_open(memory))
+        .map_err(|cause| LoadError::new(file, Some(line), LoadErrorKind::Storage(cause)))
 }
 
 fn is_ident_start(byte: u8) -> bool {
@@ -535,11 +562,20 @@ pub(crate) fn prescan_file(
     text: &str,
     max_tokens: usize,
 ) -> Result<Scan, LoadError> {
+    prescan_file_with_memory(file, text, max_tokens, &mut Memory::new(&mut Resident))
+}
+
+pub(crate) fn prescan_file_with_memory(
+    file: &RelPath,
+    text: &str,
+    max_tokens: usize,
+    memory: &mut Memory<'_, impl Admission + ?Sized>,
+) -> Result<Scan, LoadError> {
     let at = shebang(text).map_or_else(
         || bom_width(text),
         |header| text.len() - header.remainder.len(),
     );
-    prescan_from(file, text, max_tokens, at)
+    prescan_from(file, text, max_tokens, at, memory)
 }
 
 /// Scan `text` and refuse it when a counter passes its budget or it holds more
@@ -547,10 +583,10 @@ pub(crate) fn prescan_file(
 ///
 /// # Errors
 ///
-/// Returns a [`LoadError`] with [`LoadErrorKind::Budget`] naming `file`, the
-/// budget and the line where the count went over.
+/// Returns the budget and source line when a limit is exceeded, or a storage
+/// refusal when the delimiter stacks cannot be allocated.
 pub(crate) fn prescan(file: &RelPath, text: &str, max_tokens: usize) -> Result<Scan, LoadError> {
-    prescan_from(file, text, max_tokens, 0)
+    prescan_from(file, text, max_tokens, 0, &mut Memory::new(&mut Resident))
 }
 
 fn prescan_from(
@@ -558,11 +594,38 @@ fn prescan_from(
     text: &str,
     max_tokens: usize,
     at: usize,
+    memory: &mut Memory<'_, impl Admission + ?Sized>,
+) -> Result<Scan, LoadError> {
+    let storage = |cause| crate::parse::storage(file, cause);
+    memory.try_scope(|memory| {
+        let mut counters = Counters::new(memory).map_err(storage)?;
+        let mut recursion = Recursion::new(memory).map_err(storage)?;
+        let scan = scan_tokens(
+            file,
+            text,
+            max_tokens,
+            at,
+            &mut counters,
+            &mut recursion,
+            memory,
+        )?;
+        memory.release_vec(counters.levels).map_err(storage)?;
+        recursion.release(memory).map_err(storage)?;
+        Ok(scan)
+    })
+}
+
+fn scan_tokens(
+    file: &RelPath,
+    text: &str,
+    max_tokens: usize,
+    at: usize,
+    counters: &mut Counters,
+    recursion: &mut Recursion,
+    memory: &mut Memory<'_, impl Admission + ?Sized>,
 ) -> Result<Scan, LoadError> {
     let mut cursor = Cursor::new(text);
     cursor.at = at;
-    let mut counters = Counters::new();
-    let mut recursion = Recursion::new();
     let mut tokens = 0_usize;
     let over = |budget: Budget, limit: usize, line: usize| {
         LoadError::new(file, Some(line), LoadErrorKind::Budget { budget, limit })
@@ -645,6 +708,9 @@ fn prescan_from(
         };
         let added = lexed_tokens(token, &text.as_bytes()[start..cursor.at]);
         count(added, line)?;
+        if let Token::Open(_) = token {
+            reserve_open(file, line, counters, recursion, memory)?;
+        }
         counters
             .feed(token, line)
             .map_err(|exceeded| over(exceeded.budget, exceeded.budget.limit(), exceeded.line))?;
