@@ -321,6 +321,15 @@ fn valid_documents_of_each_type_validate_to_typed_values() {
             ),
         }
     }
+    // A list of mappings is one refused value at the key, not one finding per row.
+    let mappings = alpha().replace("depends:", "review_required:\n  - a: b\n  - c: d\ndepends:");
+    assert_eq!(
+        violations(&mappings, ALPHA_PATH)
+            .iter()
+            .filter(|v| v.at() == &key("review_required"))
+            .count(),
+        1
+    );
 
     assert!(!cap.measured_evidence_required);
     assert!(!cap.review_strict);
@@ -1386,6 +1395,12 @@ fn depends_is_a_list_of_cap_ids_and_does_not_need_the_capability_to_exist() {
                 expected: "a list of cap ids",
             },
         ),
+        (
+            "depends:\n  - a: b\n  - c: d",
+            Rule::WrongShape {
+                expected: "a list of cap ids",
+            },
+        ),
     ] {
         let found = violations(&mutate(&alpha(), "depends: [cap:beta]", to), ALPHA_PATH);
         assert_hit(&found, &key("depends"), &rule);
@@ -1446,6 +1461,12 @@ fn changes_is_a_non_empty_list_of_cap_ids() {
         ("changes: []", Rule::EmptyChanges),
         (
             "changes: cap:alpha",
+            Rule::WrongShape {
+                expected: "a list of cap ids",
+            },
+        ),
+        (
+            "changes:\n  - a: b\n  - c: d",
             Rule::WrongShape {
                 expected: "a list of cap ids",
             },
