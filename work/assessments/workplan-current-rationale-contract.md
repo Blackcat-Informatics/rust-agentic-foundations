@@ -7,7 +7,7 @@ subject: cap:workplan-current-rationale#contract
 inputs:
   - kind: section
     name: cap:workplan-current-rationale#contract
-    digest: 67c0992a8aa6f0a670591d051c1d2056b6b333e23fc38ea2a1b21f0adc68ea8d
+    digest: fc5a836c291ff35888b3a331c99e92820041dbc13f900470fd9f57cb29615558
   - kind: symbol
     name: raf_workplan::CurrentDesignError
     digest: ac520f6ebba122b967b8590e36dae39d6d453ec67fcb3bc67596cb9356da91ba

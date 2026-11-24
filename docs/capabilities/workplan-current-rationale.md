@@ -129,7 +129,8 @@ to identify implementation. Select the concrete definitions it contains.
 The path must disappear from the index and a matching name and kind must
 disappear from the former file. A retained file needs indexed text coverage,
 including the original blob behind a symlink. Opaque disabled declarations
-or a macro invocation carrying the selected name prevent a proof.
+or unexpanded item-producing macro invocations in the former file prevent
+a proof.
 The check addresses written definitions. Establish semantic equivalence,
 generated code and runtime reachability independently.
 <!-- raf:tested-by cargo_raf_workplan::test_crate::preview::retirement_preserves_current_design_and_locates_removed_material_in_git,cargo_raf_workplan::test_crate::preview::retirement_refuses_current_resurrected_and_hidden_material,cargo_raf_workplan::test_crate::preview::retirement_checks_the_original_source_behind_a_symlink -->

@@ -523,10 +523,9 @@ fn require_source_absence(
     if disabled
         .get(first_disabled)
         .is_some_and(|opaque| &opaque.file == file)
-        || unexpanded[first_unexpanded..]
-            .iter()
-            .take_while(|opaque| &opaque.file == file)
-            .any(|opaque| opaque.identifiers.contains(&item.name))
+        || unexpanded
+            .get(first_unexpanded)
+            .is_some_and(|opaque| &opaque.file == file)
     {
         return Err(refuse(SourceProblem::OpaqueFile));
     }

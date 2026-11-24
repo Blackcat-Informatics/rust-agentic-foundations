@@ -167,7 +167,10 @@ fn retirement_refuses_current_resurrected_and_hidden_material() {
     refuses_retirement(&repo, &args, "still has a matching written declaration");
     repo.edit(OLD_FILE, "fn obsolete", "#[cfg(any())]\nfn obsolete");
     refuses_retirement(&repo, &args, "still has a matching written declaration");
-    repo.put(OLD_FILE, "declare!(obsolete);\nfn keep() {}\n");
+    repo.put(
+        OLD_FILE,
+        "macro_rules! declare { () => { fn obsolete() -> bool { false } }; }\ndeclare!();\nfn keep() {}\n",
+    );
     refuses_retirement(&repo, &args, "has opaque declarations");
     repo.edit("src/lib.rs", "mod implementation;\n", "");
     refuses_retirement(&repo, &args, "left the index while its file remains");
