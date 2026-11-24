@@ -364,8 +364,10 @@ fn check_values(
         let key = spec.key;
         if let Some(rule) = keys.take_rejection(key) {
             check.key(key, rule);
-            if spec.value == ValueKind::Flag {
-                *flag_slot(&mut found, key)? = Slot::Invalid;
+            match spec.value {
+                ValueKind::Flag => *flag_slot(&mut found, key)? = Slot::Invalid,
+                ValueKind::ReviewKinds => found.review_required = Slot::Invalid,
+                _ => {}
             }
             continue;
         }
@@ -383,12 +385,12 @@ fn check_values(
             }
             ValueKind::State => found.state = Some(finite::decode(entry, State::from_name)?),
             ValueKind::ReviewKinds => {
-                found.review_required = Slot::from_check(review::check_required(check, entry));
+                found.review_required = Slot::from_check(review::check_required(check, entry)?);
             }
             ValueKind::Bindings => {
                 found.bindings = check_bindings(check, entry, found.state, keys.bindings_exact);
             }
-            ValueKind::CapabilityIds => collect_capability_ids(check, entry, &mut found),
+            ValueKind::CapabilityIds => collect_capability_ids(check, entry, keys, &mut found),
             ValueKind::Affects => {
                 found.affects = check_affects(check, entry, &found.change_ids);
             }
@@ -475,15 +477,20 @@ fn flag_slot<'a>(
     }
 }
 
-fn collect_capability_ids(check: &mut Check<'_>, entry: &Entry, found: &mut Collected) {
+fn collect_capability_ids(
+    check: &mut Check<'_>,
+    entry: &Entry,
+    keys: &header::HeaderVerdicts<'_>,
+    found: &mut Collected,
+) {
     let key = entry.key();
-    let ids = check_capability_ids(check, entry, key == "changes");
+    let ids = check_capability_ids(check, entry, keys, key == "changes");
     match key {
         "changes" => {
             if let Some(texts) = strings(entry.value()) {
                 found.change_ids = texts
                     .into_iter()
-                    .filter(|id| is_capability_id(id))
+                    .filter(|id| !keys.refuses("changes", id))
                     .map(str::to_string)
                     .collect();
             }
@@ -732,6 +739,7 @@ fn check_bindings(
 fn check_capability_ids(
     check: &mut Check<'_>,
     entry: &Entry,
+    keys: &header::HeaderVerdicts<'_>,
     non_empty: bool,
 ) -> Option<Vec<String>> {
     let key = entry.key();
@@ -745,12 +753,12 @@ fn check_capability_ids(
         return None;
     };
     let mut valid = true;
-    if non_empty && ids.is_empty() {
+    if non_empty && keys.is_emptied(key) {
         check.key(key, Rule::EmptyChanges);
         valid = false;
     }
     for id in &ids {
-        if !is_capability_id(id) {
+        if keys.refuses(key, id) {
             check.key(
                 key,
                 Rule::BadCapabilityId {

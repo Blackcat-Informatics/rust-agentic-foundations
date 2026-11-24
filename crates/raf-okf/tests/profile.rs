@@ -299,6 +299,7 @@ fn valid_documents_of_each_type_validate_to_typed_values() {
         ),
         ("[security, security]", None),
         ("[unknown]", None),
+        ("[security, unknown, bogus]", None),
         ("security", None),
     ] {
         let text = alpha().replace("depends:", &format!("review_required: {list}\ndepends:"));
@@ -309,10 +310,14 @@ fn valid_documents_of_each_type_validate_to_typed_values() {
                 };
                 assert_eq!(cap.review_required, expected);
             }
-            None => assert!(
+            // Every refused member is one finding at the key.
+            None => assert_eq!(
                 violations(&text, ALPHA_PATH)
                     .iter()
-                    .any(|v| v.at() == &key("review_required"))
+                    .filter(|v| v.at() == &key("review_required"))
+                    .count(),
+                1,
+                "{list}"
             ),
         }
     }
@@ -1370,6 +1375,12 @@ fn depends_is_a_list_of_cap_ids_and_does_not_need_the_capability_to_exist() {
             },
         ),
         (
+            "depends: [urn:raf:okf:key-present]",
+            Rule::BadCapabilityId {
+                entry: "urn:raf:okf:key-present".into(),
+            },
+        ),
+        (
             "depends: cap:beta",
             Rule::WrongShape {
                 expected: "a list of cap ids",
@@ -1399,6 +1410,33 @@ fn depends_is_a_list_of_cap_ids_and_does_not_need_the_capability_to_exist() {
         ),
         ALPHA_PATH,
     );
+    // Every refused member is its own finding in authored order, a repeated
+    // member included; the valid members between them are not refused.
+    let refused = violations(
+        &mutate(
+            &alpha(),
+            "depends: [cap:beta]",
+            "depends: [cap:Beta, urn:raf:okf:key-present, cap:gamma-2, beta, beta]",
+        ),
+        ALPHA_PATH,
+    );
+    let entries: Vec<_> = refused
+        .iter()
+        .filter(|v| v.at() == &key("depends"))
+        .map(|v| v.rule().clone())
+        .collect();
+    let bad = |entry: &str| Rule::BadCapabilityId {
+        entry: entry.into(),
+    };
+    assert_eq!(
+        entries,
+        [
+            bad("cap:Beta"),
+            bad("urn:raf:okf:key-present"),
+            bad("beta"),
+            bad("beta")
+        ]
+    );
 }
 
 #[test]
@@ -1413,6 +1451,12 @@ fn changes_is_a_non_empty_list_of_cap_ids() {
             },
         ),
         (
+            "changes: [cap:alpha, urn:raf:okf:key-present]",
+            Rule::BadCapabilityId {
+                entry: "urn:raf:okf:key-present".into(),
+            },
+        ),
+        (
             "changes: [cap:alpha, beta]",
             Rule::BadCapabilityId {
                 entry: "beta".into(),
@@ -1422,6 +1466,26 @@ fn changes_is_a_non_empty_list_of_cap_ids() {
         let found = violations(&mutate(CHANGE, from, to), CHANGE_PATH);
         assert_hit(&found, &key("changes"), &rule);
     }
+    // An empty list is refused as empty, never as a missing key; an absent key is
+    // the reverse.
+    let empty = violations(&mutate(CHANGE, from, "changes: []"), CHANGE_PATH);
+    assert!(
+        !empty
+            .iter()
+            .any(|v| matches!(v.rule(), Rule::MissingKey { .. }))
+    );
+    let absent = violations(
+        &mutate(CHANGE, "changes: [cap:alpha, cap:beta]\n", ""),
+        CHANGE_PATH,
+    );
+    assert_hit(
+        &absent,
+        &key("changes"),
+        &Rule::MissingKey {
+            key: "changes".into(),
+        },
+    );
+    assert!(!absent.iter().any(|v| v.rule() == &Rule::EmptyChanges));
     clean(CHANGE, CHANGE_PATH);
 }
 

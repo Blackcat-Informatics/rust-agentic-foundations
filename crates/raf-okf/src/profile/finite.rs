@@ -5,8 +5,15 @@
 
 use super::{
     Actor, AssessmentVerdict, ContractEffect, DocType, Entry, EvidenceVerdict, HeaderShapeError,
-    ReviewKind, ReviewVerdict, Rule, State, ValueKind, scalar_text,
+    ReviewKind, ReviewVerdict, Rule, State, ValueKind, scalar_text, strings,
 };
+
+/// The refusal text for a `review_required` list outside its closed, distinct kinds.
+pub(super) const REVIEW_KINDS_SHAPE: &str =
+    "a list of distinct security, correctness, design, performance or documentation kinds";
+
+/// The shape of one capability identifier: `cap:` and a kebab slug.
+pub(super) const CAPABILITY_ID_PATTERN: &str = "cap:[a-z0-9]+(-[a-z0-9]+)*";
 
 const FLAGS: [(bool, &str); 2] = [(true, "true"), (false, "false")];
 
@@ -18,6 +25,8 @@ pub(super) enum Vocabulary {
     Actor,
     Verdict,
     ReviewKind,
+    ReviewKinds,
+    CapabilityIds,
 }
 
 impl Vocabulary {
@@ -29,6 +38,32 @@ impl Vocabulary {
             ValueKind::Actor => Some(Self::Actor),
             ValueKind::Verdict => Some(Self::Verdict),
             ValueKind::ReviewKind => Some(Self::ReviewKind),
+            ValueKind::ReviewKinds => Some(Self::ReviewKinds),
+            ValueKind::CapabilityIds => Some(Self::CapabilityIds),
+            _ => None,
+        }
+    }
+
+    /// The authored texts the shape judges: one scalar, or every member of an
+    /// all-scalar list. Any other value has no texts.
+    pub(super) fn texts(self, entry: &Entry) -> Option<Vec<&str>> {
+        if self.is_list() {
+            strings(entry.value())
+        } else {
+            scalar_text(entry).map(|text| vec![text])
+        }
+    }
+
+    /// Whether the key holds a list whose every member is drawn from the vocabulary.
+    pub(super) const fn is_list(self) -> bool {
+        matches!(self, Self::ReviewKinds | Self::CapabilityIds)
+    }
+
+    /// The regular expression every member must match, for a vocabulary that is not
+    /// a finite name set.
+    pub(super) const fn pattern(self) -> Option<&'static str> {
+        match self {
+            Self::CapabilityIds => Some(CAPABILITY_ID_PATTERN),
             _ => None,
         }
     }
@@ -45,7 +80,8 @@ impl Vocabulary {
                 DocType::Review => ReviewVerdict::ALL.map(ReviewVerdict::name).into(),
                 _ => return Err(HeaderShapeError::UnexpectedReport),
             },
-            Self::ReviewKind => ReviewKind::ALL.map(ReviewKind::name).into(),
+            Self::ReviewKind | Self::ReviewKinds => ReviewKind::ALL.map(ReviewKind::name).into(),
+            Self::CapabilityIds => return Err(HeaderShapeError::UnexpectedReport),
         };
         Ok(names)
     }
@@ -66,6 +102,12 @@ impl Vocabulary {
             },
             (Self::ReviewKind, _) => Rule::WrongShape {
                 expected: "security, correctness, design, performance or documentation",
+            },
+            (Self::ReviewKinds, _) => Rule::WrongShape {
+                expected: REVIEW_KINDS_SHAPE,
+            },
+            (Self::CapabilityIds, _) => Rule::WrongShape {
+                expected: "a list of cap ids",
             },
             (Self::State | Self::Actor | Self::Verdict, None) => Rule::WrongShape {
                 expected: "a scalar",
@@ -89,4 +131,10 @@ pub(super) fn decode<T>(
     scalar_text(entry)
         .and_then(read)
         .ok_or(HeaderShapeError::UnexpectedReport)
+}
+
+/// Whether the list at `key` needs at least one member, so that the native shape
+/// reports an empty list through the key's required presence.
+pub(super) fn requires_member(key: &str) -> bool {
+    key == "changes"
 }
