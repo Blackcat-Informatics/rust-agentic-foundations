@@ -962,8 +962,7 @@ fn apply_cfg_attr(
             }
             Meta::List(list) if list.path.is_ident("cfg") => {
                 let inner = cfg_predicate(&list.tokens, line)?;
-                let both = CfgExpr::All(vec![combined.clone(), inner]);
-                if both.implies_test() && summary.own_test != TestRole::TestFn {
+                if combined.cfg_attr_requires_test(&inner) && summary.own_test != TestRole::TestFn {
                     summary.own_test = TestRole::CfgTest;
                 }
             }

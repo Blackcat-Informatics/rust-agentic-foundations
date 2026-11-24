@@ -1126,6 +1126,22 @@ fn standard_type_identity_requires_an_unshadowed_implicit_std_root() {
     let normal = load(&[("src/lib.rs", authored)]);
     let listed = exports(&normal, TargetKind::Lib, false);
     assert_eq!(listed.reexports[0].standard_type, Some(StandardType::Rc));
+    let alternative = load(&[
+        (
+            "src/lib.rs",
+            "#[cfg(not(test))] pub mod implementation;\n#[cfg(test)] #[path = \"test_impl.rs\"] pub mod implementation;",
+        ),
+        ("src/implementation.rs", authored),
+        (
+            "src/test_impl.rs",
+            "#![test_expansion]\npub fn test_helper() {}",
+        ),
+    ]);
+    let listed = exports(&alternative, TargetKind::Lib, false);
+    assert_eq!(listed.reexports.len(), 1);
+    assert_eq!(listed.reexports[0].path, "demo::implementation::Handle");
+    assert_eq!(listed.reexports[0].standard_type, Some(StandardType::Rc));
+
     let macro_scope = load(&[(
         "src/lib.rs",
         "#[macro_use] mod macros { macro_rules! unused { () => {} } }\npub use ::std::rc::Rc as Handle;\n",
@@ -1160,6 +1176,7 @@ fn standard_type_identity_requires_an_unshadowed_implicit_std_root() {
         "macro_rules! supply { () => { mod std {} }; }\nsupply!();\n",
         "mod decoy { pub use unrelated::*; }\nuse decoy::*;\n",
         "#[derive(GenerateStd)] struct Marker;\n",
+        "#[cfg_attr(test, cfg(test))] #[rewrite_import] use core::marker::PhantomData;\n",
         "#[rewrite_import]\n",
     ] {
         let source = format!("{prefix}{authored}");

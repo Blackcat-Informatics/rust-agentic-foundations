@@ -267,7 +267,7 @@ const STANDARD_TYPE_GLOB_CASES: &[(&str, &str, Option<bool>)] = {
         ),
         (
             "",
-            "mod upstream { pub use ::std::rc::Rc as Handle; }\n#[cfg(test)] use std::cell::*;\npub use upstream::*;\npub fn Handle() {}\npub fn probe(_: Handle<u8>) { Handle(); }",
+            "mod upstream { pub use ::std::rc::Rc as Handle; }\n#[cfg_attr(not(test), cfg(test))] use std::cell::*;\npub use upstream::*;\npub fn Handle() {}\npub fn probe(_: Handle<u8>) { Handle(); }",
             Some(true),
         ),
         (
@@ -282,7 +282,7 @@ const STANDARD_TYPE_GLOB_CASES: &[(&str, &str, Option<bool>)] = {
         ),
         (
             "",
-            "mod upstream { pub use std::rc::Rc as Handle; }\nmod competing { pub struct Handle {} }\nmod a { pub use crate::b::*; pub use crate::upstream::*; }\nmod b { pub use crate::a::*; pub use crate::competing::*; }\npub use a::*;\npub fn Handle() {}\npub fn probe(_: Handle<u8>) { Handle(); }",
+            "mod upstream { pub use std::rc::Rc as Handle; }\nmod competing { pub struct Handle {} }\nmod reader { pub use crate::middle::*; pub use crate::upstream::*; }\nmod middle { pub use crate::reader::*; pub use crate::competing::*; }\nmod facade { pub use crate::reader::*; }\npub use facade::*;\npub fn Handle() {}\npub fn probe(_: Handle<u8>) { Handle(); }",
             Some(true),
         ),
     ]

@@ -562,6 +562,7 @@ impl Index {
         (item, required): Held,
         steps: Steps<'_>,
     ) -> Result<bool, LoadError> {
+        steps.storage_work(rows.len())?;
         steps.reserve(rows.len() * size_of::<bool>())?;
         let mut visited = vec![false; rows.len()];
         let mut work = Vec::new();

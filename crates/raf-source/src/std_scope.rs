@@ -251,6 +251,9 @@ impl StdScope {
     ) -> Result<(), StorageError> {
         for file in files.values() {
             for reach in &file.reached {
+                if !include_tests && reach.test {
+                    continue;
+                }
                 let root = index.target_roots[reach.target.index()];
                 let Some(&module) = index.module_by_path.get(&(root, reach.module_path.clone()))
                 else {
