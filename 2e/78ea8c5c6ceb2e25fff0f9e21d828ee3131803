@@ -1,0 +1,27 @@
+ghprsq source head backlink metadata
+
+parent_hashes: 2e78ea8c5c6ceb2e25fff0f9e21d828ee3131803
+
+GhpRsq-Schema: 1
+GhpRsq-Merge-Style: structured-squash-head-backlink
+GhpRsq-GitHub-Repo: Blackcat-Informatics/rust-agentic-foundations
+GhpRsq-GitHub-Pull-Request: 440
+GhpRsq-GitHub-PR-URL: https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/440
+GhpRsq-Base-Ref: main
+GhpRsq-Base-OID: e8dcc67e51c3fb184a78980835394d0ba99d1b8e
+GhpRsq-Head-Ref: paudley/270-workplan-resolve-decisions-that
+GhpRsq-Head-OID: 2e78ea8c5c6ceb2e25fff0f9e21d828ee3131803
+GhpRsq-Result-Tree: 9a01c47e4a6cca83fb4a1aa0d59934b574fcaa23
+GhpRsq-Result-Commit: cd025d8323faf3708a4fb56f42002ca0dccfab83
+GhpRsq-Parent-Hashes: 2e78ea8c5c6ceb2e25fff0f9e21d828ee3131803
+GhpRsq-Squash-Notes-SHA256: c27e4269988b0e09317e0eee918356e02681915d3410b9af7720f4f7d56d49ad
+GhpRsq-Defect-Class: none
+GhpRsq-Stage-Evidence: none
+GhpRsq-Gate-Command: make merge-gate
+GhpRsq-Gate-Commit: cd025d8323faf3708a4fb56f42002ca0dccfab83
+GhpRsq-Gate-Tree: 9a01c47e4a6cca83fb4a1aa0d59934b574fcaa23
+GhpRsq-Gate-Exit: 0
+GhpRsq-Gate-Started: 2026-11-24T01:14:07Z
+GhpRsq-Gate-Ended: 2026-11-24T02:15:49Z
+GhpRsq-Gate-Log-SHA256: b38431cbabcb258f34b8da7b8713b22daef0e48b681b373ed62adbab59836466
+GhpRsq-Gate-Reused: no
