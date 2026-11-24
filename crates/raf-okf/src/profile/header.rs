@@ -22,7 +22,10 @@ use purrdf_shapes::{
 };
 
 use super::{BINDING_KEYS, Check, DocType, Entry, ItemValue, Map, Rule};
-use super::{finite::Vocabulary, review::FindingStatus, scalar_text};
+use super::{
+    finite::{Vocabulary, requires_member},
+    review::FindingStatus,
+};
 use crate::frontmatter::value::List;
 
 const KEY: &str = "urn:raf:okf:key:";
@@ -38,6 +41,7 @@ const SH: &str = "http://www.w3.org/ns/shacl#";
 const CLOSED: &str = "http://www.w3.org/ns/shacl#ClosedConstraintComponent";
 const MIN_COUNT: &str = "http://www.w3.org/ns/shacl#MinCountConstraintComponent";
 const IN: &str = "http://www.w3.org/ns/shacl#InConstraintComponent";
+const PATTERN: &str = "http://www.w3.org/ns/shacl#PatternConstraintComponent";
 
 /// A failure to obtain a complete native verdict for a document's header.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -110,6 +114,8 @@ impl From<RdfDiagnostic> for HeaderShapeError {
 #[derive(Default)]
 pub(super) struct HeaderVerdicts<'a> {
     rejected: Vec<(&'static str, Rule)>,
+    refused_ids: Vec<(&'static str, String)>,
+    emptied: Vec<&'a str>,
     pub(super) bindings_exact: bool,
     pub(super) items: Vec<RowKeys<'a>>,
     pub(super) debt_findings: Vec<RowKeys<'a>>,
@@ -125,6 +131,18 @@ impl HeaderVerdicts<'_> {
     pub(super) fn take_rejection(&mut self, key: &str) -> Option<Rule> {
         let index = self.rejected.iter().position(|(field, _)| *field == key)?;
         Some(self.rejected.swap_remove(index).1)
+    }
+
+    /// Whether the native shape found the list at `key` empty where it needs a member.
+    pub(super) fn is_emptied(&self, key: &str) -> bool {
+        self.emptied.contains(&key)
+    }
+
+    /// Whether the native shape refused `text` as a member of the list at `key`.
+    pub(super) fn refuses(&self, key: &str, text: &str) -> bool {
+        self.refused_ids
+            .iter()
+            .any(|(field, member)| *field == key && member == text)
     }
 }
 
@@ -399,6 +417,7 @@ fn add_value_constraints(
     doc_type: DocType,
 ) -> Result<(), HeaderShapeError> {
     let predicate = graph.intern_iri(&format!("{SH}in"))?;
+    let pattern = graph.intern_iri(&format!("{SH}pattern"))?;
     let list = ListVocab {
         first: graph.intern_iri(&format!("{RDF}first"))?,
         rest: graph.intern_iri(&format!("{RDF}rest"))?,
@@ -407,6 +426,17 @@ fn add_value_constraints(
     for (key, vocabulary) in finite_fields(doc_type) {
         let name = format!("{SHAPE}{}:{key}", doc_type.name());
         let field = graph.intern_iri(&name)?;
+        if let Some(expression) = vocabulary.pattern() {
+            // The pattern admits only member ids. The presence marker is an IRI standing
+            // in for a value the header cannot project as texts (an empty list, a scalar
+            // or a nested value); it fails the pattern, and `PATTERN` results whose value
+            // is that IRI are skipped. A member is always a plain literal, so a member
+            // spelled like the marker is still refused: only the term kind tells them apart.
+            let expression = format!("^{expression}$");
+            let expression = graph.intern_literal(RdfLiteral::simple(expression))?;
+            graph.push_quad(field, pattern, expression, None)?;
+            continue;
+        }
         let members = vocabulary
             .names(doc_type)?
             .into_iter()
@@ -483,9 +513,9 @@ fn header_graph<'a>(
             .ok_or(HeaderShapeError::KeyBytes)?;
     }
     let scalars = finite_fields(doc_type)
-        .filter_map(|(key, _)| Some((key, scalar_text(header.1.get(key)?)?)))
+        .filter_map(|(key, vocabulary)| Some((key, vocabulary.texts(header.1.get(key)?)?)))
         .collect::<Vec<_>>();
-    for (_, text) in &scalars {
+    for text in scalars.iter().flat_map(|(_, texts)| texts) {
         available = available
             .checked_sub(text.len())
             .ok_or(HeaderShapeError::KeyBytes)?;
@@ -493,22 +523,33 @@ fn header_graph<'a>(
     let mut graph = RdfDatasetBuilder::new();
     let present = graph.intern_iri(PRESENT)?;
     let mut focuses = Vec::with_capacity(maps.clone().count() + row_count);
-    let mut project =
-        |graph: &mut RdfDatasetBuilder, (name, map): (&str, &Map), values: &[(&str, &str)]| {
-            let focus = graph.intern_iri(name)?;
-            focuses.push(NamedNode::from(name).into_term());
-            for entry in map.entries() {
-                let predicate = graph.intern_iri(&format!("{KEY}{}", entry.key()))?;
-                let object =
-                    if let Some((_, text)) = values.iter().find(|(key, _)| *key == entry.key()) {
-                        graph.intern_literal(RdfLiteral::simple(*text))?
-                    } else {
-                        present
-                    };
+    let mut project = |graph: &mut RdfDatasetBuilder,
+                       (name, map): (&str, &Map),
+                       values: &[(&str, Vec<&str>)]| {
+        let focus = graph.intern_iri(name)?;
+        focuses.push(NamedNode::from(name).into_term());
+        for entry in map.entries() {
+            let predicate = graph.intern_iri(&format!("{KEY}{}", entry.key()))?;
+            let Some((_, texts)) = values.iter().find(|(key, _)| *key == entry.key()) else {
+                graph.push_quad(focus, predicate, present, None)?;
+                continue;
+            };
+            // Each list member is its own value. An empty list has none, except
+            // under a pattern key that admits it, whose required presence it must still show.
+            if texts.is_empty()
+                && !requires_member(entry.key())
+                && finite_fields(doc_type)
+                    .any(|(key, vocabulary)| key == entry.key() && vocabulary.pattern().is_some())
+            {
+                graph.push_quad(focus, predicate, present, None)?;
+            }
+            for text in texts {
+                let object = graph.intern_literal(RdfLiteral::simple(*text))?;
                 graph.push_quad(focus, predicate, object, None)?;
             }
-            Ok::<_, HeaderShapeError>(focus)
-        };
+        }
+        Ok::<_, HeaderShapeError>(focus)
+    };
     project(&mut graph, header, &scalars)?;
     if let Some(bindings) = bindings {
         project(&mut graph, bindings, &[])?;
@@ -574,13 +615,41 @@ fn value_rejection(
     if focus_iri(&result.source_shape)? != format!("{SHAPE}{}:{key}", doc_type.name()) {
         return Err(HeaderShapeError::UnexpectedReport);
     }
-    match (scalar_text(entry), &result.value) {
-        (Some(text), Some(Term::Literal(value)))
-            if value.datatype_str() == XSD_STRING && value.value() == text => {}
+    match (vocabulary.texts(entry), &result.value) {
+        (Some(texts), Some(Term::Literal(value)))
+            if value.datatype_str() == XSD_STRING && texts.contains(&value.value()) => {}
         (None, Some(Term::NamedNode(value))) if value.as_str() == PRESENT => {}
         _ => return Err(HeaderShapeError::UnexpectedReport),
     }
     Ok((key, vocabulary.rejection(entry, doc_type)))
+}
+
+/// The member a pattern result refused, with the schema's own key. A result whose
+/// value is the presence marker refuses no member; the value rules report that shape.
+fn refused_member(
+    result: &ValidationResult,
+    map: &Map,
+    doc_type: DocType,
+    key: &str,
+) -> Result<Option<(&'static str, String)>, HeaderShapeError> {
+    if matches!(&result.value, Some(Term::NamedNode(value)) if value.as_str() == PRESENT) {
+        return Ok(None);
+    }
+    let (key, vocabulary) = finite_fields(doc_type)
+        .find(|(field, vocabulary)| *field == key && vocabulary.pattern().is_some())
+        .ok_or(HeaderShapeError::UnexpectedReport)?;
+    let entry = map.get(key).ok_or(HeaderShapeError::UnexpectedReport)?;
+    if focus_iri(&result.source_shape)? != format!("{SHAPE}{}:{key}", doc_type.name()) {
+        return Err(HeaderShapeError::UnexpectedReport);
+    }
+    match (vocabulary.texts(entry), &result.value) {
+        (Some(texts), Some(Term::Literal(value)))
+            if value.datatype_str() == XSD_STRING && texts.contains(&value.value()) =>
+        {
+            Ok(Some((key, value.value().to_string())))
+        }
+        _ => Err(HeaderShapeError::UnexpectedReport),
+    }
 }
 
 fn report_top_keys<'a>(
@@ -654,13 +723,30 @@ fn report_keys<'a>(
         let focus = focus_iri(&result.focus_node)?;
         let keys = match result.source_constraint_component.as_str() {
             CLOSED => &mut unknown,
+            MIN_COUNT if focus == header && requires_member(key) && map.get(key).is_some() => {
+                // A required key that carries no member is an empty list.
+                verdicts.emptied.extend(map.get(key).map(Entry::key));
+                continue;
+            }
             MIN_COUNT => &mut missing,
             IN if focus == header => {
                 let rejection = value_rejection(result, map, doc_type, key)?;
                 if verdicts.rejected.iter().any(|(field, _)| *field == key) {
+                    // A list reports each refused member; one finding covers the key.
+                    if finite_fields(doc_type)
+                        .any(|(field, vocabulary)| field == key && vocabulary.is_list())
+                    {
+                        continue;
+                    }
                     return Err(HeaderShapeError::UnexpectedReport);
                 }
                 verdicts.rejected.push(rejection);
+                continue;
+            }
+            PATTERN if focus == header => {
+                verdicts
+                    .refused_ids
+                    .extend(refused_member(result, map, doc_type, key)?);
                 continue;
             }
             _ => return Err(HeaderShapeError::UnexpectedReport),
