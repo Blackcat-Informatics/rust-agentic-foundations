@@ -9,7 +9,7 @@ mod support;
 
 use raf_rdf::{Builder, Format, Graph, TermValue, vocab};
 use std::collections::BTreeSet;
-use support::{Repo, Run, completion, history, strict};
+use support::{Repo, Run, completion, history, retirement, strict};
 
 fn terms(graph: &Graph, found: &mut BTreeSet<String>) {
     fn iri(value: &str, found: &mut BTreeSet<String>) {
@@ -276,6 +276,24 @@ fn lifecycle(found: &mut BTreeSet<String>) {
     );
     let dated = history::dated("registry-history");
     history_snapshot(&dated, found);
+}
+
+#[expect(
+    clippy::unwrap_used,
+    reason = "retirement output must be a valid report graph"
+)]
+fn retirement_terms(found: &mut BTreeSet<String>) {
+    let repo = retirement::retirement_fixture("registry-retirement");
+    retirement::retire_middle(&repo);
+    repo.edit(retirement::OLD_FILE, retirement::OLD_DEFINITION, "");
+    let args = [
+        retirement::select_definition().as_slice(),
+        &["--format", "turtle"],
+    ]
+    .concat();
+    let run = repo.run(&args).expect(0);
+    let graph = Graph::from_text(&run.stdout, Format::Turtle).unwrap();
+    terms(&graph, found);
 }
 
 #[expect(
@@ -689,6 +707,7 @@ fn command_extension_registry_matches_the_documented_terms() {
     documentation(&mut found);
     roadmap(&mut found);
     lifecycle(&mut found);
+    retirement_terms(&mut found);
     evidence_and_assessments(&mut found);
     line_coverage_and_debt(&mut found);
     review_queries(&mut found);

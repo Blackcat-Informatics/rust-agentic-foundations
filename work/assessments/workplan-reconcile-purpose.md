@@ -43,7 +43,7 @@ inputs:
     digest: 8faccb5690df217dc2a093f3142b723662621569d56e1274a4c47b3a84d15f52
   - kind: symbol
     name: raf_workplan::lifecycle
-    digest: f849e872732ddd3edfeeb04169a333f7696a21598ed6924dfcb19da8c5aee1e5
+    digest: 128f23a7e5362fe2e61af789022df5668df8a16e112950cf0d4634116ef6b145
   - kind: symbol
     name: raf_workplan::lifecycle::Impact
     digest: a6c21aab0a4b43db01baf0f947be6843cdd501fab1aa1cfed83f8b74ba6a7935
@@ -55,7 +55,7 @@ inputs:
     digest: 6fa2fd1a30b0e36763f3c3ef091f2b758f1b09b169408df5a1d263f5f1ca9c48
   - kind: symbol
     name: raf_workplan::lifecycle::Lifecycle::source_impact
-    digest: ba00cfd2efbfb00925aaee19764e34c1c6cfe0580971cc719a378ab3befbcc59
+    digest: 5ba1491936764720c13e03a4b442d63b36835538ccdf998cfcea70a99e6d1b5c
   - kind: symbol
     name: raf_workplan::lifecycle::NewChange
     digest: fbfb102c8819761489ea937ebcd93a201609f7d4378473d0cf2b6ba681a3dcb3
@@ -73,10 +73,10 @@ inputs:
     digest: e06f6932f7a3f48e86afee6bf34ccdd62165d8cf47a430820690bc09696e0bdc
   - kind: symbol
     name: raf_workplan::lifecycle::source_impact
-    digest: 3bd74851dc7b1de17c890d0498ffd85c9e406a12cf24a3759f23ebe75f9df843
+    digest: 381a72aa3d7ebef27b336eaf41b19212961f6e62159c502e6e3036d86edd11b6
   - kind: symbol
     name: raf_workplan::lifecycle::touched
-    digest: 0e51eb92e798329de7e6735f79dbb36829db13b456b31396eaf1a9024c12377d
+    digest: ee00c621d6d47fce4775d2804772e3f44b61a3c24fcf8862445165e3ab67b7cb
   - kind: symbol
     name: raf_workplan::lifecycle::untouched
     digest: 66ad9ff15cab21f6e7ca94e53f8c625a8c2be53628ec2af2e0245f0fa0b13abe

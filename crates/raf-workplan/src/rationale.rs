@@ -100,6 +100,11 @@ mod current_design;
 mod supersession;
 
 pub use current_design::CurrentDesignError;
+pub(crate) use current_design::{
+    architecture_findings, authored_decision_text, authored_headings, decision_blocks,
+    retirement_prose,
+};
+pub(crate) use supersession::historical;
 
 /// The heading of a decision.
 const DECISION: &str = "Decision";

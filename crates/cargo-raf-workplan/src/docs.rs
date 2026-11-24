@@ -4,7 +4,7 @@
 //! Static Markdown fragments, artifact inspection and invocation-scoped compilation.
 
 use crate::{
-    cli::{ArtifactArgs, FragmentArgs, LibraryArgs, TrustedDocsArgs},
+    cli::{ArtifactArgs, FragmentArgs, LibraryArgs, RetireArgs, TrustedDocsArgs},
     exit::Failure,
     render::{Record, Report},
     result::Result as CommandResult,
@@ -12,12 +12,24 @@ use crate::{
 };
 use raf_source::TargetKind;
 use raf_workplan::diagram::cargo::{self, CargoDocOptions, DocumentationArtifacts};
+use raf_workplan::lifecycle::Lifecycle;
 use raf_workplan::{BindingKind, Gate};
 use std::{
     fs::File,
     io::Read as _,
     path::{Path, PathBuf},
 };
+
+pub(crate) fn retire(root: &Path, args: &RetireArgs) -> Result<Report, Failure> {
+    let definitions: Vec<_> = args.definitions.iter().map(String::as_str).collect();
+    let retirement =
+        Lifecycle::open(root)?.verify_retirement(&args.base, &args.sections, &definitions)?;
+    let message = retirement.to_string();
+    Ok(Report::of([Record::outcome(
+        CommandResult::Retirement(retirement),
+        message,
+    )]))
+}
 
 fn options(args: &LibraryArgs) -> Result<CargoDocOptions, Failure> {
     let packages: Vec<_> = args.packages.iter().map(String::as_str).collect();

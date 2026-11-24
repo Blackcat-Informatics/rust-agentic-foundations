@@ -11,18 +11,203 @@ use std::fmt::Write as _;
 use std::path::Path;
 
 use support::Repo;
+use support::retirement::{
+    CURRENT, INITIAL_BLOCK, MIDDLE, OLD_DEFINITION, OLD_FILE, RETIRE, RETIRED_BLOCK, STANDALONE,
+    decision, retire_middle, retirement_fixture, select_definition,
+};
 
 const PROPOSED: &str = "Delta reads streams as they arrive.";
 
-fn decision(repo: &Repo, slug: &str, replacements: &str, body: &str) {
-    repo.put(
-        &format!("docs/architecture/{slug}.md"),
-        &format!(
-            "---\ntype: Architecture\nid: arch:{slug}\ntitle: Design\n\
-             description: A design decision.\n{replacements}---\n\n# Design\n\n{body}\n\n\
-             ## Conditions to revisit\n\n- A governing requirement changes.\n"
-        ),
+/// Retirement proves removal of the selected section and declaration and
+/// returns the original Git locations through text and RDF.
+#[test]
+fn retirement_preserves_current_design_and_locates_removed_material_in_git() {
+    let repo = retirement_fixture("retirement");
+    let base = repo.git(&["rev-parse", "HEAD"]);
+    let before = repo.both(&["docs", "current-design"]).expect(0);
+    retire_middle(&repo);
+    repo.edit(OLD_FILE, OLD_DEFINITION, "");
+    repo.commit("retire superseded design");
+    let after = repo.both(&["docs", "current-design"]).expect(0);
+    for view in [&before.stdout, &after.stdout] {
+        assert!(view.contains("Read the latest requirements."));
+        assert!(view.contains("Keep exact bounds."));
+        assert!(view.contains("A separate current decision."));
+        assert!(!view.contains("Apply the initial assumptions."));
+        assert!(!view.contains("Earlier rationale."));
+    }
+    let snapshot = repo.snapshot();
+    let args = select_definition();
+    let output = repo.both(&args).expect(0);
+    assert!(output.stdout.contains(&format!("base {}\n", base.trim())));
+    assert!(output.stdout.contains(&format!(
+        "section arch:middle#intermediate at {MIDDLE}:18-21"
+    )));
+    assert!(output.stdout.contains(&format!(
+        "definition demo::implementation::obsolete at {OLD_FILE}:1-1"
+    )));
+    let rdf = repo
+        .both(&[args.as_slice(), &["--format", "ntriples"]].concat())
+        .expect(0);
+    assert!(rdf.stdout.contains("RetiredSection"));
+    assert!(rdf.stdout.contains("RetiredDefinition"));
+    assert!(rdf.stdout.contains(base.trim()));
+    assert_eq!(
+        repo.snapshot(),
+        snapshot,
+        "retirement verification wrote a file"
     );
+    assert!(
+        repo.git(&["show", &format!("{}:{MIDDLE}", base.trim())])
+            .contains(RETIRED_BLOCK.trim_end())
+    );
+    assert!(
+        repo.git(&["show", &format!("{}:{OLD_FILE}", base.trim())])
+            .contains(OLD_DEFINITION.trim_end())
+    );
+    repo.git(&["checkout", "-q", "main"]);
+    let mut divergent = args;
+    divergent[3] = "refs/heads/feature";
+    refuses_retirement(&repo, &divergent, "is not reachable from HEAD");
+}
+
+fn refuses_retirement(repo: &Repo, args: &[&str], diagnostic: &str) {
+    let refused = repo.both(args).expect(2);
+    assert_eq!(refused.stdout, "");
+    assert!(refused.stderr.contains(diagnostic), "{refused:#?}");
+}
+
+/// The checker refuses active or retained sections, edges that accidentally
+/// revive old text, and source made invisible by visibility or index changes.
+#[test]
+#[expect(
+    clippy::expect_used,
+    reason = "the fixture must remove the old source file"
+)]
+fn retirement_refuses_current_resurrected_and_hidden_material() {
+    let repo = retirement_fixture("retirement-refusals");
+    refuses_retirement(&repo, RETIRE, "still has a heading");
+    let mut active = RETIRE.to_vec();
+    active.pop();
+    active.push("arch:middle#bounds");
+    refuses_retirement(&repo, &active, "is not superseded at the base");
+    retire_middle(&repo);
+    repo.edit(CURRENT, "(middle.md)", "(middle.md#intermediate)");
+    refuses_retirement(&repo, RETIRE, "[anchor-broken]");
+    repo.edit(CURRENT, "(middle.md#intermediate)", "(middle.md)");
+    repo.edit(
+        CURRENT,
+        "supersedes:\n  latest: ['arch:earliest#initial']\n",
+        "",
+    );
+    refuses_retirement(
+        &repo,
+        RETIRE,
+        "arch:earliest#initial` survives without a replacing edge",
+    );
+    repo.edit(
+        CURRENT,
+        "description: A design decision.\n",
+        "description: A design decision.\nsupersedes:\n  latest: ['arch:earliest#initial']\n",
+    );
+    let renamed = RETIRED_BLOCK.replace("### Intermediate", "### Renamed");
+    repo.edit(
+        MIDDLE,
+        "## Decision\n\n### Bounds",
+        &format!("{renamed}## Decision\n\n### Bounds"),
+    );
+    refuses_retirement(&repo, RETIRE, "arch:middle` would alter the current design");
+    repo.edit(
+        CURRENT,
+        "['arch:earliest#initial']",
+        "['arch:earliest#initial', 'arch:middle#renamed']",
+    );
+    refuses_retirement(&repo, RETIRE, "still has its complete text");
+    let earliest = "docs/architecture/earliest.md";
+    repo.edit(earliest, INITIAL_BLOCK, "");
+    repo.edit(
+        CURRENT,
+        "['arch:earliest#initial', 'arch:middle#renamed']",
+        "['arch:middle#renamed']",
+    );
+    let mut overlapping = RETIRE.to_vec();
+    overlapping.extend(["--section", "arch:earliest#initial"]);
+    refuses_retirement(&repo, &overlapping, "still has its complete text");
+    repo.edit(
+        earliest,
+        "## Conditions to revisit",
+        &format!("{INITIAL_BLOCK}\n\n## Conditions to revisit"),
+    );
+    repo.edit(
+        CURRENT,
+        "['arch:middle#renamed']",
+        "['arch:earliest#initial']",
+    );
+    repo.edit(MIDDLE, &renamed, "");
+    repo.edit(
+        MIDDLE,
+        "## Decision\n\n### Bounds",
+        "## Decision\n\nEarlier rationale.\n\n## Decision\n\n### Bounds",
+    );
+    refuses_retirement(&repo, RETIRE, "would alter the current design");
+    repo.edit(MIDDLE, &format!("\n\n{STANDALONE}"), "");
+    refuses_retirement(&repo, RETIRE, "would alter the current design");
+    repo.edit(MIDDLE, "## Decision\n\nEarlier rationale.\n\n", "");
+    repo.edit(
+        MIDDLE,
+        "Keep exact bounds.",
+        &format!("Keep exact bounds.\n\n{STANDALONE}"),
+    );
+    repo.edit(MIDDLE, "### Bounds", "### Updated bounds");
+    refuses_retirement(&repo, RETIRE, "arch:middle` would alter the current design");
+    repo.edit(MIDDLE, "### Updated bounds", "### Bounds");
+
+    let args = select_definition();
+    repo.edit(OLD_FILE, "pub fn obsolete", "fn obsolete");
+    refuses_retirement(&repo, &args, "still has a matching written declaration");
+    repo.edit(OLD_FILE, "fn obsolete", "#[cfg(any())]\nfn obsolete");
+    refuses_retirement(&repo, &args, "still has a matching written declaration");
+    repo.put(OLD_FILE, "declare!(obsolete);\nfn keep() {}\n");
+    refuses_retirement(&repo, &args, "has opaque declarations");
+    repo.edit("src/lib.rs", "mod implementation;\n", "");
+    refuses_retirement(&repo, &args, "left the index while its file remains");
+    let mut module = args.clone();
+    module.pop();
+    module.push("demo::implementation");
+    refuses_retirement(&repo, &module, "is a module declaration");
+    std::fs::remove_file(repo.root().join(OLD_FILE)).expect("remove the superseded file");
+    repo.both(&args).expect(0);
+}
+
+/// Removing a historical path alias cannot hide a file it pointed to.
+#[cfg(unix)]
+#[test]
+#[expect(
+    clippy::expect_used,
+    reason = "the temporary repository needs a real Git symlink"
+)]
+fn retirement_checks_the_original_source_behind_a_symlink() {
+    let repo = retirement_fixture("retirement-symlink");
+    let route = "src/alias.rs";
+    std::os::unix::fs::symlink("implementation.rs", repo.root().join(route))
+        .expect("create the historical alias");
+    let module = "#[path = \"alias.rs\"]\nmod implementation;\n";
+    repo.edit("src/lib.rs", "mod implementation;\n", module);
+    repo.commit("index the source through a symlink");
+    let mut args = select_definition();
+    args[3] = "HEAD";
+    retire_middle(&repo);
+    repo.edit(OLD_FILE, OLD_DEFINITION, "");
+    let verified = repo.both(&args).expect(0);
+    assert!(verified.stdout.contains(&format!(
+        "definition demo::implementation::obsolete at {OLD_FILE}:1-1"
+    )));
+    repo.put(OLD_FILE, OLD_DEFINITION);
+    repo.edit("src/lib.rs", module, "");
+    std::fs::remove_file(repo.root().join(route)).expect("remove the source alias");
+    refuses_retirement(&repo, &args, "left the index while its file remains");
+    std::fs::remove_file(repo.root().join(OLD_FILE)).expect("remove the original source");
+    repo.both(&args).expect(0);
 }
 
 /// Active sections travel through the normal CLI with their source identity.

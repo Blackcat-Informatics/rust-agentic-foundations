@@ -48,6 +48,7 @@ pub(crate) fn run(args: &Args) -> Result<Output, Failure> {
             let opened = Gate::workspace(&root()?).open()?;
             return Ok(Output::CurrentDesign(opened.workplan().current_design()?));
         }
+        Command::Docs(Docs::Retire(request)) => crate::docs::retire(&root()?, request),
         Command::Docs(Docs::Fragment(request)) => {
             return crate::docs::fragment(&root()?, request).map(Output::Fragment);
         }
@@ -122,6 +123,7 @@ pub(crate) fn run(args: &Args) -> Result<Output, Failure> {
 fn command_name(command: &Command) -> &'static str {
     match command {
         Command::Docs(Docs::CurrentDesign) => "docs current-design",
+        Command::Docs(Docs::Retire(_)) => "docs retire",
         Command::Docs(Docs::Fragment(_)) => "docs fragment",
         Command::Docs(Docs::Artifacts(_)) => "docs artifacts",
         Command::Docs(Docs::Build(DocsBuild::Rustdoc(_))) => "docs build rustdoc",

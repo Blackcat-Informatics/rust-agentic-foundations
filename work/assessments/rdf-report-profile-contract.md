@@ -7,10 +7,10 @@ subject: cap:rdf-report-profile#contract
 inputs:
   - kind: section
     name: cap:rdf-report-profile#contract
-    digest: 3949f0d0c47c836d6d04f7af7b1a1ef0ebcee982bbfef45f76f837346d541115
+    digest: 863f15ece9d61eaea3f393bf8f10cfcdb8889be848874c426febab12ab0b1f0e
   - kind: symbol
     name: cargo_raf_workplan::bin_crate::cargo_raf_workplan::result
-    digest: 2a65f107bcd081697c27749bda6dbb1a6fc866372516a95d0a059f200fea9ec3
+    digest: d37bd6f018ed28f7a692ea9bcbce67a6769ecd6633606b307361dc52750160aa
   - kind: symbol
     name: raf_rdf::Builder
     digest: c40e01dbc48f103c03ffae3dd956b102d2bf164b4b639eb6878d90856aead765
@@ -34,7 +34,7 @@ inputs:
     digest: 8a1c21bf5d2b16ed72893ae09283a01ddb0af1e798bb379084b5736d49e0b9ae
   - kind: symbol
     name: raf_workplan::report
-    digest: 3243b0f487c6dc6944be4ca7185c4d9fd5c325666c866b716fe502898b53e0e4
+    digest: b805181ff1820f0a72658bac514b2ef17b8d88d5a158d24e9a053cbbae0ac84e
 verdict: accepted
 by: agent
 ---

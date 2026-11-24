@@ -44,6 +44,7 @@ pub(crate) enum Result {
     NewChange(NewChange),
     Impact(Impact),
     SourceImpact(raf_workplan::lifecycle::SourceImpact),
+    Retirement(raf_workplan::lifecycle::Retirement),
     Obligation(Obligation),
     Completed {
         path: String,

@@ -404,6 +404,10 @@ exact string data. The command root remains the `Report` above, with
 `reportForm` 1. These typed results do not introduce a generic object/array value
 or a string containing another machine serialization.
 
+A `Retirement` result carries its pinned base and ordered section and definition
+recovery locations. Each location gives its original identity, blob path and
+inclusive line numbers in that commit.
+
 | Command class | Properties and object types |
 |---|---|
 | `Rewritten` | `path` string |
@@ -423,6 +427,9 @@ or a string containing another machine serialization.
 | `Guidance` | `capability`, `state`, `advice` strings |
 | `Impact` | `change` string; `capability` ordered `CapabilityReference` nodes; `section` ordered `SectionReference` nodes; `binding` ordered `BindingResolution` nodes; `dependant` ordered `Dependant` nodes; `link` ordered `SectionLink` nodes |
 | `SourceImpact` | `base` commit id and ordered `symbol` children of type `ChangedSymbol` |
+| `Retirement` | `base` commit id and ordered `section` and `definition` children of types `RetiredSection` and `RetiredDefinition` |
+| `RetiredSection` | `id` decision section reference, `path` blob path, inclusive `first` and `last` line integers |
+| `RetiredDefinition` | `id` full source index path, `path` blob path, inclusive `first` and `last` line integers |
 | `ChangedSymbol` | `path` and `change` strings, `public` and `unowned` booleans, ordered `binding` children of type `ImpactBinding` |
 | `ImpactBinding` | `capability`, `list` and `path` strings, `atBase` boolean indicating historical declarations, ordered `section` children of type `SectionImpact` |
 | `SectionImpact` | `subject` and `reason` strings, ordered `guarantee`, `test`, `example` and `assessment` children of types `GuaranteeReference`, `TestReference`, `ExampleReference` and `AssessmentReference` |
