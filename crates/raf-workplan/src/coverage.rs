@@ -302,7 +302,7 @@ impl SurfaceFailure {
         match error {
             ExportError::Budget(_) => Self::Budget,
             ExportError::CarryBudget { path, .. } => Self::CarryBudget { path: path.clone() },
-            ExportError::Resolve(_) => Self::Unresolved,
+            ExportError::Resolve(_) | ExportError::AmbiguousStandardType { .. } => Self::Unresolved,
             _ => Self::Other,
         }
     }
@@ -953,7 +953,9 @@ fn mark(found: Option<&Vec<usize>>, matched: &mut [bool], first: &mut Option<usi
 /// the message says where to look.
 fn surface_message(source: &Workspace, error: &ExportError) -> String {
     let mut text = error.to_string();
-    if let ExportError::Resolve(ResolveError::Ambiguous(ids)) = error {
+    if let ExportError::Resolve(ResolveError::Ambiguous(ids))
+    | ExportError::AmbiguousStandardType { indexed: ids, .. } = error
+    {
         let mut sites: Vec<String> = ids
             .iter()
             .filter_map(|id| source.item(*id))

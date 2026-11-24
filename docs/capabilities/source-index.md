@@ -168,6 +168,8 @@ bindings:
     - raf_source::Exports
     - raf_source::ExportedItem
     - raf_source::Reexport
+    - raf_source::StandardType
+    - raf_source::StandardType::path
     - raf_source::ExportOptions
     - raf_source::ExportError
     - raf_source::Item::parameter_bindings
@@ -774,7 +776,10 @@ bindings:
     - raf_source::exports::tests::a_module_of_pub_globs_that_each_carry_a_re_export_is_listed_in_view_reads_linear_in_its_names
     - raf_source::exports::tests::a_module_of_pub_globs_that_each_carry_a_re_export_is_listed_in_walk_steps_linear_in_its_names
     - raf_source::test_crate::exported_items::a_carried_re_export_is_kept_out_exactly_where_every_route_passes_a_module_that_binds_its_name
-    - raf_source::test_crate::exported_items::an_item_and_a_carried_outside_re_export_of_one_name_are_both_listed_and_not_ambiguous
+    - raf_source::test_crate::exported_items::a_carried_standard_type_conflicts_with_an_indexed_type_glob
+    - raf_source::test_crate::exported_items::a_renamed_standard_type_is_carried_beside_a_value_and_shadowed_by_a_type
+    - raf_source::test_crate::exported_items::standard_type_identity_requires_an_unshadowed_implicit_std_root
+    - raf_source::test_crate::rustc_oracle::standard_type_globs_follow_the_compiler_across_value_and_type_bindings
     - raf_source::exports::tests::readers_of_carried_names_beside_sibling_shadows_list_in_linear_work_and_bounded_bytes
     - raf_source::test_crate::rustc_oracle::external_carried_exports_and_carry_limits_have_named_compiler_boundaries
     - raf_source::test_crate::exported_items::a_re_export_that_only_a_hidden_glob_carries_past_a_shadow_is_hidden_as_an_item_would_be
@@ -3459,13 +3464,21 @@ glob carries such a re-export of each module its public routes reach, through
 module's path (`demo::Debug` for `pub use a::*;` where a private `a` has `pub use
 std::fmt::Debug;`, and `demo::*` where it has `pub use std::collections::*;`),
 unless a module on every such route, the reader included, binds the name itself, in
-any name space, as the index cannot tell the name space of an item it does not see;
+any name space for a re-export whose namespace is unknown;
 such a re-export is hidden when only routes that leave the reader by a
 `#[doc(hidden)]` glob carry it, as an item is: a hidden glob further on the way
 hides nothing, and one whose shown route a module on the way shadows and whose
 route by a hidden glob of the reader is free is hidden. `pub extern crate self as name;`
 names the target itself and is one of its items. An `Item` carries `macro_export`,
 true for a `macro_rules!` macro with `#[macro_export]`, which the listing reads.
+
+A proven `std::rc::Rc` import yields `Reexport::standard_type` with its
+canonical standard-library Type and preserves the written path, file and
+line. A direct rename of the standard import and public workspace globs
+preserve that identity. A same-named Value can appear beside it. On a
+glob route, an explicit Type binding shadows the carried Type. A distinct
+indexed Type brought in by another glob makes the public path ambiguous.
+<!-- raf:tested-by raf_source::test_crate::exported_items::a_renamed_standard_type_is_carried_beside_a_value_and_shadowed_by_a_type,raf_source::test_crate::exported_items::a_carried_standard_type_conflicts_with_an_indexed_type_glob -->
 
 `#[doc(hidden)]` hides a path when it is on the item, on a module of the path (on
 its declaration, or as `#![doc(hidden)]` in the module's file), on the `use`
@@ -3490,14 +3503,11 @@ Items are sorted by path, then in the order of `items()` of the defining item, a
 re-exports by path, file and line, so two loads of one tree give equal surfaces,
 whatever the order of the declarations. A failure is an `ExportError`:
 `NotLibraryOrBinary` for a test, bench, example or build-script target; `Resolve`,
-with the error that `resolve` gives for the path, when a public name is ambiguous
-(two globs bring in two items of the index; an item and a carried re-export of a
-crate outside the workspace under one name are both listed, as the index cannot
-tell whether they collide, so `mod a { pub struct Rc; }` and `mod b { pub use
-std::rc::Rc; }` globbed by the root give the item `demo::Rc` and a `Reexport`
-`demo::Rc`), goes through an import that never settles (a cycle
+with the error that `resolve` gives for the path, when two globs bring in
+distinct indexed items, a public name goes through an import that never settles (a cycle
 of imports), or reads a glob whose path names nothing in the workspace, as a `pub`
-glob of such a path does even when nothing reads it; `Budget`; and `CarryBudget`,
+glob of such a path does even when nothing reads it; `AmbiguousStandardType`
+for a conflict between a proven standard Type and indexed Types; `Budget`; and `CarryBudget`,
 with the exported path of a carried re-export, when deciding whether the globs
 carry it passes the item-bytes budget (below), its `Budget` load error naming the
 file and line of the carried `use` declaration. Each binding the
@@ -4288,10 +4298,9 @@ delegates to that library or enforce preferred-provider policy.
   the crate with only the `ambiguous_glob_reexports` warning (two `pub` globs, one
   of whose items is `pub(crate)`, so that another crate can name the other): the
   listing refuses the name rather than choose one, as `resolve` does. A re-export
-  of an item of a crate outside the workspace that a `pub` glob carries is dropped
-  where the reader or a module on the way binds its name in any name space, as the
-  index cannot tell the name space of an item it does not see: beside `fn Rc() {}`,
-  a carried `pub use std::rc::Rc;` is not listed, though rustc exports the type.
+  whose namespace is unknown is dropped when the reader or a module on every
+  public glob route binds the name in any namespace. A proven standard `Rc`
+  Type can coexist with `fn Rc() {}`.
   A listing whose carried names need searches past several binders on long routes
   can pass the item-bytes budget, which charges their work, and is then refused
   with `CarryBudget` though rustc accepts the crate. The `doc_hidden` flag follows
@@ -4306,6 +4315,13 @@ delegates to that library or enforce preferred-provider policy.
   Linux handle verifier on real descriptors and a tree holding those ordinary
   Linux names. The Windows-name predicate is tested only on Windows and is not
   executed by the standard checks.
+
+Standard `Rc` identity requires a confirmed implicit `std` root in the
+selected edition and import scope on native Linux. Competing roots,
+disabled preludes and expansion that can affect the import scope prevent
+that proof. Settlement applies the proven namespace and rechecks the
+root after resolving the refined namespace tables.
+<!-- raf:tested-by raf_source::test_crate::exported_items::standard_type_identity_requires_an_unshadowed_implicit_std_root -->
 
 ## Explanation
 
@@ -4460,6 +4476,12 @@ examples, so those must resolve; the census must not count test helpers as shipp
 duplicates.
 
 ## Verification
+
+Native compiler fixtures exercise a Type beside a same-named Value, an
+explicit Type shadow and a competing Type glob. Source fixtures check
+the authored declaration location and the absence of standard identity
+when the root cannot be proved.
+<!-- raf:tested-by raf_source::test_crate::rustc_oracle::standard_type_globs_follow_the_compiler_across_value_and_type_bindings,raf_source::test_crate::exported_items::standard_type_identity_requires_an_unshadowed_implicit_std_root -->
 
 Qualification requires serial and parallel comparisons over the same stable
 corpus and controlled compiler-oracle source data. Compare indexes, semantic
@@ -5388,14 +5410,15 @@ one-byte-short refusal.
   carrier, a quarter of them `#[doc(hidden)]` and a fifth `pub(crate)`, cycles
   allowed, binders by a private struct or a private import, hidden modules and a
   hidden carrier, and a reader of one to three globs, some hidden, at the root or
-  in a `pub` module that is sometimes hidden: in each, the carried re-export and
-  the item give the same paths with the same flags; the answers include absent,
+  in a `pub` module that is sometimes hidden. The carried re-export and a
+  Type-only record struct give the same paths with the same flags. The answers include absent,
   shown and hidden. The two shapes a route that does not carry the name out
   decides wrongly (a private import shadowing the glob, and a `pub(crate)` glob),
   at the root and in a `pub` module, for the item and the re-export, are listed
   hidden and left out by default.
-- An item `Rc` and a carried `pub use std::rc::Rc;` under one name are both listed,
-  with no ambiguity.
+- A public standard `Rc` Type can share its alias with a Value through a
+  chain of globs. An explicit Type shadows it, and a distinct indexed Type
+  brought in through a competing glob yields `AmbiguousStandardType`.
 - A module that a hidden and a shown `pub` glob both reach carries its re-export
   shown, beside the same with the shown glob gone, where it is hidden.
 - Determinism: the same surface from two calls and over four orders of the
@@ -5739,6 +5762,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::exported_items::a_carried_outside_re_export_is_kept_out_by_a_restricted_glob_or_a_name_on_the_way` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::exported_items::a_carried_re_export_is_kept_out_exactly_where_every_route_passes_a_module_that_binds_its_name` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::a_carried_re_export_is_listed_hidden_or_absent_exactly_as_an_item_of_the_same_shape` | test | [Verification](#verification) |
+| `raf_source::test_crate::exported_items::a_carried_standard_type_conflicts_with_an_indexed_type_glob` | test | [Contract](#contract) |
 | `raf_source::test_crate::exported_items::a_carrier_with_pub_globs_of_its_own_is_not_its_own_binder` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::a_chain_of_re_exports_through_nested_modules_is_followed_and_a_restricted_hop_stops_it` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::a_chain_of_twenty_thousand_pub_globs_is_listed_on_a_two_mib_thread` | test | [Verification](#verification) |
@@ -5755,18 +5779,19 @@ one-byte-short refusal.
 | `raf_source::test_crate::exported_items::a_re_export_of_another_crate_is_a_re_export_and_not_an_item` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::a_re_export_that_only_a_hidden_glob_carries_past_a_shadow_is_hidden_as_an_item_would_be` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::a_re_export_two_globs_carry_is_written_as_the_first_glob_that_carries_it` | test | [Verification](#verification) |
+| `raf_source::test_crate::exported_items::a_renamed_standard_type_is_carried_beside_a_value_and_shadowed_by_a_type` | test | [Contract](#contract) |
 | `raf_source::test_crate::exported_items::a_restricted_or_private_re_export_is_not_exported_beside_a_pub_one_that_is` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::a_surface_over_the_item_budget_left_by_the_load_is_refused_beside_one_within_it` | test | [Contract](#contract) |
 | `raf_source::test_crate::exported_items::a_surface_refused_for_a_module_name_a_glob_cycle_carries_lists_the_same_candidates_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::an_ambiguous_a_cyclic_or_an_unresolved_public_name_fails_beside_a_neighbour_that_lists` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::exported_items::an_exported_macro_is_exported_and_a_local_or_generated_one_is_not` | test | [Constraints](#constraints) |
-| `raf_source::test_crate::exported_items::an_item_and_a_carried_outside_re_export_of_one_name_are_both_listed_and_not_ambiguous` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::an_item_reached_only_by_a_pub_use_of_a_private_glob_binding_is_not_exported_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::doc_hidden_items_are_left_out_by_default_and_flagged_when_included` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::exported_items::enum_variants_and_struct_fields_are_not_items_of_the_surface` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::in_random_small_crates_a_carried_re_export_is_listed_hidden_or_absent_as_the_item_is` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::of_two_carriers_of_one_name_only_the_one_with_a_free_route_is_listed_with_its_own_line` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::only_a_route_that_carries_a_name_out_decides_whether_it_is_hidden_for_items_and_re_exports` | test | [Constraints](#constraints) |
+| `raf_source::test_crate::exported_items::standard_type_identity_requires_an_unshadowed_implicit_std_root` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::exported_items::test_code_is_not_part_of_the_surface_beside_the_shipped_items` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::exported_items::the_example_of_the_contract_lists_one_item_and_more_through_a_glob_or_a_pub_module` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::the_members_of_a_pub_trait_are_exported_and_those_of_a_private_trait_are_not` | test | [Verification](#verification) |
@@ -6104,6 +6129,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::rustc_oracle::every_corpus_program_shows_the_divergence_it_records_and_no_other` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::rustc_oracle::external_carried_exports_and_carry_limits_have_named_compiler_boundaries` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_source::test_crate::rustc_oracle::serial_and_parallel_indices_and_reports_agree_on_all_oracle_source_data` | test | [Contract](#contract) |
+| `raf_source::test_crate::rustc_oracle::standard_type_globs_follow_the_compiler_across_value_and_type_bindings` | test | [Verification](#verification) |
 | `raf_source::test_crate::rustc_oracle::the_index_agrees_with_rustc_on_generated_programs_up_to_the_known_classes` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::rustc_oracle::the_minimiser_drops_what_a_divergence_does_not_need_and_keeps_its_class` | test | [Verification](#verification) |
 | `raf_source::test_crate::rustc_oracle::the_seed_base_is_read_in_hexadecimal_or_decimal_and_refuses_anything_else` | test | [Verification](#verification) |

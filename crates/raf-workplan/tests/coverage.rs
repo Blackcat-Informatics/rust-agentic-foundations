@@ -801,6 +801,21 @@ fn a_surface_that_cannot_be_listed_is_an_error_of_the_report_and_a_finding_in_sc
         ),
         []
     );
+
+    let mut mixed = ambiguous_files();
+    let (_, body) = mixed
+        .iter_mut()
+        .find(|(path, _)| path == "crates/other/src/lib.rs")
+        .expect("the fixture has the ambiguous library");
+    *body = "mod local { pub struct Rc; }\nmod standard { pub use std::rc::Rc; }\npub use local::*;\npub use standard::*;\n".to_owned();
+    let source = load(&mixed);
+    let report = report_of(&repo("[cov-demo, other]"), &source);
+    let [error] = report.errors() else {
+        panic!("{:?}", report.errors());
+    };
+    assert_eq!(error.failure(), &SurfaceFailure::Unresolved);
+    assert!(error.message().contains("`std::rc::Rc`"), "{error}");
+    assert!(error.message().contains("`other::local::Rc`"), "{error}");
 }
 
 #[test]

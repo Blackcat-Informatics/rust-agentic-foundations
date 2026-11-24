@@ -182,6 +182,98 @@ fn external_carried_exports_and_carry_limits_have_named_compiler_boundaries() {
     export_boundaries::assert_inventory();
 }
 
+#[test]
+#[expect(
+    clippy::expect_used,
+    reason = "the controlled compiler fixture must load and yield its public surface"
+)]
+fn standard_type_globs_follow_the_compiler_across_value_and_type_bindings() {
+    use raf_source::{ExportError, MemoryTree, StandardType, Workspace};
+
+    let common = "mod upstream { pub use std::rc::Rc as Handle; }\npub use upstream::*;\n";
+    for (prefix, consumer, retained) in [
+        (
+            common,
+            "pub fn Handle() {}\npub fn probe(_: Handle<u8>) { Handle(); }",
+            Some(true),
+        ),
+        (
+            "mod values { pub fn Handle() {} }\nmod upstream { pub use crate::values::*; pub use std::rc::Rc as Handle; }\npub use upstream::*;\n",
+            "pub fn probe(_: Handle<u8>) { Handle(); }",
+            Some(true),
+        ),
+        (
+            "mod values { pub fn Handle() {} }\nmod types { pub use std::rc::Rc as Handle; }\nmod value_route { use std::rc::Rc as Handle; pub use crate::values::*; }\npub use types::*; pub use value_route::*;\n",
+            "pub fn probe(_: Handle<u8>) { Handle(); }",
+            Some(true),
+        ),
+        (
+            common,
+            "pub type Handle = u8;\npub fn probe(_: Handle) {}",
+            Some(false),
+        ),
+        (
+            common,
+            "mod competing { pub struct Handle<T> { pub value: T } }\npub use competing::*;\npub fn probe(_: Handle<u8>) {}",
+            None,
+        ),
+    ] {
+        let source = format!("{prefix}{consumer}");
+        let tree = MemoryTree::from([
+            (
+                "Cargo.toml",
+                "[package]\nname='demo'\nversion='0.1.0'\nedition='2021'\n",
+            ),
+            ("src/lib.rs", source.as_str()),
+        ]);
+        let workspace = Workspace::load(&tree, &["."]).expect("the source fixture loads");
+        let target = workspace
+            .target_ids()
+            .next()
+            .expect("the fixture has a library");
+        let diagnostics = rustc::compile(&source);
+        let errors: Vec<_> = diagnostics
+            .iter()
+            .filter(|item| item.level == "error")
+            .collect();
+        let surface = workspace.exported_items(target);
+        if let Some(retained) = retained {
+            assert!(errors.is_empty(), "{diagnostics:?}");
+            let surface = surface.expect("the compiler accepted this surface");
+            assert_eq!(
+                surface.reexports.iter().any(|export| {
+                    export.path == "demo::Handle" && export.standard_type == Some(StandardType::Rc)
+                }),
+                retained,
+                "{source}"
+            );
+            if retained {
+                assert!(
+                    surface.items.iter().any(|export| {
+                        export.path == "demo::Handle" && export.kind == raf_source::SymbolKind::Fn
+                    }),
+                    "{source}"
+                );
+            }
+        } else {
+            assert!(
+                errors
+                    .iter()
+                    .any(|item| item.code.as_deref() == Some("E0659")),
+                "{diagnostics:?}"
+            );
+            assert!(
+                matches!(
+                    surface,
+                    Err(ExportError::AmbiguousStandardType { path, standard: StandardType::Rc, .. })
+                        if path == "demo::Handle"
+                ),
+                "{source}"
+            );
+        }
+    }
+}
+
 const TWO_STRUCTS: &str = "\
 // probe demo crate::m0::A
 // probe demo crate::m1::A

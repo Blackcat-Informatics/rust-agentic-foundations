@@ -3,39 +3,17 @@
 
 //! Positive, deliberately narrow provenance for the standard format macro.
 
-use purrdf_lex::allocation::{Admission, Memory, StorageError};
-use purrdf_lex::walk::WorkList;
-use std::collections::{BTreeMap, BTreeSet};
-use std::mem::size_of;
+use std::collections::BTreeSet;
 
 use super::{Call, Formats, Import, ScopeKind};
-use crate::RelPath;
-use crate::facts::AttrFact;
 use crate::index::{Index, UseKind};
 use crate::item::{Namespace, SymbolKind};
-use crate::meter::{ItemAdmission, Meter, Steps};
+use crate::meter::Steps;
 use crate::reach::{ReachError, Unit};
 use crate::resolve::Heads;
 use crate::work::{self, Work};
-use crate::workspace::SourceFile;
 
-enum BuildError {
-    Storage(StorageError),
-    Read(crate::LoadError),
-}
-
-impl From<StorageError> for BuildError {
-    fn from(error: StorageError) -> Self {
-        Self::Storage(error)
-    }
-}
-
-/// Context facts owned once by a reachability walk, not once per invocation.
-#[derive(Debug)]
-pub(in crate::reach) struct Resolver {
-    disabled: Vec<bool>,
-    uncertain_globs: Vec<bool>,
-}
+pub(in crate::reach) use crate::std_scope::StdScope as Resolver;
 
 fn capture_macro(name: &str) -> bool {
     name == "format"
@@ -67,241 +45,7 @@ fn endpoint(path: &[String], allowed: fn(&str) -> bool) -> bool {
     path.len() == 2 && path[0] == "std" && allowed(&path[1])
 }
 
-fn disables(attrs: &[AttrFact]) -> bool {
-    attrs.iter().any(|attr| {
-        work::add(Work::ReachFormatBytes, attr.path.len() + attr.args.len());
-        matches!(
-            attr.path.as_str(),
-            "no_implicit_prelude" | "no_std" | "no_core" | "macro_use"
-        ) || (attr.path == "cfg_attr"
-            && attr
-                .args
-                .split(|ch: char| !ch.is_alphanumeric() && ch != '_')
-                .any(|word| {
-                    matches!(
-                        word,
-                        "no_implicit_prelude" | "no_std" | "no_core" | "macro_use"
-                    )
-                }))
-    })
-}
-
 impl Resolver {
-    pub(in crate::reach) fn new(
-        index: &Index,
-        files: &BTreeMap<RelPath, SourceFile>,
-        meter: &Meter,
-        file: &RelPath,
-    ) -> Result<Self, ReachError> {
-        meter
-            .items(size_of::<Self>(), file, None)
-            .map_err(ReachError::Budget)?;
-        let mut admission = ItemAdmission::new(meter, file);
-        let steps = Steps::QueryItems {
-            meter,
-            file,
-            line: None,
-        };
-        let built = Memory::new(&mut admission)
-            .try_scope(|memory| Self::build(index, files, memory, steps));
-        built.map_err(|error| match error {
-            BuildError::Storage(error) => Self::construction_error(&mut admission, error),
-            BuildError::Read(error) => error.into(),
-        })
-    }
-
-    fn construction_error(admission: &mut ItemAdmission<'_>, error: StorageError) -> ReachError {
-        let error = admission.error(error);
-        if matches!(error.kind, crate::LoadErrorKind::Budget { .. }) {
-            ReachError::Budget(error)
-        } else {
-            ReachError::Source(error)
-        }
-    }
-
-    fn build(
-        index: &Index,
-        files: &BTreeMap<RelPath, SourceFile>,
-        memory: &mut Memory<'_, impl Admission>,
-        steps: Steps<'_>,
-    ) -> Result<Self, BuildError> {
-        let mut disabled = Vec::new();
-        memory.reserve(&mut disabled, index.modules.len())?;
-        disabled.resize(index.modules.len(), false);
-        Self::mark_disabled(index, files, &mut disabled, memory)?;
-        let mut children = Vec::new();
-        memory.reserve(&mut children, index.modules.len())?;
-        children.resize_with(index.modules.len(), Vec::<usize>::new);
-        for (at, module) in index.modules.iter().enumerate() {
-            if let Some(parent) = module.parent {
-                memory.push(&mut children[parent], at)?;
-            }
-        }
-        Self::propagate(&mut disabled, &children, memory)?;
-        Self::release_edges(children, memory)?;
-        let mut uncertain_globs = Vec::new();
-        memory.reserve(&mut uncertain_globs, index.modules.len())?;
-        uncertain_globs.resize(index.modules.len(), false);
-        let mut readers = Vec::new();
-        memory.reserve(&mut readers, index.modules.len())?;
-        readers.resize_with(index.modules.len(), Vec::<usize>::new);
-        for (module, uncertain) in uncertain_globs.iter_mut().enumerate() {
-            for &position in index.globs_of(module) {
-                work::add(Work::ReachFormatTokens, 1);
-                match index
-                    .reach_outcome(index.glob_targets(position, steps), steps)
-                    .map_err(BuildError::Read)?
-                {
-                    Some(targets) if !targets.is_empty() => {
-                        for target in targets {
-                            memory.push(&mut readers[target], module)?;
-                        }
-                    }
-                    _ => *uncertain = true,
-                }
-            }
-        }
-        Self::propagate(&mut uncertain_globs, &readers, memory)?;
-        Self::release_edges(readers, memory)?;
-        Index::query_refusal(steps)
-            .map_err(|refused| BuildError::Read(index.refused_load(refused)))?;
-        Ok(Self {
-            disabled,
-            uncertain_globs,
-        })
-    }
-
-    fn mark_disabled(
-        index: &Index,
-        files: &BTreeMap<RelPath, SourceFile>,
-        disabled: &mut [bool],
-        memory: &mut Memory<'_, impl Admission>,
-    ) -> Result<(), StorageError> {
-        for file in files.values() {
-            for reach in &file.reached {
-                let root = index.target_roots[reach.target.index()];
-                let Some(&module) = index.module_by_path.get(&(root, reach.module_path.clone()))
-                else {
-                    continue;
-                };
-                disabled[module] |= disables(&file.facts.attrs);
-                let mut pending = WorkList::<_, 8>::default();
-                pending.try_push_admitted((module, &file.facts.body), memory)?;
-                while let Some((module, body)) = pending.pop() {
-                    work::add(Work::ReachFormatTokens, 1);
-                    disabled[module] |= body.items.iter().any(|item| disables(&item.attrs));
-                    for child in &body.mods {
-                        disabled[module] |= child.attrs.iter().any(|attr| {
-                            attr.path == "macro_use"
-                                || (attr.path == "cfg_attr" && attr.args.contains("macro_use"))
-                        });
-                        let Some(child_module) = index.scopes[module]
-                            .get(child.name.as_str())
-                            .and_then(|entry| {
-                                entry.defs[crate::settle::slot(Namespace::Type)]
-                                    .keys()
-                                    .filter_map(|id| index.module_of.get(id).copied())
-                                    .find(|&at| {
-                                        index.modules[at].parent == Some(module)
-                                            && index.modules[at].root == root
-                                            && index.modules[at].path.rsplit("::").next()
-                                                == Some(child.name.as_str())
-                                    })
-                            })
-                        else {
-                            continue;
-                        };
-                        disabled[child_module] |= disables(&child.attrs);
-                        if let Some(body) = &child.inline {
-                            pending.try_push_admitted((child_module, body), memory)?;
-                        }
-                    }
-                }
-                pending.release_admitted(memory)?;
-            }
-        }
-        Ok(())
-    }
-
-    fn propagate(
-        marked: &mut [bool],
-        edges: &[Vec<usize>],
-        memory: &mut Memory<'_, impl Admission>,
-    ) -> Result<(), StorageError> {
-        let mut pending = WorkList::<_, 8>::default();
-        for (at, &active) in marked.iter().enumerate() {
-            if active {
-                pending.try_push_admitted(at, memory)?;
-            }
-        }
-        // Each activated module scans its own edges once, including duplicates.
-        while let Some(at) = pending.pop() {
-            for &next in &edges[at] {
-                work::add(Work::ReachFormatTokens, 1);
-                if !marked[next] {
-                    marked[next] = true;
-                    pending.try_push_admitted(next, memory)?;
-                }
-            }
-        }
-        pending.release_admitted(memory)
-    }
-
-    fn release_edges(
-        mut edges: Vec<Vec<usize>>,
-        memory: &mut Memory<'_, impl Admission>,
-    ) -> Result<(), StorageError> {
-        for row in edges.drain(..) {
-            memory.release_vec(row)?;
-        }
-        memory.release_vec(edges)
-    }
-
-    fn sysroot(
-        &self,
-        index: &Index,
-        module: usize,
-        test: bool,
-        leading: bool,
-        steps: Steps<'_>,
-    ) -> Result<bool, ReachError> {
-        if self.disabled[module]
-            || index.no_std(module)
-            || index.extern_name(module, "std", test).is_some()
-        {
-            return Ok(false);
-        }
-        if index.edition(module) < 2018 {
-            return Ok(false);
-        }
-        let root = index.modules[module].root;
-        let root_read = index.reach_outcome(
-            index.read_lookup(root, Namespace::Type, "std", None, None, steps),
-            steps,
-        )?;
-        if root_read
-            .as_ref()
-            .and_then(|read| read.as_ref())
-            .is_some_and(|(bound, _)| {
-                bound
-                    .keys()
-                    .any(|id| index.extern_names.get(id).is_some_and(|name| name != "std"))
-            })
-        {
-            return Ok(false);
-        }
-        if leading {
-            return Ok(true);
-        }
-        let local_read = index.reach_outcome(
-            index.read_lookup(module, Namespace::Type, "std", None, None, steps),
-            steps,
-        )?;
-        Ok(local_read.as_ref().and_then(|read| read.as_ref()).is_none()
-            && !index.blocked(module, "std", Namespace::Type, None)
-            && !self.uncertain_globs[module])
-    }
-
     fn imported(
         &self,
         index: &Index,
@@ -313,7 +57,7 @@ impl Resolver {
     ) -> Result<bool, ReachError> {
         Ok(!import.uncertain
             && endpoint(&import.path, allowed)
-            && self.sysroot(index, module, test, import.leading, steps)?)
+            && self.sysroot(index, module, test, import.leading, None, steps)?)
     }
 
     fn glob_clear(
@@ -512,7 +256,7 @@ impl Resolver {
             scope = here.parent;
         }
         if qualified {
-            return self.sysroot(index, module, test, call.leading, steps);
+            return Ok(self.sysroot(index, module, test, call.leading, None, steps)?);
         }
         if !Self::indexed_macros_clear(index, unit, name, &lexical_macros, steps)? {
             return Ok(false);
@@ -530,7 +274,7 @@ impl Resolver {
                         .flatten()
                         .as_deref()
                         == Some("std")
-                    && self.sysroot(index, module, test, decl.leading_colon, steps)?);
+                    && self.sysroot(index, module, test, decl.leading_colon, None, steps)?);
             }
         }
         if !allowed(name)
@@ -662,7 +406,7 @@ mod tests {
         // A native physical failure remains distinguishable from admission.
         let meter = Meter::new(&LoadOptions::default());
         let mut admission = ItemAdmission::new(&meter, &file);
-        let error = Resolver::construction_error(&mut admission, StorageError::AllocationFailed);
+        let error = ReachError::from(admission.error(StorageError::AllocationFailed));
         assert!(matches!(error, ReachError::Source(ref load)
             if matches!(load.kind, LoadErrorKind::Storage(StorageError::AllocationFailed))));
         assert!(!error.to_string().contains("over budget"));
@@ -673,7 +417,7 @@ mod tests {
         let mut admission = ItemAdmission::new(&meter, &file);
         let native = purrdf_lex::allocation::Admission::resize(&mut admission, 1)
             .expect_err("admission refusal");
-        let error = Resolver::construction_error(&mut admission, native);
+        let error = ReachError::from(admission.error(native));
         assert!(matches!(error, ReachError::Budget(ref load)
             if matches!(load.kind, LoadErrorKind::Budget { budget: Budget::ItemBytes, limit: 0 })));
         assert!(error.to_string().contains("over budget"));

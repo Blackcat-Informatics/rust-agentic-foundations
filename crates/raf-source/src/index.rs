@@ -180,13 +180,15 @@ pub(crate) enum NamedNamespaces {
     All,
     /// `use path::{self}` and `use path::{self as name}`.
     TypeOnly,
+    /// A proven `std::rc::Rc` import.
+    StandardRc,
 }
 
 impl NamedNamespaces {
     pub(crate) fn spaces(self) -> &'static [Namespace] {
         match self {
             Self::All => &Namespace::ALL,
-            Self::TypeOnly => &[Namespace::Type],
+            Self::TypeOnly | Self::StandardRc => &[Namespace::Type],
         }
     }
 }
@@ -1306,6 +1308,7 @@ impl Index {
         index.order_imports();
         index.build_scopes();
         index.settle_agreed(store.meter)?;
+        index.settle_standard_types(files, store.meter)?;
         index.attach_impls(impls, &mut store)?;
         sort_observations(store.meter, &mut index.unexpanded, |row| {
             (&row.file, &row.span, &row.module, row.target)

@@ -115,7 +115,7 @@ inputs:
     digest: 7fabb19c14c1f74d43fa63307c1cbf9eaa0684c18bdaa45da014668b1d2ac642
   - kind: symbol
     name: raf_source::Reexport
-    digest: eefa4b17f47deca46fecdbdaaf325fc81471407cf37f64143beb42ad594b37e2
+    digest: 572d6a1c9f58f23d9a78d008f25ae9c3f26caf7f6d316217e853eeb94435acbf
   - kind: symbol
     name: raf_source::RegistryArchiveTree::from_bytes
     digest: 1f0233c329bd2477255ef8c2ad6a2d95cb15994af7ca607773085e6f17ef5528
@@ -125,6 +125,9 @@ inputs:
   - kind: symbol
     name: raf_source::SourceTrees
     digest: d0b677f4a94125535edb0c733bf9a085bab4bba0080edeab61a14e4edd1b337b
+  - kind: symbol
+    name: raf_source::StandardType::path
+    digest: 32935cfbdd6ae96abc26e8051650d785a1b8e9e62fef8bc270844863866b08aa
   - kind: symbol
     name: raf_source::TargetId
     digest: 944b3d0a58346acc9bee0af0b80f3d54aa551a6f6dbb62f78b0440f992d3cf88

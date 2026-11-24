@@ -145,6 +145,42 @@ pub(crate) struct AttrFact {
     pub(crate) args: String,
 }
 
+/// Whether an attribute can introduce items beyond the written declaration.
+pub(crate) fn has_expansion_attributes(attrs: &[AttrFact]) -> bool {
+    attrs.iter().any(|attr| {
+        !matches!(
+            attr.path.as_str(),
+            "allow"
+                | "cfg"
+                | "cold"
+                | "crate_name"
+                | "crate_type"
+                | "deny"
+                | "deprecated"
+                | "doc"
+                | "expect"
+                | "forbid"
+                | "ignore"
+                | "inline"
+                | "link"
+                | "macro_export"
+                | "macro_use"
+                | "must_use"
+                | "no_core"
+                | "no_implicit_prelude"
+                | "no_std"
+                | "non_exhaustive"
+                | "path"
+                | "recursion_limit"
+                | "repr"
+                | "should_panic"
+                | "test"
+                | "track_caller"
+                | "warn"
+        )
+    })
+}
+
 /// What the parameters of a function and the value of a constant add to the
 /// item, shared by every record of the item.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -493,6 +529,8 @@ pub(crate) struct ModBody {
     pub(crate) unexpanded: Vec<UnexpandedFact>,
     /// Opaque declarations proved disabled for every configuration.
     pub(crate) disabled: Vec<SpanFact>,
+    /// A declaration whose attributes are summarized rather than retained may expand.
+    pub(crate) expansion_attributes: bool,
 }
 
 impl ModFact {
@@ -1080,6 +1118,7 @@ fn use_role(attrs: &[Attribute], inherited: TestRole) -> Found<UseRole> {
         test: role(summary.own_test, inherited),
         doc_hidden: summary.doc_hidden,
         configuration: ConfigurationDependence::of(&summary.facts),
+        expansion_attributes: has_expansion_attributes(&summary.facts),
     })
 }
 
@@ -1089,6 +1128,7 @@ struct UseRole {
     test: TestRole,
     doc_hidden: bool,
     configuration: ConfigurationDependence,
+    expansion_attributes: bool,
 }
 
 struct Extractor<'t> {
@@ -1487,6 +1527,7 @@ impl Extractor<'_> {
             }
             Item::ForeignMod(block) => {
                 let own = summarize(&block.attrs, &FactMeter::scratch())?;
+                body.expansion_attributes |= has_expansion_attributes(&own.facts);
                 let inside = role(own.own_test, inherited);
                 for foreign in &block.items {
                     self.foreign(foreign, inside, body)?;
@@ -1499,6 +1540,7 @@ impl Extractor<'_> {
             }
             Item::Use(u) => {
                 let role = use_role(&u.attrs, inherited)?;
+                body.expansion_attributes |= role.expansion_attributes;
                 body.uses.push(self.use_fact(
                     role,
                     &u.vis,
@@ -1515,6 +1557,7 @@ impl Extractor<'_> {
                     // so the work stays linear in the text however many
                     // members share them.
                     let role = use_role(&group.attrs, inherited)?;
+                    body.expansion_attributes |= role.expansion_attributes;
                     for member in &group.members {
                         body.uses.push(self.use_fact(
                             role,
@@ -1821,6 +1864,7 @@ impl Extractor<'_> {
         let whole = block.span();
         let line = block.impl_token.span.start().line;
         let summary = summarize(&block.attrs, &FactMeter::scratch())?;
+        body.expansion_attributes |= has_expansion_attributes(&summary.facts);
         let test = role(summary.own_test, inherited);
         let mut items = Vec::new();
         for member in &block.items {

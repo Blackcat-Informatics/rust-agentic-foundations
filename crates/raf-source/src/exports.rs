@@ -44,7 +44,7 @@ use purrdf_lex::walk::WorkList;
 use crate::cost::{btree_entry, btree_map, vec_first, vec_slot};
 use crate::error::{Esc, LoadError, LoadErrorKind};
 use crate::facts::{SpanFact, TestRole, Vis};
-use crate::index::{Index, UseDecl, UseKind};
+use crate::index::{Index, NamedNamespaces, UseDecl, UseKind};
 use crate::item::{ItemId, Namespace, SymbolKind};
 use crate::meter::{Meter, Steps, over_budget, push_item_work};
 use crate::modtree::TargetId;
@@ -117,6 +117,8 @@ pub struct Reexport {
     /// of the workspace, or that crate's root. `None` for a crate outside the
     /// workspace and for a path the index cannot follow.
     pub item: Option<ItemId>,
+    /// The standard-library Type named by a proven import.
+    pub standard_type: Option<StandardType>,
     /// The file of the declaration.
     pub file: RelPath,
     /// The 1-based line of the declaration.
@@ -124,6 +126,23 @@ pub struct Reexport {
     /// True when `#[doc(hidden)]` hides the re-export, on the declaration or
     /// on a module of its path.
     pub doc_hidden: bool,
+}
+
+/// A standard-library Type whose public identity the surface can prove.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[non_exhaustive]
+pub enum StandardType {
+    /// The reference-counted pointer `std::rc::Rc`.
+    Rc,
+}
+
+impl StandardType {
+    /// The public standard-library path, independent of a local rename.
+    pub const fn path(self) -> &'static str {
+        match self {
+            Self::Rc => "std::rc::Rc",
+        }
+    }
 }
 
 /// The public surface of a target, as
@@ -172,6 +191,15 @@ pub enum ExportError {
     /// in the workspace, as [`Workspace::resolve`](crate::Workspace::resolve)
     /// reports it for that path.
     Resolve(ResolveError),
+    /// An indexed Type and a proven standard-library Type conflict.
+    AmbiguousStandardType {
+        /// The public path in conflict.
+        path: String,
+        /// The known external binding.
+        standard: StandardType,
+        /// The indexed candidates under the path.
+        indexed: Vec<ItemId>,
+    },
 }
 
 impl fmt::Display for ExportError {
@@ -190,6 +218,16 @@ impl fmt::Display for ExportError {
                 Esc(path)
             ),
             Self::Resolve(error) => write!(f, "a public name does not resolve: {error}"),
+            Self::AmbiguousStandardType {
+                path,
+                standard,
+                indexed,
+            } => write!(
+                f,
+                "the public Type `{}` is ambiguous between `{}` and indexed definitions {indexed:?}",
+                Esc(path),
+                standard.path(),
+            ),
         }
     }
 }
@@ -197,7 +235,7 @@ impl fmt::Display for ExportError {
 impl Error for ExportError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            Self::NotLibraryOrBinary(_) => None,
+            Self::NotLibraryOrBinary(_) | Self::AmbiguousStandardType { .. } => None,
             Self::Budget(error) | Self::Storage(error) | Self::CarryBudget { error, .. } => {
                 Some(error)
             }
@@ -256,9 +294,24 @@ impl Routes<'_> {
 /// for each name and carrying module. No search keeps what it walked.
 struct Carry<'a> {
     graph: Reach,
+    names: [CarryNames<'a>; 2],
+}
+
+#[derive(Default)]
+struct CarryNames<'a> {
     binders: BTreeMap<&'a str, Vec<usize>>,
     carriers: BTreeMap<&'a str, Vec<usize>>,
     answers: BTreeMap<(&'a str, usize, usize), bool>,
+}
+
+const ANY_NAMESPACE: usize = 0;
+const TYPE_NAMESPACE: usize = 1;
+
+fn record_node<'a>(nodes: &mut BTreeMap<&'a str, Vec<usize>>, name: &'a str, node: usize) {
+    let entries = nodes.entry(name).or_default();
+    if entries.last() != Some(&node) {
+        entries.push(node);
+    }
 }
 
 /// The modules a reader's public routes reach, as a graph: node 0 is the
@@ -428,16 +481,8 @@ struct Visit {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Other {
     Seen(ItemId),
+    Standard(StandardType),
     Outside,
-}
-
-impl Other {
-    fn item(self) -> Option<ItemId> {
-        match self {
-            Self::Seen(id) => Some(id),
-            Self::Outside => None,
-        }
-    }
 }
 
 /// What a public binding is bound by in its module: a definition or an
@@ -977,7 +1022,7 @@ impl<'a> Surface<'a> {
         &mut self,
         path: String,
         written: String,
-        item: Option<ItemId>,
+        target: Other,
         file: RelPath,
         line: usize,
         doc_hidden: bool,
@@ -995,7 +1040,14 @@ impl<'a> Surface<'a> {
         self.reexports.push(Reexport {
             path,
             written,
-            item,
+            item: match target {
+                Other::Seen(id) => Some(id),
+                _ => None,
+            },
+            standard_type: match target {
+                Other::Standard(standard) => Some(standard),
+                _ => None,
+            },
             file,
             line,
             doc_hidden,
@@ -1080,54 +1132,95 @@ impl<'a> Surface<'a> {
         }
         let mut carry = Carry {
             graph: self.reach_graph(visit.module, &reach)?,
-            binders: BTreeMap::new(),
-            carriers: BTreeMap::new(),
-            answers: BTreeMap::new(),
+            names: std::array::from_fn(|_| CarryNames::default()),
         };
         for (node, &module) in carry.graph.modules.iter().enumerate() {
             let defined = index.scopes[module]
                 .iter()
                 .filter(|(_, entry)| entry.defs.iter().any(|bound| !bound.is_empty()))
                 .map(|(name, _)| name.as_str());
-            let mut imported: Vec<&'a str> = Vec::new();
+            for name in defined {
+                record_node(&mut carry.names[ANY_NAMESPACE].binders, name, node);
+            }
             for position in index.named_of(module) {
                 let decl = &index.uses[*position];
-                if let UseKind::Named { name, .. } = &decl.kind {
-                    imported.push(name.as_str());
+                if let UseKind::Named {
+                    name, namespaces, ..
+                } = &decl.kind
+                {
+                    record_node(&mut carry.names[ANY_NAMESPACE].binders, name, node);
                     if node > 0
                         && exporting(decl)
                         && !index.use_bound[*position].iter().any(|bound| *bound)
                     {
-                        let carriers = carry.carriers.entry(name.as_str()).or_default();
-                        if carriers.last() != Some(&node) {
-                            carriers.push(node);
-                        }
+                        let space = if *namespaces == NamedNamespaces::StandardRc {
+                            TYPE_NAMESPACE
+                        } else {
+                            ANY_NAMESPACE
+                        };
+                        record_node(&mut carry.names[space].carriers, name, node);
                     }
                 }
             }
-            for name in defined.chain(imported) {
-                let binders = carry.binders.entry(name).or_default();
-                if binders.last() != Some(&node) {
-                    binders.push(node);
-                }
-            }
         }
-        let held: usize = carry
-            .binders
-            .values()
-            .chain(carry.carriers.values())
-            .map(Vec::len)
-            .sum();
-        self.charge(
-            2 * btree_map::<&str, Vec<usize>>()
-                + (carry.binders.len() + carry.carriers.len())
-                    * (btree_entry::<&str, Vec<usize>>() + vec_first::<usize>())
-                + held * vec_slot::<usize>(),
-            self.module_item(visit.module),
-        )?;
+        self.type_binders(&carry.graph, &mut carry.names[TYPE_NAMESPACE], visit.module)?;
+        for names in &carry.names {
+            if names.binders.is_empty() && names.carriers.is_empty() {
+                continue;
+            }
+            let held: usize = names
+                .binders
+                .values()
+                .chain(names.carriers.values())
+                .map(Vec::len)
+                .sum();
+            self.charge(
+                2 * btree_map::<&str, Vec<usize>>()
+                    + (names.binders.len() + names.carriers.len())
+                        * (btree_entry::<&str, Vec<usize>>() + vec_first::<usize>())
+                    + held * vec_slot::<usize>(),
+                self.module_item(visit.module),
+            )?;
+        }
         for (module, hidden) in reach {
             self.unseen_globs(visit, module, hidden)?;
             self.unbound_imports(visit, module, hidden, Some(&mut carry))?;
+        }
+        Ok(())
+    }
+
+    /// Names with proven Type carriers are cut only by explicit Type bindings
+    /// or by opaque named imports that may supply a Type.
+    fn type_binders(
+        &self,
+        graph: &Reach,
+        names: &mut CarryNames<'a>,
+        reader: usize,
+    ) -> Result<(), ExportError> {
+        if names.carriers.is_empty() {
+            return Ok(());
+        }
+        let index = self.index;
+        let at = slot(Namespace::Type);
+        for (node, &module) in graph.modules.iter().enumerate() {
+            let scope = &index.scopes[module];
+            let imports = index.named_of(module);
+            let work = scope.len() + imports.len();
+            tally::add(Work::WalkSteps, work);
+            self.charge(work * WALK_STEP_BYTES, self.module_item(reader))?;
+            for (name, entry) in scope {
+                if !entry.defs[at].is_empty() && names.carriers.contains_key(name.as_str()) {
+                    record_node(&mut names.binders, name, node);
+                }
+            }
+            for &position in imports {
+                if !index.use_free[position][at]
+                    && let UseKind::Named { name, .. } = &index.uses[position].kind
+                    && names.carriers.contains_key(name.as_str())
+                {
+                    record_node(&mut names.binders, name, node);
+                }
+            }
         }
         Ok(())
     }
@@ -1202,14 +1295,14 @@ impl<'a> Surface<'a> {
         visit: &Visit,
         position: usize,
         module: usize,
-        name: &'a str,
+        key: (&'a str, usize),
         carry: &mut Carry<'a>,
     ) -> Result<Option<bool>, ExportError> {
-        if self.carried_by(visit, position, module, name, carry, SHOWN)? {
+        if self.carried_by(visit, position, module, key, carry, SHOWN)? {
             return Ok(Some(false));
         }
         Ok(self
-            .carried_by(visit, position, module, name, carry, EVERY)?
+            .carried_by(visit, position, module, key, carry, EVERY)?
             .then_some(true))
     }
 
@@ -1234,7 +1327,7 @@ impl<'a> Surface<'a> {
         visit: &Visit,
         position: usize,
         module: usize,
-        name: &'a str,
+        (name, space): (&'a str, usize),
         carry: &mut Carry<'a>,
         mode: usize,
     ) -> Result<bool, ExportError> {
@@ -1252,7 +1345,8 @@ impl<'a> Surface<'a> {
         if mode == SHOWN && !carry.graph.shown[target] {
             return Ok(false);
         }
-        let Some(binders) = carry.binders.get(name) else {
+        let names = &mut carry.names[space];
+        let Some(binders) = names.binders.get(name) else {
             return Ok(true);
         };
         if binders.first() == Some(&0) {
@@ -1281,7 +1375,7 @@ impl<'a> Surface<'a> {
         if passed.len() == 1 {
             return Ok(true);
         }
-        if let Some(known) = carry.answers.get(&(name, target, mode)) {
+        if let Some(known) = names.answers.get(&(name, target, mode)) {
             return Ok(*known);
         }
         // One search for the name: from the reader, never past a module that
@@ -1314,7 +1408,7 @@ impl<'a> Surface<'a> {
                 }
             }
         }
-        let carriers = carry.carriers.get(name).map_or(&[][..], Vec::as_slice);
+        let carriers = names.carriers.get(name).map_or(&[][..], Vec::as_slice);
         tally::add(Work::WalkSteps, steps);
         charge(
             self,
@@ -1323,7 +1417,7 @@ impl<'a> Surface<'a> {
                 + carriers.len() * btree_entry::<(&str, usize, usize), bool>(),
         )?;
         for &carrier in carriers {
-            carry
+            names
                 .answers
                 .insert((name, carrier, mode), reached.contains(&carrier));
         }
@@ -1419,7 +1513,7 @@ impl<'a> Surface<'a> {
                     self.keep_reexport(
                         path,
                         written(decl),
-                        None,
+                        Other::Outside,
                         decl.file.clone(),
                         decl.line,
                         visit.hidden || hidden || decl.doc_hidden,
@@ -1469,39 +1563,61 @@ impl<'a> Surface<'a> {
             else {
                 continue;
             };
+            let standard = (*namespaces == NamedNamespaces::StandardRc).then_some(StandardType::Rc);
             let hidden = match carry.as_deref_mut() {
-                Some(carry) => match self.carried(visit, position, module, name.as_str(), carry)? {
+                Some(carry) => match self.carried(
+                    visit,
+                    position,
+                    module,
+                    (
+                        name.as_str(),
+                        standard.map_or(ANY_NAMESPACE, |_| TYPE_NAMESPACE),
+                    ),
+                    carry,
+                )? {
                     Some(hidden) => hidden,
                     None => continue,
                 },
                 None => hidden,
             };
-            match index.resolve(
-                &format!("{at_path}::{name}"),
-                match namespaces {
-                    crate::index::NamedNamespaces::All => None,
-                    crate::index::NamedNamespaces::TypeOnly => Some(Namespace::Type),
-                },
-                Some(package),
-                self.meter,
-            ) {
-                Err(ResolveError::NotFound(_)) => self.keep_reexport(
-                    format!("{}::{name}", visit.path),
-                    written(decl),
-                    None,
-                    decl.file.clone(),
-                    decl.line,
-                    visit.hidden || hidden || decl.doc_hidden,
-                )?,
-                Err(ResolveError::Budget {
-                    budget,
-                    limit,
-                    file,
-                    line,
-                }) => return Err(ExportError::Budget(over_budget(budget, limit, &file, line))),
-                Err(other) => return Err(ExportError::Resolve(other)),
-                Ok(_) => {}
-            }
+            let binding = if let Some(standard) = standard {
+                if let Some((indexed, from_glob)) =
+                    self.bound(visit.module, Namespace::Type, name)?
+                    && (carry.is_some() || !from_glob)
+                {
+                    return Err(ExportError::AmbiguousStandardType {
+                        path: format!("{}::{name}", visit.path),
+                        standard,
+                        indexed,
+                    });
+                }
+                Other::Standard(standard)
+            } else {
+                match index.resolve(
+                    &format!("{at_path}::{name}"),
+                    (*namespaces != NamedNamespaces::All).then_some(Namespace::Type),
+                    Some(package),
+                    self.meter,
+                ) {
+                    Err(ResolveError::NotFound(_)) => Other::Outside,
+                    Err(ResolveError::Budget {
+                        budget,
+                        limit,
+                        file,
+                        line,
+                    }) => return Err(ExportError::Budget(over_budget(budget, limit, &file, line))),
+                    Err(other) => return Err(ExportError::Resolve(other)),
+                    Ok(_) => continue,
+                }
+            };
+            self.keep_reexport(
+                format!("{}::{name}", visit.path),
+                written(decl),
+                binding,
+                decl.file.clone(),
+                decl.line,
+                visit.hidden || hidden || decl.doc_hidden,
+            )?;
         }
         Ok(())
     }
@@ -1534,7 +1650,7 @@ impl<'a> Surface<'a> {
             || self.reexport_hidden(module, at, name, id, by)?;
         if let Some(named) = self.other_crate(id) {
             let (written, file, line) = self.binding_site(module, at, name, id, by)?;
-            self.keep_reexport(path, written, named.item(), file, line, doc_hidden)?;
+            self.keep_reexport(path, written, named, file, line, doc_hidden)?;
             return Ok(None);
         }
         self.keep(path.clone(), id, doc_hidden)?;

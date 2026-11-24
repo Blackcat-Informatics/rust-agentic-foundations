@@ -1583,6 +1583,13 @@ impl Index {
         self.clear_globs();
     }
 
+    /// A changed terminal namespace invalidates replacement proofs.
+    pub(crate) fn forget_glob_replacements(&mut self) {
+        self.globs.drops = BTreeMap::new();
+        self.globs.replaced_names = HashMap::with_hasher(FixedState::new());
+        self.globs.dropped = 0;
+    }
+
     /// Release and drop the glob tables, then charge the first room of new
     /// ones when the load has glob imports.
     pub(crate) fn reset_globs(&mut self, meter: &Meter) -> Result<(), LoadError> {
