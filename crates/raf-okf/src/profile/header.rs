@@ -427,9 +427,12 @@ fn add_value_constraints(
         let name = format!("{SHAPE}{}:{key}", doc_type.name());
         let field = graph.intern_iri(&name)?;
         if let Some(expression) = vocabulary.pattern() {
-            // A value the header cannot project as texts (an empty list, a scalar or a
-            // nested value) carries the presence marker, which the value rules report.
-            let expression = format!("^({PRESENT}|{expression})$");
+            // The pattern admits only member ids. The presence marker is an IRI standing
+            // in for a value the header cannot project as texts (an empty list, a scalar
+            // or a nested value); it fails the pattern, and `PATTERN` results whose value
+            // is that IRI are skipped. A member is always a plain literal, so a member
+            // spelled like the marker is still refused: only the term kind tells them apart.
+            let expression = format!("^{expression}$");
             let expression = graph.intern_literal(RdfLiteral::simple(expression))?;
             graph.push_quad(field, pattern, expression, None)?;
             continue;
@@ -621,13 +624,17 @@ fn value_rejection(
     Ok((key, vocabulary.rejection(entry, doc_type)))
 }
 
-/// The member a pattern result refused, with the schema's own key.
+/// The member a pattern result refused, with the schema's own key. A result whose
+/// value is the presence marker refuses no member; the value rules report that shape.
 fn refused_member(
     result: &ValidationResult,
     map: &Map,
     doc_type: DocType,
     key: &str,
-) -> Result<(&'static str, String), HeaderShapeError> {
+) -> Result<Option<(&'static str, String)>, HeaderShapeError> {
+    if matches!(&result.value, Some(Term::NamedNode(value)) if value.as_str() == PRESENT) {
+        return Ok(None);
+    }
     let (key, vocabulary) = finite_fields(doc_type)
         .find(|(field, vocabulary)| *field == key && vocabulary.pattern().is_some())
         .ok_or(HeaderShapeError::UnexpectedReport)?;
@@ -639,7 +646,7 @@ fn refused_member(
         (Some(texts), Some(Term::Literal(value)))
             if value.datatype_str() == XSD_STRING && texts.contains(&value.value()) =>
         {
-            Ok((key, value.value().to_string()))
+            Ok(Some((key, value.value().to_string())))
         }
         _ => Err(HeaderShapeError::UnexpectedReport),
     }
@@ -739,7 +746,7 @@ fn report_keys<'a>(
             PATTERN if focus == header => {
                 verdicts
                     .refused_ids
-                    .push(refused_member(result, map, doc_type, key)?);
+                    .extend(refused_member(result, map, doc_type, key)?);
                 continue;
             }
             _ => return Err(HeaderShapeError::UnexpectedReport),

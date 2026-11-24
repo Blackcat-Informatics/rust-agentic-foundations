@@ -1375,6 +1375,12 @@ fn depends_is_a_list_of_cap_ids_and_does_not_need_the_capability_to_exist() {
             },
         ),
         (
+            "depends: [urn:raf:okf:key-present]",
+            Rule::BadCapabilityId {
+                entry: "urn:raf:okf:key-present".into(),
+            },
+        ),
+        (
             "depends: cap:beta",
             Rule::WrongShape {
                 expected: "a list of cap ids",
@@ -1410,7 +1416,7 @@ fn depends_is_a_list_of_cap_ids_and_does_not_need_the_capability_to_exist() {
         &mutate(
             &alpha(),
             "depends: [cap:beta]",
-            "depends: [cap:Beta, cap:gamma-2, beta, beta]",
+            "depends: [cap:Beta, urn:raf:okf:key-present, cap:gamma-2, beta, beta]",
         ),
         ALPHA_PATH,
     );
@@ -1422,7 +1428,15 @@ fn depends_is_a_list_of_cap_ids_and_does_not_need_the_capability_to_exist() {
     let bad = |entry: &str| Rule::BadCapabilityId {
         entry: entry.into(),
     };
-    assert_eq!(entries, [bad("cap:Beta"), bad("beta"), bad("beta")]);
+    assert_eq!(
+        entries,
+        [
+            bad("cap:Beta"),
+            bad("urn:raf:okf:key-present"),
+            bad("beta"),
+            bad("beta")
+        ]
+    );
 }
 
 #[test]
@@ -1434,6 +1448,12 @@ fn changes_is_a_non_empty_list_of_cap_ids() {
             "changes: cap:alpha",
             Rule::WrongShape {
                 expected: "a list of cap ids",
+            },
+        ),
+        (
+            "changes: [cap:alpha, urn:raf:okf:key-present]",
+            Rule::BadCapabilityId {
+                entry: "urn:raf:okf:key-present".into(),
             },
         ),
         (
