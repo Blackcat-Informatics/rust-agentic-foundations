@@ -8,9 +8,15 @@ use raf_census::{Error, Gate, MAX_LEDGER_BYTES, ProductionInputs, ProductionLint
 use raf_source::DiskTree;
 use std::path::Path;
 
+mod capture;
+pub(crate) use capture::capture;
+
 pub(crate) fn inputs(gate: &Gate) -> Result<ProductionInputs, Error> {
-    let root = gate.root()?;
-    let tree = DiskTree::new(&root).map_err(|source| Error::Tree {
+    inputs_at(&gate.root()?)
+}
+
+fn inputs_at(root: &Path) -> Result<ProductionInputs, Error> {
+    let tree = DiskTree::new(root).map_err(|source| Error::Tree {
         file: root.display().to_string(),
         source,
     })?;

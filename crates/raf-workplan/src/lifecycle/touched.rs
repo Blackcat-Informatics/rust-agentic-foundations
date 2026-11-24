@@ -732,6 +732,11 @@ impl<'r> BaseTree<'r> {
     }
 
     fn blob(&self, key: &str) -> Result<Option<Vec<u8>>, LifecycleError> {
+        let named = self.git_path(key)?;
+        Ok(git::blob_at(self.repository, self.base, &named)?)
+    }
+
+    pub(super) fn git_path(&self, key: &str) -> Result<SourcePath, LifecycleError> {
         let invalid = |reason: String| LifecycleError::Document {
             path: key.to_string(),
             side: Side::WorkingTree,
@@ -739,13 +744,36 @@ impl<'r> BaseTree<'r> {
         };
         let source = SourcePath::new(key)
             .map_err(|error| invalid(format!("is not a repository path: {error}")))?;
-        let named = self.prefix.join(&source).map_err(|error| {
+        self.prefix.join(&source).map_err(|error| {
             invalid(format!(
                 "cannot be named below `{}`: {error}",
                 self.prefix.as_str()
             ))
-        })?;
-        Ok(git::blob_at(self.repository, self.base, &named)?)
+        })
+    }
+
+    pub(super) fn recovery_file(&self, path: &str) -> Result<RelPath, LifecycleError> {
+        let invalid = |reason: &dyn std::error::Error| LifecycleError::Document {
+            path: path.to_owned(),
+            side: Side::Revision,
+            reason: reason.to_string(),
+        };
+        let relative = RelPath::new(path).map_err(|error| invalid(&error))?;
+        let key = self
+            .file_key(&relative)
+            .map_err(|error| self.take_failure().unwrap_or_else(|| invalid(&error)))?;
+        RelPath::new(&key).map_err(|error| invalid(&error))
+    }
+
+    pub(super) fn workplan<'s>(
+        &self,
+        source: &'s Workspace,
+    ) -> Result<Workplan<'s>, LifecycleError> {
+        let plan = Workplan::load(self, source);
+        if let Some(error) = self.take_failure() {
+            return Err(error);
+        }
+        Ok(plan)
     }
 
     pub(crate) fn take_failure(&self) -> Option<LifecycleError> {

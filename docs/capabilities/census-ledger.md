@@ -27,6 +27,7 @@ bindings:
     - raf_census::LedgerExtension
     - raf_census::LedgerExtensionGraph
     - raf_census::Ledger
+    - raf_census::Ledger::compose_jobs
     - raf_census::LedgerJob
     - raf_census::BenchLink
     - raf_census::LedgerVariant
@@ -43,6 +44,7 @@ bindings:
     - raf_census::BoundClassification
     - raf_census::GateReport::numeric_bounds
   tests:
+    - raf_census::test_crate::census_gate::reusable_jobs_compose_into_the_native_ledger_without_overriding_policy
     - cargo_raf_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt
 
     - raf_census::gate::owners::tests::equal_display_paths_keep_distinct_authorities_and_consumer_scope
@@ -190,7 +192,7 @@ minTokens and maxFileBytes default to 20 and eight MiB. Repeated root, reference
 job, distinct and pattern properties declare sets; the default root is the
 workspace. A reference value names one package or a package family: a
 package-name prefix followed by `-*`, such as `acme-*`. Any other value holding
-`*` refuses. A reference that no job homes is the copy ban: a first-party copy of its bodies or shims is a non-debt REFERENCE-COPY finding that no baseline or debt record can hold, even with an empty job set. The ban applies per reference unit, not per declaration: a job that homes one unit of a reference leaves every other unit of it banned. The shipped command acquires only contained path dependencies; a registry or Git reference is compared only through the locked check. A job that homes a reference module instead classifies the copies into the job, as recordable debt while the job is not enforced. Optional excludeTestItems, stated only as true, and repeated
+`*` refuses. A reference that no job homes is the copy ban: a first-party copy of its bodies or shims is a non-debt REFERENCE-COPY finding that no baseline or debt record can hold, even with an empty job set. The ban applies per reference unit, not per declaration: a job that homes one unit of a reference leaves every other unit of it banned. The structural command acquires contained path dependencies. Use the CLI registry options for sealed archives. A lock-selected Git reference needs the caller-supplied locked source. A job that homes a reference module instead classifies the copies into the job, as recordable debt while the job is not enforced. Optional excludeTestItems, stated only as true, and repeated
 excludeDir directory names set the grouping scope of the census normal form;
 false, a path or a dot name refuses. Excluded items stay units and leave only
 body and shim grouping and the group debt it produces; jobs, sanctions and
@@ -335,9 +337,11 @@ must select one indexed first-party struct, enum or union and name the method.
 
 Literal expressions compile through the native bounded matcher. Unknown references, unused declarations and
 collisions with built-in ids refuse. A Pattern may add an optional target-kind and path scope (targetKind, excludeTargetKind,
-shippingOnly, includePath, excludePath), stated in the patterns capability; without one it applies everywhere. A Pattern may also state ratcheted, only as true: its hits are then not findings but counted sites in the debt record, and every job that references it, by a declared pattern or a forbidden rule fingerprint, must be enforced; the ledger refuses a ratcheted pattern stated as false, stated twice, or referenced by an unenforced job. One owned PreferredProvider per job requires
-package, nonempty entryPoint APIs and nonempty consumer paths. The package is a
-selector; it is not evidence of a locked identity or actual delegation.
+shippingOnly, includePath, excludePath), stated in the patterns capability; without one it applies everywhere. A Pattern may also state ratcheted, only as true: its hits are then not findings but counted sites in the debt record, and every job that references it, by a declared pattern or a forbidden rule fingerprint, must be enforced; the ledger refuses a ratcheted pattern stated as false, stated twice, or referenced by an unenforced job. When a job owns a PreferredProvider, the row requires
+package, nonempty entryPoint APIs and nonempty consumer paths. When several
+suppliers provide a job's functionality, name the preferred package in this
+single row. The sealed source and the declared consumer's actual delegation
+establish the proof.
 
 Configured preferred-provider evaluation accepts sealed Git or checksum-authenticated
 registry archive sources through `LockedPackageRoots`. The same loaded package,
@@ -345,6 +349,15 @@ target, configured definition and delegation identities govern both backends.
 A registry declaration needs an explicit matching registry index, and absent
 authenticated source evidence refuses rather than borrowing an observed tree.
 <!-- raf:tested-by raf_census::test_crate::census_gate::configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation -->
+
+**Reusable jobs.** `Ledger::compose_jobs` combines validated current-form
+ledgers into one canonical Turtle ledger. Each imported set contributes its
+jobs and patterns with all owned declarations. The base supplies scan roots,
+limits, references, scope and other workspace policy. Each asserted node
+outside the shared Ledger root has one owner. Duplicate node names or job
+and pattern identities refuse. The combined graph passes ordinary ledger
+validation and the canonical output fits the ledger byte bound.
+<!-- raf:tested-by raf_census::test_crate::census_gate::reusable_jobs_compose_into_the_native_ledger_without_overriding_policy,raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours -->
 
 ## Usage
 
@@ -402,13 +415,13 @@ The executable `raf_census::example_crate::providers` evaluates an approved
 encoder and its adapter through `check_locked`, then confirms that a competing
 table in the adapter package remains a finding.
 
-Those structural entry points refuse preferred-provider rows that need grounded
+Structural entry points refuse preferred-provider rows that need grounded
 configuration. Evaluate those rows through `check_locked` with the supplied
-complete source and target context, or explicitly publish their admissible debt
-through `write_debt_locked`. The shipped `cargo raf-census check` is such a structural
-entry point: on a ledger with preferred-provider rows it refuses with that
-requirement and never reports a clean verdict, so a repository that declares
-them judges itself through `check_locked` from its own test or target.
+source and target context, or through `check_registry` with sealed archives.
+Use `write_debt_locked` to publish admissible debt. The stock
+`cargo raf-census check` requires corresponding locked registry options for
+registry provider proof. A Git provider needs the caller-supplied locked
+context. [Consumer examples](../../CENSUS-HOWTO.md#prove-a-preferred-provider)
 
 Install custom owner validation through `Gate::extensions` before calling
 `check` or `check_tree`. A nonempty extension with no accepting validator is an
@@ -606,6 +619,7 @@ the grouping scope and one-MiB boundary neighbours. Actual CLI cases exercise de
 | `raf_census::test_crate::census_gate::ratchet::ratcheted_rules_record_counted_sites_and_hold_both_directions` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::reexported_module_homes_own_their_units_and_actual_home_package` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::registered_rule_hits_cannot_claim_the_root_as_a_first_unit_owner` | test | [Verification](#verification) |
+| `raf_census::test_crate::census_gate::reusable_jobs_compose_into_the_native_ledger_without_overriding_policy` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::rules_and_variants_share_physical_ownership_without_widening_file_sanctions` | test | [Verification](#verification) |
 | `raf_census::test_crate::census_gate::stale_members_fingerprints_and_variants_are_findings_beside_a_clean_policy` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::written_receiver_method_selector_refuses_non_nominal_and_malformed_paths` | test | [Contract](#contract) |

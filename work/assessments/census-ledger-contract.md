@@ -7,7 +7,7 @@ subject: cap:census-ledger#contract
 inputs:
   - kind: section
     name: cap:census-ledger#contract
-    digest: 0e6fadf2f9253faa5a906a1ace8a8cec5366e1df4061c4bab4b139464a4a6669
+    digest: 4dce6833eef2a1638b9c7afb6961cddbfb1aabe577ed2f2e77cb5890bc92c770
   - kind: symbol
     name: raf_census::Gate::check_locked
     digest: ce909f37a05708cfef5daaa76233bc63be371354d4a6dbd1d7e41807648ec1ad
@@ -20,6 +20,9 @@ inputs:
   - kind: symbol
     name: raf_census::GateReport::numeric_bounds
     digest: b112f8fc7f364d687e1d810ac34b6f3a5ac1f1644819ef6ad88a08d4db634904
+  - kind: symbol
+    name: raf_census::Ledger::compose_jobs
+    digest: 5851f73b9ce2cf12375bcb2e69209f93a007802e7a7e030cdf6c2777094bc159
   - kind: symbol
     name: raf_census::LedgerExtensionGraph
     digest: 5667944dfc14a5bee973eb20b6f93194dfc3b604410d7abda3415f17dd5fb0ab

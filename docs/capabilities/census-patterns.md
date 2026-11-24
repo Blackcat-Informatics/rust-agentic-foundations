@@ -293,6 +293,34 @@ local names; the native writer supplies its content-addressed BASE:
    raf:call "std::mem::drop" .
 ~~~
 
+The native writer can also construct these two scoped policies. The macro
+matcher observes shipping calls to `println!`. The path matcher observes the
+exact `log::Log` path, including a matching import. When the path denotes an
+indexed dependency, supply that dependency's reference source. Each job is
+enforced. Run `cargo raf-census debt --write` with the same source options to
+adopt the initial counted sites. A check reports a pending adoption until then.
+<!-- raf:tested-by raf_census::test_crate::census_gate::ratchet::shipping_scope_follows_the_test_role_of_a_module_level_macro_invocation,raf_census::test_crate::census_gate::path_pattern_kinds_execute_with_positive_and_negative_syntax_neighbours,raf_census::test_crate::census_gate::ratchet::ratcheted_patterns_record_counted_sites_and_hold_both_directions -->
+
+~~~turtle
+@prefix raf: <https://blackcatinformatics.ca/raf/report/1#> .
+<> a raf:Ledger ; raf:normalForm 1 ; raf:reportForm 6 ;
+   raf:job <#output>, <#logging> ; raf:pattern <#direct-print>, <#alternate-logger> .
+<#output> a raf:LedgerJob ; raf:jobId "output" ;
+   raf:summary "Route output through the approved module" ;
+   raf:homeSymbol "demo::output" ; raf:enforced true ;
+   raf:forbiddenPattern "direct-print" .
+<#direct-print> a raf:Pattern ; raf:patternId "direct-print" ;
+   raf:summary "Direct printing in shipping code" ;
+   raf:macro "println" ; raf:shippingOnly true ; raf:ratcheted true .
+<#logging> a raf:LedgerJob ; raf:jobId "logging" ;
+   raf:summary "Use the approved logging adapter" ;
+   raf:homeSymbol "demo::logging" ; raf:enforced true ;
+   raf:forbiddenPattern "alternate-logger" .
+<#alternate-logger> a raf:Pattern ; raf:patternId "alternate-logger" ;
+   raf:summary "A second logger in shipping code" ;
+   raf:path "log::Log" ; raf:shippingOnly true ; raf:ratcheted true .
+~~~
+
 An equivalent tokens declaration uses raf:tokens "std :: mem :: drop ( $_ )".
 A string declaration can use raf:literalRegex "^http://"; raw and escaped
 ordinary strings are decoded before matching, while byte and C strings are
@@ -456,8 +484,8 @@ method's line.
 | `raf_census::test_crate::census_gate::ratchet::a_shared_file_hit_is_scoped_by_the_target_whose_resolution_matched` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ratchet::contradictory_or_unknown_scope_refuses_at_load_beside_a_valid_neighbour` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ratchet::path_scope_is_silent_inside_an_excluded_prefix_and_reports_outside_it` | test | [Contract](#contract) |
-| `raf_census::test_crate::census_gate::ratchet::ratcheted_patterns_record_counted_sites_and_hold_both_directions` | test | [Contract](#contract) |
-| `raf_census::test_crate::census_gate::ratchet::shipping_scope_follows_the_test_role_of_a_module_level_macro_invocation` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::ratchet::ratcheted_patterns_record_counted_sites_and_hold_both_directions` | test | [Contract](#contract), [Examples](#examples) |
+| `raf_census::test_crate::census_gate::ratchet::shipping_scope_follows_the_test_role_of_a_module_level_macro_invocation` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_census::test_crate::census_gate::ratchet::shipping_scope_hits_a_library_and_stays_silent_in_tests_test_modules_and_build_scripts` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ratchet::target_kind_scope_includes_and_excludes_kinds_beside_unscoped_hits` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::same_head_imports_keep_distinct_type_and_value_bindings` | test | [Contract](#contract) |

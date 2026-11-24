@@ -77,7 +77,7 @@ pub use gate::{
     LockedRegistry, MAX_INDEX_BYTES, Migration, MigrationInput, NumericBound,
     PRODUCTION_CLIPPY_ARGS, ProductionInputs, ProductionLintRun, ReferenceRoot,
     SYMBOL_ANCHOR_PREFIX, UnmappedRow, migrate_index, migrate_legacy,
-    migrate_legacy_with_extensions, visibility,
+    migrate_legacy_with_extensions, visibility, visibility_demand,
 };
 pub use group::{Group, GroupKind, HexTable, Member, SharedConstant};
 pub use job::{Job, JobForbidden, JobMatch, JobReport, MatchClass};
@@ -94,8 +94,8 @@ pub use registered::{
 pub use report::{
     Baseline, BaselineGroup, ConstantRow, DebtChange, DebtGroup, DebtRecord, DebtSite, Index,
     IndexGroup, IndexUnit, JobRow, MAX_DEBT_BYTES, MatchRow, MemberRow, Query, QueryReport,
-    REPORT_FORM, ReferenceConstantRow, ReferenceSource, ReferenceWitness, ReportError, ReportKind,
-    SiteKey, TableRow, upgrade_report_form,
+    REPORT_FORM, ReferenceConstantRow, ReferenceMatchReport, ReferenceSource, ReferenceWitness,
+    ReportError, ReportKind, SiteKey, TableRow, upgrade_report_form,
 };
 pub use report::{
     BenchLink, Ledger, LedgerDistinct, LedgerExtensionGraph, LedgerJob, LedgerPattern,

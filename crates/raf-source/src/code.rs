@@ -179,6 +179,29 @@ impl IndexedImport<'_, '_> {
         )
     }
 
+    /// Whether the import or its enclosing source reach requires a test build.
+    #[must_use]
+    pub fn is_test(&self) -> bool {
+        self.code.index.uses[self.position].test
+    }
+
+    /// Whether a source guard on the import or its reading module can change
+    /// the presence of this import.
+    /// # Errors
+    /// Refuses a module route that exceeds the Source query grant.
+    pub fn is_conditional(&self) -> Result<bool, CodeResolveError> {
+        let declaration = &self.code.index.uses[self.position];
+        if declaration.configuration == crate::facts::ConfigurationDependence::Conditional {
+            return Ok(true);
+        }
+        self.code
+            .query_at(
+                (&declaration.file, Some(declaration.line)),
+                |index, steps| index.module_is_unconditional(declaration.module, steps),
+            )
+            .map(|unconditional| !unconditional)
+    }
+
     /// The imported path segments, whether they start with `::`, whether
     /// the declaration imports a glob from that path, and the namespaces
     /// in which the full path is read.
@@ -497,6 +520,24 @@ impl<'a> CodeResolver<'a> {
         namespace: Namespace,
     ) -> Result<Resolution, CodeResolveError> {
         self.resolve_owned(owner, byte, path, namespace, true)
+    }
+
+    /// Resolve from an indexed owner at a byte in an explicitly test-guarded
+    /// statement, using the Cargo test prelude. The caller admits the guard
+    /// and classifies lexical shadowing before requesting module lookup.
+    /// # Errors
+    /// The owner, macro-body and shared resolver refusals of code lookup.
+    pub fn resolve_test_from_item_at(
+        &self,
+        owner: ItemId,
+        byte: usize,
+        path: &str,
+        namespace: Namespace,
+        import: bool,
+    ) -> Result<Resolution, CodeResolveError> {
+        let (module, _) = self.owned_context(owner, byte, import)?;
+        self.resolve_code_at(module, path, namespace, reading_heads(true, import))
+            .map(|(resolution, _)| resolution)
     }
 
     /// Follow visible imports to candidate members of indexed enums.

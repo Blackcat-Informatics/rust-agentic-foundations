@@ -14,7 +14,9 @@ bindings:
     - cargo_raf_workplan::bin_crate::cargo_raf_workplan::change
     - cargo_raf_workplan::bin_crate::cargo_raf_workplan::docs
     - cargo_raf_workplan::bin_crate::cargo_raf_workplan::docs::fragment
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::docs::retire
     - cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::FragmentArgs
+    - cargo_raf_workplan::bin_crate::cargo_raf_workplan::cli::RetireArgs
     - cargo_raf_workplan::bin_crate::cargo_raf_workplan::render
     - cargo_raf_workplan::bin_crate::cargo_raf_workplan::result_graph
     - raf_workplan::root
@@ -90,6 +92,9 @@ bindings:
     - cargo_raf_workplan::test_crate::check::usage_errors_exit_two_with_a_message_on_standard_error
     - cargo_raf_workplan::test_crate::status::the_roadmap_groups_one_capability_in_each_state_with_the_gaps_and_the_change
     - cargo_raf_workplan::test_crate::preview::the_proposed_text_is_printed_and_the_markers_are_not
+    - cargo_raf_workplan::test_crate::preview::current_design_keeps_surviving_sections_and_refuses_partial_output
+    - cargo_raf_workplan::test_crate::preview::retirement_preserves_current_design_and_locates_removed_material_in_git
+    - cargo_raf_workplan::test_crate::preview::retirement_refuses_current_resurrected_and_hidden_material
     - cargo_raf_workplan::test_crate::preview::an_unknown_slug_is_exit_two_and_names_the_open_changes
     - cargo_raf_workplan::test_crate::sync::a_missing_index_with_the_text_is_created_with_that_header
     - cargo_raf_workplan::test_crate::sync::only_the_generated_blocks_are_rewritten
@@ -287,6 +292,22 @@ remains unasserted.
 `docs fragment` returns complete raw Markdown for one imported Cargo library, an explicit public receiving module, capability and existing named diagram. Every code binding of that capability is required. The native static fragment API checks source and imported library identities and refuses private, hidden, unresolved or ambiguous references before emitting output. Diagnostics use stderr. Quiet mode and non-text formats refuse before input loading.
 <!-- raf:tested-by cargo_raf_workplan::test_crate::rdf::static_fragments_preserve_aliases_and_all_bindings_without_compiler_authority -->
 
+`docs current-design` prints the complete
+[resolved Architecture decisions](workplan-current-rationale.md) as
+Markdown. Architecture findings are reported on stderr with exit two
+and empty stdout. Quiet mode and non-text formats refuse before input
+loading. Stdout escapes terminal controls and bidirectional formatting
+characters while preserving line breaks and tabs. The command reads the
+workspace without writing files or starting a process.
+<!-- raf:tested-by cargo_raf_workplan::test_crate::preview::current_design_keeps_surviving_sections_and_refuses_partial_output -->
+
+`docs retire` verifies authored removals against a local Git ancestor using the
+[retirement checks](workplan-current-rationale.md#contract). Text and RDF output
+identify the selected original commit and the recovery location of each verified
+removal. Unverifiable removals yield exit two, diagnostics on stderr and empty
+stdout. The command reads the workspace and Git without writes or subprocesses.
+<!-- raf:tested-by cargo_raf_workplan::test_crate::preview::retirement_preserves_current_design_and_locates_removed_material_in_git,cargo_raf_workplan::test_crate::preview::retirement_refuses_current_resurrected_and_hidden_material -->
+
 **Static contract.** `cargo raf-workplan COMMAND` and `cargo-raf-workplan COMMAND` use the same parser. Root discovery reads manifests through the native source model. Ordinary checks, history, coverage, review and evidence queries launch no process. Verification reports declared bindings and static findings; completion checks a prospective document overlay and publishes owned documentation only.
 <!-- raf:tested-by cargo_raf_workplan::test_crate::verify::verify_prints_static_results_without_git_or_consumer_execution,cargo_raf_workplan::test_crate::complete::completion_prints_the_owned_changes_and_leaves_a_clean_static_check -->
 
@@ -299,10 +320,18 @@ the delivered state for each implementing capability whose last record it remove
 Only `docs build rustdoc --trust-docs` admits tool execution, with explicit package, toolchain and output selection. The flag is required on each invocation before root discovery. It accepts arbitrary build-time code effects without enabling test, example, doctest or arbitrary-command operations. Existing artifact inspection is separate and never builds or publishes.
 <!-- raf:tested-by cargo_raf_workplan::test_crate::verify::trusted_docs_is_refused_before_root_discovery_and_general_execution_is_absent -->
 
-Exit zero denotes a successful static outcome or explicit data operation; exit one denotes findings; exit two denotes inability to answer or invalid usage. Quiet mode hides outcomes and retains findings. Text is escaped for terminal display; RDF carriers retain typed values. Saved command strings remain inert metadata.
+Exit zero denotes a successful static outcome or explicit data operation; exit one denotes findings; exit two denotes inability to answer or invalid usage. Quiet mode hides report outcomes and retains findings. Text reports are escaped for terminal display; RDF carriers retain typed values. Saved command strings remain inert metadata.
 <!-- raf:tested-by cargo_raf_workplan::test_crate::evidence::stored_command_text_is_never_executed_by_checks_or_dependency_views,cargo_raf_workplan::test_crate::process::a_usage_error_starts_no_process -->
 
 ## Usage
+
+Use `cargo raf-workplan docs current-design` from a workspace, or supply
+its root explicitly with `--root`. Stdout holds the Markdown view.
+
+Use `docs retire --base REV --section 'arch:earlier#node-order'` after editing
+the checkout. Select associated written definitions with repeated
+`--definition PATH`. Supply a full reference, a full commit id or HEAD as
+the base. Use a full commit id to repeat a comparison across moving references.
 
 Add `--repository-links` to standalone publication only when its existing output
 directory lies beneath the canonical workspace. Serve that workspace tree
@@ -318,7 +347,7 @@ Run from the workspace or select it with `--root`.
 
 The documented data path is illustrated by `raf_workplan::example_crate::docs_sync`. These examples are source references for a caller to inspect; RAF does not initiate their execution.
 
-The commands are `check`, `impact --base REV`, `status`, `diagram`, `docs sync|preview|export|mdbook|fragment|artifacts|build`, `change new|impact|reconcile|complete`, `verify`, `history`, `evidence claims|for`, `assess`, `review`, `coverage code|tests|claims|lines` and `debt --write`. Global options select the root, output format and quiet mode. Help lists command-specific closed arguments.
+The commands are `check`, `impact --base REV`, `status`, `diagram`, `docs sync|preview|current-design|retire|export|mdbook|fragment|artifacts|build`, `change new|impact|reconcile|complete`, `verify`, `history`, `evidence claims|for`, `assess`, `review`, `coverage code|tests|claims|lines` and `debt --write`. Global options select the root, output format and quiet mode. Help lists command-specific closed arguments.
 
 Use `docs fragment --package PACKAGE --metadata META --target-directory OUTPUT --view OWNER#NAME --module MODULE --capability CAPABILITY`. The target directory must already exist and match the imported metadata. The source index uses the same bounded static default load as `diagram`; metadata features do not select effective compiler configuration. Save stdout through a caller-owned operation when an include file is wanted.
 
@@ -381,6 +410,10 @@ The fragment command supplies the native static API with the shared named bundle
 CLI results own domain values so human rendering and machine projections share one static answer. No ambient pre-parser compiler dispatch or command-executing evidence recorder exists.
 
 ## Verification
+
+Both invocation forms report recovery locations and leave the checkout
+untouched. They refuse inconsistent retirement with empty stdout.
+<!-- raf:tested-by cargo_raf_workplan::test_crate::preview::retirement_preserves_current_design_and_locates_removed_material_in_git,cargo_raf_workplan::test_crate::preview::retirement_refuses_current_resurrected_and_hidden_material -->
 
 Both actual invocation forms exercise repository navigation at two depths with
 escaped paths, repeat publication, retained host files and invalid locations.
@@ -539,7 +572,10 @@ CLI fixtures compare static verification with the library, exercise prospective 
 | `cargo_raf_workplan::test_crate::preview::a_change_record_that_did_not_load_is_exit_two_and_says_so` | test | [Verification](#verification) |
 | `cargo_raf_workplan::test_crate::preview::a_slug_that_is_not_a_slug_is_a_usage_error` | test | [Verification](#verification) |
 | `cargo_raf_workplan::test_crate::preview::an_unknown_slug_is_exit_two_and_names_the_open_changes` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::preview::current_design_keeps_surviving_sections_and_refuses_partial_output` | test | [Contract](#contract) |
 | `cargo_raf_workplan::test_crate::preview::quiet_prints_nothing_because_a_preview_is_not_a_finding` | test | [Verification](#verification) |
+| `cargo_raf_workplan::test_crate::preview::retirement_preserves_current_design_and_locates_removed_material_in_git` | test | [Contract](#contract) |
+| `cargo_raf_workplan::test_crate::preview::retirement_refuses_current_resurrected_and_hidden_material` | test | [Contract](#contract) |
 | `cargo_raf_workplan::test_crate::preview::the_output_is_the_text_the_library_previews_under_a_header_for_each_document` | test | [Verification](#verification) |
 | `cargo_raf_workplan::test_crate::preview::the_preview_is_the_same_by_root_from_another_directory` | test | [Verification](#verification) |
 | `cargo_raf_workplan::test_crate::preview::the_proposed_text_is_printed_and_the_markers_are_not` | test | [Verification](#verification) |

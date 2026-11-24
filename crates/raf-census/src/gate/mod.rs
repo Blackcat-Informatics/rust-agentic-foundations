@@ -27,7 +27,7 @@ pub use migrate::{
 };
 pub use reference::{ExternalReference, ReferenceRoot};
 pub use registry::{ArchiveCache, LockedRegistry};
-pub use visibility::visibility;
+pub use visibility::{visibility, visibility_demand};
 
 use std::fmt;
 use std::path::{Component, Path, PathBuf};

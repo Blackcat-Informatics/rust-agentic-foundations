@@ -57,6 +57,9 @@ inputs:
     name: raf_census::Ledger
     digest: a829022b54891ec5201afa5db36a4dd012fea1e7ad1a705a05cd8bd0ae5a74f9
   - kind: symbol
+    name: raf_census::Ledger::compose_jobs
+    digest: 5851f73b9ce2cf12375bcb2e69209f93a007802e7a7e030cdf6c2777094bc159
+  - kind: symbol
     name: raf_census::LedgerDistinct
     digest: 17457f169b7261f1ddddabbf2a133314281331a298f382ee1d392ad9313475af
   - kind: symbol
@@ -109,7 +112,7 @@ inputs:
     digest: 50392c8ead787ae3220545d0772e1d47416f20d23dd6fe16ae2b40ff763069b1
   - kind: symbol
     name: raf_census::report::ledger
-    digest: 3b7e74076db38d7e58a559e5a6a5553b05cadbb1493d073e4fe3dc9b057fdce0
+    digest: 7bea3202013d7b88484131478a2b8f701d33716de1134dc8d92062a87f81dc82
 verdict: accepted
 by: agent
 ---

@@ -91,7 +91,7 @@ index.
 RAF inspects repository contents as data.
 
 - Its analysis libraries never launch processes. RAF never runs tests, examples,
-  documentation tests, sample programs or consumer commands. A document, manifest,
+  documentation tests, sample programs or arbitrary consumer commands. A document, manifest,
   environment variable, configuration file or stored result cannot authorize
   execution.
 - Git access uses a native Rust library with read-only operations. Analysis never
@@ -107,13 +107,13 @@ RAF inspects repository contents as data.
 - RAF does not edit inspected source code or Git state. Explicit document,
   assessment, evidence metadata and ledger writes are allowed within their owned
   destinations.
-- Documentation is the one execution exception, confined to the command-line
-  documentation component. Reading existing artifacts starts no process. A
-  documentation build or source-compilation query needs the caller's explicit
-  `--trust-docs` flag on that invocation; trust is never inherited from the
-  environment, repository data or a saved option. The flag authorizes the build's
-  scripts and procedural macros with the caller's permissions, gives no sandbox
-  guarantee, and never enables tests, examples or a general command runner.
+- Execution is confined to two explicitly trusted commands. A Workplan
+  documentation build or source-compilation query needs `--trust-docs`.
+  Census `lint-capture` needs `--trust-lints` and runs the fixed production
+  Clippy command. Each flag applies only to its own invocation. Cargo can
+  run build scripts and procedural macros with the caller's permissions
+  and has no sandbox. Reading existing artifacts or receipts starts no
+  process.
 
 Never execute an inspected workspace's tests or examples to check these rules; use
 controlled RAF fixtures as data.
@@ -217,7 +217,7 @@ tables (a gate fails when they differ).
   `crates/raf-source/src/tree/disk/final_path.rs`, under an item-scoped allow with
   its reason and a `SAFETY` comment.
 - Clippy `all` is denied and `pedantic` warns. The gates deny warnings.
-- `make clippy` selects `--workspace --lib --bins --locked` and
+- `make clippy` selects `--workspace --lib --bins --locked --target host-tuple` and
   denies warnings, unused items, unreachable public items, allow attributes,
   used underscore bindings, needless pass-by-value, trivially copied references
   and redundant clones. The commit hooks apply it to the staged source and

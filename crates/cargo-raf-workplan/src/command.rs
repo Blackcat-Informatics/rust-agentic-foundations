@@ -24,6 +24,7 @@ pub(crate) enum Output {
     Report(Report),
     Mdbook(mdbook::Response),
     Fragment(String),
+    CurrentDesign(String),
 }
 
 /// Run the command of `args` and return what it produced.
@@ -43,6 +44,11 @@ pub(crate) fn run(args: &Args) -> Result<Output, Failure> {
     }
     let root = || workspace_root(args.root.as_deref());
     let report = match &args.command {
+        Command::Docs(Docs::CurrentDesign) => {
+            let opened = Gate::workspace(&root()?).open()?;
+            return Ok(Output::CurrentDesign(opened.workplan().current_design()?));
+        }
+        Command::Docs(Docs::Retire(request)) => crate::docs::retire(&root()?, request),
         Command::Docs(Docs::Fragment(request)) => {
             return crate::docs::fragment(&root()?, request).map(Output::Fragment);
         }
@@ -116,6 +122,8 @@ pub(crate) fn run(args: &Args) -> Result<Output, Failure> {
 
 fn command_name(command: &Command) -> &'static str {
     match command {
+        Command::Docs(Docs::CurrentDesign) => "docs current-design",
+        Command::Docs(Docs::Retire(_)) => "docs retire",
         Command::Docs(Docs::Fragment(_)) => "docs fragment",
         Command::Docs(Docs::Artifacts(_)) => "docs artifacts",
         Command::Docs(Docs::Build(DocsBuild::Rustdoc(_))) => "docs build rustdoc",
@@ -156,12 +164,15 @@ fn command_name(command: &Command) -> &'static str {
 
 /// Admit carriers before opening a root, retaining mdBook's own protocol refusal.
 fn check_format(args: &Args) -> Result<(), Failure> {
-    if matches!(&args.command, Command::Docs(Docs::Fragment(_)))
-        && (args.quiet || args.format != Format::Text)
+    if matches!(
+        &args.command,
+        Command::Docs(Docs::Fragment(_) | Docs::CurrentDesign)
+    ) && (args.quiet || args.format != Format::Text)
     {
-        return Err(Failure::new(
-            "docs fragment emits complete Markdown and refuses --quiet and non-text --format",
-        ));
+        return Err(Failure::new(format!(
+            "{} emits complete Markdown and refuses --quiet and non-text --format",
+            command_name(&args.command)
+        )));
     }
     if args.format == Format::Json
         && !matches!(

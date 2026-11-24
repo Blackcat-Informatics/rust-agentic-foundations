@@ -34,16 +34,16 @@ default-members = [".", "crates/raf-docs-contract"]
 exclude = ["fuzz"]
 
 [workspace.dependencies]
-rust-agentic-foundations = { path = ".", version = "0.8.0" }
+rust-agentic-foundations = { path = ".", version = "0.8.1" }
 cap = "0.1.2"
 clap = { version = "4.6.7", default-features = false, features = ["std", "derive", "help", "usage", "error-context", "suggestions"] }
 windows-sys = { version = "0.61.2", default-features = false, features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }
 raf-fixtures = { path = "crates/raf-fixtures" }
-raf-census = { path = "crates/raf-census", version = "0.8.0" }
-raf-okf = { path = "crates/raf-okf", version = "0.8.0" }
-raf-rdf = { path = "crates/raf-rdf", version = "0.8.0" }
-raf-source = { path = "crates/raf-source", version = "0.8.0" }
-raf-workplan = { path = "crates/raf-workplan", version = "0.8.0" }
+raf-census = { path = "crates/raf-census", version = "0.8.1" }
+raf-okf = { path = "crates/raf-okf", version = "0.8.1" }
+raf-rdf = { path = "crates/raf-rdf", version = "0.8.1" }
+raf-source = { path = "crates/raf-source", version = "0.8.1" }
+raf-workplan = { path = "crates/raf-workplan", version = "0.8.1" }
 
 # Native parser resource audits depend on these exact implementations.
 # Keep feature selection at each caller; pins do not freeze unified features.
@@ -73,7 +73,7 @@ purrdf-text = { version = "=5" }
 purrdf-testkit = { version = "=5" }
 
 [workspace.package]
-version = "0.8.0"
+version = "0.8.1"
 edition = "2024"
 rust-version = "1.98.1"
 authors = ["Blackcat Informatics Inc."]

@@ -139,7 +139,7 @@ inputs:
     digest: 307e27e9085784781c0e03568c48e3fcc4b5e1d27e2e374bdb0dcfd0e05ec78f
   - kind: symbol
     name: raf_source::ExportError
-    digest: 049c14949b0a342d017911a11c9ee1b7d460e316cf9fc3f6dcc71e101280795b
+    digest: f798d9d06d529ea5361ebd29f231c144ce1aaf2ce506386c45931260bf15bb5a
   - kind: symbol
     name: raf_source::ExportOptions
     digest: 434356a97e0d2d0d3865aa1dcbfe42d2b911d8f5de40022d63d6c7ea41ac7246
@@ -352,7 +352,7 @@ inputs:
     digest: 1170d90d2d76c51563eb943cd492e5a5f8ba9f75b2717d9bc130b9551db53c65
   - kind: symbol
     name: raf_source::Reexport
-    digest: eefa4b17f47deca46fecdbdaaf325fc81471407cf37f64143beb42ad594b37e2
+    digest: 572d6a1c9f58f23d9a78d008f25ae9c3f26caf7f6d316217e853eeb94435acbf
   - kind: symbol
     name: raf_source::RegistryArchiveTree
     digest: 9896488c9653e2b60b3f3b3b18b2a0648536939751ab7eedeef67e7ed5f050c6
@@ -398,6 +398,12 @@ inputs:
   - kind: symbol
     name: raf_source::SpanFact
     digest: 3f34e87a61bc5e0b6a2613773985e4d63380fe7f5f67c04bf0dfecc11521c957
+  - kind: symbol
+    name: raf_source::StandardType
+    digest: df39353e777b04c554312d2f452dbda198ab5ce22959b6ec1cc9e1d34db62be2
+  - kind: symbol
+    name: raf_source::StandardType::path
+    digest: 32935cfbdd6ae96abc26e8051650d785a1b8e9e62fef8bc270844863866b08aa
   - kind: symbol
     name: raf_source::SymbolKind
     digest: cf4c9d86f355c0aafcd926e87d0a0f6e919ff3c8a40b124ac0dc291ca432f202
@@ -535,7 +541,7 @@ inputs:
     digest: b8b5f637a14a46e6d191d1b38cfa7f9558663d1cb966c5ca1dae800c716201dd
   - kind: symbol
     name: raf_source::code
-    digest: f55f203e4e83eaab48e4e8ae2699342e31281d54a4ff593d1688bff8a748e6cb
+    digest: f113ec8144a833c8b16d533e464e3925411749990b5ba50339f88f8340988a0b
   - kind: symbol
     name: raf_source::cost::shared_text
     digest: 417543dec94f58efe64575df018bc4b13589e906d90c4db5a4f0693d372ab4f1
@@ -568,7 +574,7 @@ inputs:
     digest: 539dd6c8112a1642b4b9e249b8920571ad932212e467f9b3862caaeeb58d6181
   - kind: symbol
     name: raf_source::settle
-    digest: a81cbc91e90e458628cd039200460960121b21bbf48c20eabb5a9c621184c091
+    digest: a6e3bb0fd1493e346cf9e0d4c4179d60be126f1978100888e34e08ce0810eeca
   - kind: symbol
     name: raf_source::syntax_storage::SyntaxBound
     digest: cb22bdd68d556de9e8bf4358d6be413602544bf94589ed6dbc6aac8e4e5e52e6

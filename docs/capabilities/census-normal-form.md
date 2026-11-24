@@ -568,10 +568,11 @@ Canonical Census reports use report form 6. Regenerate baseline and index report
 from source when replacing an earlier report layout; their normal-form-1
 fingerprints remain stable. Ordinary readers refuse older report layouts.
 
-Use Index::query with Query::Job, Query::Count or Query::Fingerprint to obtain
-the selected native QueryReport. Its readers and writers support both canonical
-carriers. Selection retains classified physical matches, exact copies and every
-source occurrence; absent optional fingerprints are not unknown symbols.
+Use `GateReport::query` on the live evaluation or `Index::query` on a decoded
+index with `Query::Job`, `Query::Count` or `Query::Fingerprint`. Both produce
+the same native `QueryReport` in either canonical carrier. Selection retains
+classified physical matches, exact copies and every source occurrence,
+including known symbols with no optional fingerprint.
 Convert an existing form-3 or form-4 carrier explicitly with upgrade_report_form before
 reading it under the current layout. This conversion preserves normal forms
 and fingerprint values and never reevaluates source.
@@ -949,10 +950,10 @@ The report-reader fuzz target exercises the current valid and invalid seeds
 alongside query result parsing.
 <!-- raf:tested-by raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats -->
 
-Report fixtures pin layout 5, including its counted debt shape. The report reader
-refuses layouts 1, 2, 3, 4 and a newer layout beside successful round trips of the
-current layout; normal-form golden tests continue to pin the unchanged
-fingerprint bytes.
+Report fixtures pin layout 6. Ordinary report readers refuse layouts 1 through
+5 and a newer layout beside successful round trips of the current layout.
+The layout 5 conversion checks the original digest and literal bytes.
+Normal-form golden tests continue to pin the fingerprint bytes.
 
 Native hash adoption retains the complete normal-form fingerprints, human
 abbreviations, report body digests and selection identities. The hand-framed

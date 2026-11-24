@@ -18,7 +18,9 @@ pub struct DecisionSectionRef {
 }
 
 impl DecisionSectionRef {
-    fn parse(text: &str) -> Option<Self> {
+    /// Parse an Architecture page id and named heading anchor as `arch:<slug>#<section>`.
+    #[must_use]
+    pub fn parse(text: &str) -> Option<Self> {
         let (architecture, section) = text.split_once('#')?;
         let document_slug = architecture.strip_prefix(DocType::Architecture.id_prefix())?;
         (is_kebab(document_slug) && is_kebab(section)).then(|| Self {

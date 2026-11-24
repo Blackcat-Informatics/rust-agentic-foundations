@@ -9,15 +9,15 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use raf_okf::ContractEffect;
-use raf_source::LoadError;
+use raf_source::{LoadError, Workspace};
 
-use crate::git::{self, GitError, Prefix, Repository};
+use crate::git::{self, GitError, Prefix, Repository, ResolvedCommit};
 use crate::lookup::{ChangeLookupError, write_findings};
 use crate::obligation::{Obligation, ReconcileError, Reconciled};
 use crate::{Finding, Gate, GateError, Opened, SyncError, Workplan};
 
 use super::verification::{VerifyReport, verify};
-use super::{Impact, changed, touched, untouched};
+use super::{BaseTree, Impact, changed, touched, untouched};
 
 /// Which version of a document a comparison reads.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -246,6 +246,17 @@ pub struct Lifecycle {
 }
 
 impl Lifecycle {
+    pub(super) fn open_revision<'r>(
+        &'r self,
+        base: &'r ResolvedCommit,
+    ) -> Result<(BaseTree<'r>, Workspace), LifecycleError> {
+        let listing = git::tree_at(&self.repository, base, &self.prefix)?;
+        let tree = BaseTree::at_revision(&self.repository, base, &self.prefix, listing);
+        let source = Workspace::load(&tree, &self.gate.roots())
+            .map_err(|error| tree.take_failure().unwrap_or(LifecycleError::Index(error)))?;
+        Ok((tree, source))
+    }
+
     /// Open a workspace without launching a program.
     ///
     /// # Errors

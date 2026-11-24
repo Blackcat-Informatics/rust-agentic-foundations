@@ -21,6 +21,7 @@ use raf_workplan::{Gate, SyncOptions, Workplan};
 pub(crate) mod completion;
 pub(crate) mod history;
 pub(crate) mod rdf;
+pub(crate) mod retirement;
 
 pub(crate) use raf_fixtures::{assessed, strict};
 #[cfg(unix)]

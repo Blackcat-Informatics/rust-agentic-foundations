@@ -27,15 +27,18 @@ bindings:
     - raf_census::SelfTestCase
     - raf_census::Gate::self_test
     - raf_census::MAX_INDEX_BYTES
+    - raf_census::GateReport::query
     - raf_census::capnp_history
     - raf_census::capnp_history::persistence::check
     - raf_census::capnp_history::persistence::admission::check
     - raf_census::capnp_history::persistence::migration::check
     - raf_census::capnp_history::reader_evidence::verify
   tests:
+    - cargo_raf_census::test_crate::delivery::visibility_demand_distinguishes_shipping_test_and_incomplete_evidence
     - cargo_raf_census::test_crate::delivery::init_creates_a_clean_structural_policy_and_preserves_existing_records
     - cargo_raf_census::test_crate::delivery::init_refuses_source_and_git_administration_destinations
     - cargo_raf_census::test_crate::delivery::production_lints::default_checks_require_passing_production_evidence_for_the_current_sources_and_policy
+    - cargo_raf_census::test_crate::delivery::production_lints::installed_capture_requires_trust_and_writes_only_current_bounded_receipts
     - cargo_raf_census::test_crate::capnp_capture::capnp_capture_authenticates_the_exact_pinned_inputs
     - cargo_raf_census::test_crate::capnp_capture::capnp_capture_refuses_an_open_compiler_import_set
     - cargo_raf_census::test_crate::capnp_capture::capnp_capture_reads_literal_dependencies_missing_from_the_request
@@ -128,8 +131,14 @@ depends: [cap:census-ledger, cap:census-debt-ratchet, cap:census-migration, cap:
 ## Purpose
 
 Expose native duplication and ledger data without building or executing repository programs. Library Gate evaluation, native reports and explicit debt publication preserve useful structural checks while leaving consumer test and example bodies inert.
+The installed command also captures a production lint receipt when the caller explicitly trusts the build.
 
 ## Contract
+
+`visibility --demand` emits the target demand graph using the same worktree,
+format and destination controls as `visibility`. Each use names the Cargo
+target and the original public definition. Coverage gaps remain explicit.
+<!-- raf:tested-by cargo_raf_census::test_crate::delivery::visibility_demand_distinguishes_shipping_test_and_incomplete_evidence -->
 
 `init` and `Gate::init_ledger` create `helpers-ledger.ttl` in the discovered workspace root. The canonical Turtle ledger selects the whole workspace under the current normal and report forms with default options and no jobs. Publication requires native Linux directory locking and resolves the workspace sources before writing. A missing source input, a destination inside Git administration, an occupied ledger or temporary path, or a competing lock causes a refusal. Existing policy and debt are preserved. Structural duplicates remain findings until resolved or explicitly adopted.
 <!-- raf:tested-by cargo_raf_census::test_crate::delivery::init_creates_a_clean_structural_policy_and_preserves_existing_records,cargo_raf_census::test_crate::delivery::init_refuses_source_and_git_administration_destinations -->
@@ -137,13 +146,30 @@ Expose native duplication and ledger data without building or executing reposito
 `check` requires the production Cargo lint policy and a current, successful
 Clippy receipt from the calling build by default. Supply the build-owned
 receipt through `--lint-evidence` or `RAF_CENSUS_LINT_EVIDENCE`. The
-selection is `--workspace --lib --bins --locked`. Test-only callers can
+selection is `--workspace --lib --bins --locked --target host-tuple`. Test-only callers can
 therefore leave a production helper unused. `lint-inputs` identifies the
 workspace before the build and `lint-receipt` seals the build's arguments,
 compiler identity, status and diagnostics against the matching inputs.
 The CLI reads these values as data. `--no-production-lints` selects only
 the structural ledger and debt checks. See the [consumer guide](../../CENSUS-HOWTO.md).
 <!-- raf:tested-by cargo_raf_census::test_crate::delivery::production_lints::default_checks_require_passing_production_evidence_for_the_current_sources_and_policy -->
+
+`lint-capture --trust-lints --out PATH` invokes Clippy's installed Cargo
+subcommand executable directly with the fixed production arguments from the
+resolved workspace. It searches Cargo home and `PATH` in Cargo's order.
+`--target host-tuple` gives the host target precedence over Cargo's
+`build.target` setting. The trust flag applies only to that
+invocation and permits build scripts and procedural macros to run with the
+caller's permissions. The command validates a fresh absolute output path
+outside the workspace and Git administration before launching a process.
+It records the tool identities and compiler result between two matching
+reads of the production inputs. It preserves Cargo's target directory for
+cache reuse and applies the production compiler flags. A captured nonzero
+Clippy result with diagnostics produces a failed receipt and returns its status. Changed
+inputs, oversized diagnostics and execution failures refuse publication.
+On oversized diagnostics the command closes the stream and lets the
+Clippy invocation finish before returning the refusal.
+<!-- raf:tested-by cargo_raf_census::test_crate::delivery::production_lints::installed_capture_requires_trust_and_writes_only_current_bounded_receipts -->
 
 **Cap'n Proto history.** `capnp-history` compares unpacked compiler
 descriptors read from explicit base and current Git commits. The caller
@@ -427,10 +453,10 @@ exits 1 with a diagnostic. The command runs independently of Gate
 registration and of the strict schema-history verdict.
 <!-- raf:tested-by cargo_raf_census::test_crate::capnp_capture::reader_evidence::capnp_reader_evidence_authenticates_exact_scope_without_configuring_gate,cargo_raf_census::test_crate::capnp_capture::reader_evidence::capnp_reader_evidence_refuses_changed_payloads_and_noncanonical_framing -->
 
-**Static contract.** `check` evaluates the native library Gate for the selected workspace. `index`, `job`, `count` and `fingerprint` derive complete native reports from that Gate. The CLI accepts no package/example executable selector and never invokes Cargo, tests, examples or custom repository binaries. Custom Rust registrations remain explicit library API operations performed by their caller; repository contents cannot instantiate them automatically.
+**Static analysis.** `check` evaluates the native library Gate for the selected workspace. `index` derives the complete native index from that Gate. `job`, `count`, `fingerprint` and `reference-matches` project their selected reports from the evaluated Gate. These commands never invoke Cargo or run repository programs. Custom Rust registrations remain explicit library API operations performed by their caller. The trusted lint capture runs independently of these registrations.
 <!-- raf:tested-by cargo_raf_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets -->
 
-A repository binary supplies a Gate configuration callback to `cargo_raf_census::run`. The callback installs repository rules and ledger extension validators after the front end validates the arguments. `job`, `count` and `fingerprint` use the configured Gate and the same index queries and renderers as the stock binary.
+A repository binary supplies a Gate configuration callback to `cargo_raf_census::run`. The callback installs repository rules and ledger extension validators after the front end validates the arguments. `job`, `count`, `fingerprint` and `reference-matches` use the configured Gate with the same direct native projections and renderers as the stock binary.
 
 `baseline` in the registered binary validates the ledger's rule registrations and extensions before rendering with the default Census options. The registered checks cover rule fixtures and required rules. Job rule references resolve against built-in detectors, declarative patterns and registered rules. Source matching, reference selection and debt evaluation belong to the other Gate operations. The stock baseline requires only the workspace source.
 
@@ -440,16 +466,24 @@ Both carriers preserve the stock report bytes when an accepted extension is the 
 `baseline` discovers structure through Census with default options without adopting debt. `dump-ledger` reads the selected native ledger. Reports use canonical RDF with explicit format selection and bounded complete index serialization. `--out` exclusively creates a new .ttl or .nt data file after serialization; existing files, source extensions and Git administration destinations refuse. Stdout mode writes no repository data.
 <!-- raf:tested-by cargo_raf_census::test_crate::delivery::report_exports_refuse_source_existing_files_and_git_administration -->
 
+**Bounded reports.** `index` measures the complete carrier in canonical
+N-Triples, including when it exports Turtle. `job`, `count`, `fingerprint`
+and `reference-matches` select their evidence directly from the evaluated
+Gate. Each applies `--max-index-bytes` to its own selected format. The
+default limit is 16 MiB and the largest accepted limit is 256 MiB. A
+response over the limit leaves stdout empty and creates no output file.
+<!-- raf:tested-by cargo_raf_census::test_crate::delivery::reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory -->
+
 `debt --write` uses the native debt ratchet, permitting adoption and shrink while refusing growth. Migration reads explicit input carriers and writes the converted result to stdout. Malformed inputs and unsupported declarations fail actionably.
 <!-- raf:tested-by cargo_raf_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate,cargo_raf_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record -->
 
 **Module paths in their package.** `check` and `debt --write` accept `--require-module-paths-in-package`, which selects `Gate::require_module_paths_in_package` for that run: each module `path` attribute that resolves to a file of another package, or of none, is a hard finding that `check` prints and that makes `debt --write` refuse with exit 1 and leave the debt record unchanged. Without the option no module path is judged, so one workspace is clean without it and refused with it. The option belongs to the command line alone: no ledger, report or debt record carries it, so every existing ledger, report and debt record keeps its exact bytes and the report form does not change. A persisted switch would first need the report-form rule applied, and a repository states the requirement where it runs the command. The other commands refuse the option by name.
 <!-- raf:tested-by cargo_raf_census::test_crate::delivery::module_paths_in_package_are_required_by_the_flag_beside_a_clean_run_without_it -->
 
-**Declared reference tree.** `check`, `index`, `job`, `count`, `fingerprint` and `debt` accept one reference tree outside the lock graph. `--reference-repo LOCATION` with `--reference-commit COMMIT`, or with `--reference-pin-file FILE --reference-pin-key KEY`, compares with that repository's committed objects at the commit; the pin file is a workspace-relative TOML file and the key a dotted path to a string. `--reference-unpinned DIRECTORY` compares with a directory's current files, every index and query marks its receipts `unpinned-tree`, and every evaluating command prints one notice on stderr naming the directory while its findings and stdout stay identical to the pinned run; `debt --write` refuses it. A relative location is resolved from the main checkout of the workspace's Git repository. Any other combination of these options refuses with a message naming the accepted forms, and the commands that do not evaluate the Gate refuse every reference option rather than ignoring it. A ledger `reference` with no job homing it bans copies of that dependency: `check` exits 1 with one `REFERENCE-COPY` line per copy, `debt --write` refuses the same finding, and `index`, `job`, `count` and `fingerprint` evaluate the same inputs. A selector that matches nothing, a missing source or a malformed option refuses every one of these commands with no verdict on stdout.
+**Declared reference tree.** `check`, `index`, `reference-matches`, `job`, `count`, `fingerprint` and `debt` accept one reference tree outside the lock graph. `--reference-repo LOCATION` with `--reference-commit COMMIT`, or with `--reference-pin-file FILE --reference-pin-key KEY`, compares with that repository's committed objects at the commit; the pin file is a workspace-relative TOML file and the key a dotted path to a string. `--reference-unpinned DIRECTORY` compares with a directory's current files. Its index and ordinary queries label the included directory receipts `unpinned-tree`. Each evaluating command prints one notice on stderr naming the directory, and equivalent source contents produce the same `check` findings. `reference-matches` includes committed Git witnesses from the selected evaluation. An evaluation with no committed Git witnesses, including one with only unpinned directory matches, returns an empty match report. `debt --write` refuses an unpinned directory. A relative location is resolved from the main checkout of the workspace's Git repository. Any other combination of these options refuses with a message naming the accepted forms, and the commands that do not evaluate the Gate refuse every reference option rather than ignoring it. A ledger `reference` with no job homing it bans copies of that dependency: `check` exits 1 with one `REFERENCE-COPY` line per copy, `debt --write` refuses the same finding, and `index`, `reference-matches`, `job`, `count` and `fingerprint` evaluate the same inputs. A selector that matches nothing, a missing source or a malformed option refuses every one of these commands with no verdict on stdout.
 <!-- raf:tested-by cargo_raf_census::test_crate::delivery::reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory,cargo_raf_census::test_crate::delivery::ledger_reference_ban_fails_check_and_refuses_unusable_inputs_without_a_partial_verdict,cargo_raf_census::test_crate::delivery::registry_reference_ban_fails_check_and_every_command_reads_the_same_sealed_set,cargo_raf_census::test_crate::delivery::registry_options_refuse_by_name_without_a_partial_verdict,cargo_raf_census::test_crate::delivery::a_sealed_registry_selector_is_a_reference_without_a_ledger_entry -->
 
-**Registry dependencies sealed by the lock file.** The same six commands accept the options that run the reference-copy ban against registry dependencies, with no sibling checkout and no pinned commit. `--seal-registry SELECTOR` (repeatable; an exact package name or a `prefix-*` family) seals those registry packages and makes each a reference for the ban exactly as a ledger `reference` selector is (a ledger with no `reference` entry still bans a copy of a package named by `--seal-registry`, and without the option nothing is implied), `--registry-cache DIRECTORY` names Cargo's `registry/cache` directory (default `$CARGO_HOME/registry/cache`, then `$HOME/.cargo/registry/cache`), and `--registry-features PACKAGE=FEATURE,FEATURE` states the complete feature set the workspace enables on a sealed package, once per package (`PACKAGE=` for none). Giving any of them selects the locked check of the library (`Gate::check_registry` and `Gate::write_debt_registry`, the path of the library route in [census-reference-scan](census-reference-scan.md)) for `check`, `index`, `job`, `count`, `fingerprint` and `debt`, so all six read one set of sealed sources. The command reads archive bytes from the cache and authenticates each against the checksum in `Cargo.lock`; it fetches nothing, starts no process and runs no Cargo command. It runs from a checkout of this repository or an installed `cargo-raf-census` built from a pinned commit, the consumer needs no sibling tree, `cargo fetch --locked` must already have populated the cache, and the command performs no network access. The caller states the complete feature set of every sealed package; the loader refuses a set it cannot verify. A copied body fails `check` with exit 1 and one `REFERENCE-COPY` line, and an absent, mismatched or oversized archive, a sealed package without a declared feature set, a declaration for a package that is not sealed, an incomplete or unknown feature, a selector or declaration the lock file and manifest disagree about, and a Git reference refuse every one of these commands with exit 1, the refusal on stderr and an empty stdout. The commands that do not evaluate the Gate refuse these options too.
+**Registry dependencies sealed by the lock file.** The same commands accept the options that run the reference-copy ban against registry dependencies, with no sibling checkout and no pinned commit. `--seal-registry SELECTOR` (repeatable; an exact package name or a `prefix-*` family) seals those registry packages and makes each a reference for the ban exactly as a ledger `reference` selector is (a ledger with no `reference` entry still bans a copy of a package named by `--seal-registry`, and without the option nothing is implied), `--registry-cache DIRECTORY` names Cargo's `registry/cache` directory (default `$CARGO_HOME/registry/cache`, then `$HOME/.cargo/registry/cache`), and `--registry-features PACKAGE=FEATURE,FEATURE` states the complete feature set the workspace enables on a sealed package, once per package (`PACKAGE=` for none). Giving any of them selects the locked check of the library (`Gate::check_registry` and `Gate::write_debt_registry`, the path of the library route in [census-reference-scan](census-reference-scan.md)) for `check`, `index`, `reference-matches`, `job`, `count`, `fingerprint` and `debt`, so all read one set of sealed sources. The command reads archive bytes from the cache and authenticates each against the checksum in `Cargo.lock`; it fetches nothing, starts no process and runs no Cargo command. It runs from a checkout of this repository or the installed crates.io release, the consumer needs no sibling tree, `cargo fetch --locked` must already have populated the cache, and the command performs no network access. The caller states the complete feature set of every sealed package; the loader refuses a set it cannot verify. A copied body fails `check` with exit 1 and one `REFERENCE-COPY` line, and an absent, mismatched or oversized archive, a sealed package without a declared feature set, a declaration for a package that is not sealed, an incomplete or unknown feature, a selector or declaration the lock file and manifest disagree about, and a lock-selected Git reference without an admitted source refuse every one of these commands with exit 1, the refusal on stderr and an empty stdout. The commands that do not evaluate the Gate refuse these options too.
 <!-- raf:tested-by cargo_raf_census::test_crate::delivery::registry_reference_ban_fails_check_and_every_command_reads_the_same_sealed_set,cargo_raf_census::test_crate::delivery::registry_options_refuse_by_name_without_a_partial_verdict,cargo_raf_census::test_crate::delivery::a_sealed_registry_selector_is_a_reference_without_a_ledger_entry,cargo_raf_census::test_crate::delivery::a_git_reference_is_refused_by_the_registry_options_beside_a_clean_registry_neighbour -->
 
 **Self-test.** `self-test` and the library call `Gate::self_test` run a fixed set of seeded in-memory workspaces through the same evaluation as `check`, and report one `pass ID` or `fail ID: reason` line per case, then a `N cases, M failed` line. The command needs no workspace and `--workspace` is ignored. It reads and writes no file, creates nothing and prints no path or clock reading, so two runs of one build print identical text. The exit status is 0 only when every case holds. The cases check the evaluation engine, each built-in detector, the sanction and ratchet logic and the two grouping behaviours of the normal form, all over in-memory sources; a census that finds nothing where a case seeds a copy fails that named case instead of passing. No case reads the on-disk tree backend or compares the running build with any other. Rules registered on the Gate join the run as one `rule/ID/fixtures` case each, from their own positive and negative fixtures; required rules, extensions and reference roots do not apply.
@@ -472,6 +506,12 @@ The cases, in the order they run:
 <!-- raf:tested-by raf_census::selftest::tests::every_case_holds_on_this_build_and_two_runs_print_the_same_text,raf_census::selftest::tests::a_detector_that_stops_firing_or_starts_over_firing_fails_its_side,raf_census::selftest::tests::a_normal_form_that_merges_or_splits_wrongly_fails_its_case,raf_census::selftest::tests::the_documented_detector_list_and_case_count_equal_the_registry -->
 
 ## Usage
+
+Run `cargo raf-census lint-capture --trust-lints --out /build/census/production.ttl`
+from the workspace with a trusted Cargo environment. Give `check` the resulting
+receipt path through `--lint-evidence` or `RAF_CENSUS_LINT_EVIDENCE`. Keep the
+Cargo target directory stable across captures and give each run a fresh output
+path.
 
 Run `cargo raf-census init` once from the new workspace or a member directory, then run `cargo raf-census check --no-production-lints` to check the structural policy. For the default `cargo raf-census check`, first capture the production compiler receipt. Inspect the ledger with `cargo raf-census dump-ledger --format turtle`. Use `cargo raf-census debt --write` to adopt existing duplication explicitly.
 <!-- raf:tested-by cargo_raf_census::test_crate::delivery::init_creates_a_clean_structural_policy_and_preserves_existing_records -->
@@ -657,9 +697,12 @@ The executable accepts `job ID`, `count ID`, `fingerprint SYMBOL` and
 
 Run `cargo raf-census visibility` for the [workspace library visibility census](./census-visibility.md).
 
+Add `--demand` to group written visibility evidence by consuming target and
+distinguish production use, test-only use and evidence gaps.
+
 Before `cargo raf-census check`, [capture a production Clippy receipt](../../CENSUS-HOWTO.md#capture-the-production-lint-result) and export its absolute path as `RAF_CENSUS_LINT_EVIDENCE`. Use `cargo raf-census check --no-production-lints` to check structural policy alone.
 
-Select a workspace with `--workspace DIRECTORY`. Use `cargo raf-census check`, `cargo raf-census index`, `cargo raf-census baseline`, `cargo raf-census job ID`, `cargo raf-census count ID` or `cargo raf-census fingerprint SYMBOL`. Use `--max-index-bytes` for an explicit bounded index allowance. Seal registry dependencies with `cargo raf-census check --seal-registry acme-core --registry-features acme-core=default,std` after `cargo fetch --locked`. Require module paths to stay in their package with `cargo raf-census check --require-module-paths-in-package`, and pass the same option to `debt --write`. Compare with a sibling repository at a reviewed commit with `cargo raf-census check --reference-repo ../upstream --reference-commit COMMIT`, or name the commit in a pin file with `--reference-pin-file pins.toml --reference-pin-key upstream.rev`. Run `cargo raf-census self-test` in a consumer gate before `check` to prove the installed census still detects seeded copies; it needs no workspace. A library caller uses `Gate::self_test` and reads `SelfTest::passed`, `SelfTest::cases` and its `Display` text. Help describes native migration and explicit debt options.
+Select a workspace with `--workspace DIRECTORY`. Use `cargo raf-census check`, `cargo raf-census index`, `cargo raf-census reference-matches`, `cargo raf-census baseline`, `cargo raf-census job ID`, `cargo raf-census count ID` or `cargo raf-census fingerprint SYMBOL`. Use `--max-index-bytes` to limit the complete index or the selected report. Seal registry dependencies with `cargo raf-census check --seal-registry acme-core --registry-features acme-core=default,std` after `cargo fetch --locked`. Require module paths to stay in their package with `cargo raf-census check --require-module-paths-in-package`, and pass the same option to `debt --write`. Compare with a sibling repository at a reviewed commit with `cargo raf-census check --reference-repo ../upstream --reference-commit COMMIT`, or name the commit in a pin file with `--reference-pin-file pins.toml --reference-pin-key upstream.rev`. Run `cargo raf-census self-test` in a consumer gate before `check` to prove the installed census still detects seeded copies; it needs no workspace. A library caller uses `Gate::self_test` and reads `SelfTest::passed`, `SelfTest::cases` and its `Display` text. Help describes native migration and explicit debt options.
 
 `cargo raf-census embedded report|check` uses the separate source-region analysis.
 `cargo raf-census embedded debt create|shrink` explicitly publishes its independent
@@ -989,6 +1032,7 @@ to a generic owner with changed implicit method parameters.
 | `cargo_raf_census::test_crate::delivery::module_paths_in_package_are_required_by_the_flag_beside_a_clean_run_without_it` | test | [Contract](#contract) |
 | `cargo_raf_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_raf_census::test_crate::delivery::production_lints::default_checks_require_passing_production_evidence_for_the_current_sources_and_policy` | test | [Contract](#contract) |
+| `cargo_raf_census::test_crate::delivery::production_lints::installed_capture_requires_trust_and_writes_only_current_bounded_receipts` | test | [Contract](#contract) |
 | `cargo_raf_census::test_crate::delivery::reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory` | test | [Contract](#contract) |
 | `cargo_raf_census::test_crate::delivery::registered_queries_share_cli_bytes_and_refuse_before_output` | test | [Contract](#contract) |
 | `cargo_raf_census::test_crate::delivery::registry_options_refuse_by_name_without_a_partial_verdict` | test | [Contract](#contract) |
@@ -996,6 +1040,7 @@ to a generic owner with changed implicit method parameters.
 | `cargo_raf_census::test_crate::delivery::report_exports_refuse_source_existing_files_and_git_administration` | test | [Contract](#contract) |
 | `cargo_raf_census::test_crate::delivery::self_test_ignores_the_workspace_flag_even_for_a_path_that_does_not_exist` | test | [Contract](#contract) |
 | `cargo_raf_census::test_crate::delivery::self_test_needs_no_workspace_writes_nothing_and_prints_stable_case_lines` | test | [Contract](#contract) |
+| `cargo_raf_census::test_crate::delivery::visibility_demand_distinguishes_shipping_test_and_incomplete_evidence` | test | [Contract](#contract) |
 | `raf_census::capnp_history::tests::deep_group_findings_refuse_as_a_whole_above_the_payload_limit` | test | [Verification](#verification) |
 | `raf_census::capnp_history::tests::invalid_slot_layouts_and_missing_references_refuse` | test | [Verification](#verification) |
 | `raf_census::capnp_history::tests::required_annotation_refuses_invalid_values_and_undeclared_structs` | test | [Verification](#verification) |

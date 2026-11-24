@@ -13,7 +13,7 @@ use raf_source::{
 };
 
 use super::patterns::charge;
-use super::patterns::paths::{CrossPackagePaths, visibility_resolution, visit};
+use super::patterns::paths::{CrossPackagePaths, UseSite, visibility_resolution, visit};
 use crate::{
     Error, REPORT_FORM, ReportError, VisibilityError,
     report::write::{class, num, put, text},
@@ -21,6 +21,9 @@ use crate::{
 };
 
 type Consumers = BTreeMap<PackageId, BTreeSet<String>>;
+
+mod demand;
+pub use demand::visibility_demand;
 
 struct Library<'w> {
     target: TargetId,
@@ -58,23 +61,8 @@ pub fn visibility(tree: &dyn Tree, root: &RelPath) -> Result<Graph, Error> {
     let workspace = Workspace::load_members(tree, root, &options)?;
     let mut libraries = libraries(&workspace);
     let tiers = dependency_tiers(&workspace, &libraries)?;
-    let code = workspace.code_resolver()?;
     let mut paths = CrossPackagePaths::default();
-    // The whole-workspace observation uses Source's normal query work ceiling.
-    let mut limits = MatchLimits {
-        steps: u64::try_from(options.max_query_work).unwrap_or(u64::MAX),
-        ..MatchLimits::default()
-    };
-    indexed_imports(&workspace, &code, &mut paths, &mut limits)?;
-    for file in workspace.files() {
-        raf_source::parse_source(&file.path, &file.text, |syntax| {
-            visit::references(&workspace, &code, file, syntax, &mut limits, &mut paths)
-        })?
-        .map_err(|source| Error::Input {
-            file: file.path.to_string(),
-            source: Box::new(source),
-        })?;
-    }
+    scan_paths(&workspace, &mut paths, &mut match_limits(&options))?;
     for (id, consumers) in paths.by_item {
         let item = definition(&workspace, id)?;
         let target = workspace.target(item.target).ok_or_else(|| {
@@ -98,6 +86,32 @@ pub fn visibility(tree: &dyn Tree, root: &RelPath) -> Result<Graph, Error> {
     Ok(graph.finish().map_err(ReportError::Ground)?)
 }
 
+fn match_limits(options: &LoadOptions) -> MatchLimits {
+    MatchLimits {
+        steps: u64::try_from(options.max_query_work).unwrap_or(u64::MAX),
+        ..MatchLimits::default()
+    }
+}
+
+fn scan_paths(
+    workspace: &Workspace,
+    paths: &mut CrossPackagePaths,
+    limits: &mut MatchLimits,
+) -> Result<(), Error> {
+    let code = workspace.code_resolver()?;
+    indexed_imports(workspace, &code, paths, limits)?;
+    for file in workspace.files() {
+        raf_source::parse_source(&file.path, &file.text, |syntax| {
+            visit::references(workspace, &code, file, syntax, limits, paths)
+        })?
+        .map_err(|source| Error::Input {
+            file: file.path.to_string(),
+            source: Box::new(source),
+        })?;
+    }
+    Ok(())
+}
+
 fn indexed_imports(
     workspace: &Workspace,
     code: &CodeResolver<'_>,
@@ -106,13 +120,17 @@ fn indexed_imports(
 ) -> Result<(), Error> {
     for import in code.indexed_imports() {
         let (target, file, line) = import.site();
-        let consumer = workspace
-            .target(target)
-            .ok_or_else(|| {
-                Error::Options("visibility: indexed import has no consuming target".into())
-            })?
-            .package_id;
+        let consumer = paths.consumer(workspace, target)?;
         let (segments, absolute, glob, terminal_namespaces) = import.path();
+        let uncertain = paths.demand.is_some()
+            && import.is_conditional().map_err(|source| {
+                Error::Visibility(VisibilityError::Path {
+                    file: file.to_string(),
+                    line,
+                    path: path_text(segments, absolute),
+                    source: Box::new(source),
+                })
+            })?;
         let mut bytes = usize::from(absolute) * 2;
         for (index, segment) in segments.iter().enumerate() {
             let length = index + 1;
@@ -148,7 +166,12 @@ fn indexed_imports(
                             written.clone()
                         };
                         for item in resolution.sites {
-                            paths.record(workspace, consumer, item, &display, limits)?;
+                            let site = UseSite {
+                                target,
+                                test: import.is_test(),
+                                uncertain,
+                            };
+                            paths.record(workspace, site, item, &display, limits)?;
                         }
                     }
                     Ok(None) => {}
@@ -215,6 +238,26 @@ fn package_name(workspace: &Workspace, id: PackageId) -> Result<&str, Error> {
         })
 }
 
+fn exported(workspace: &Workspace, target: TargetId) -> Result<BTreeSet<ItemId>, Error> {
+    let target_info = workspace.target(target).ok_or_else(|| {
+        Error::Options("visibility: report names a missing library target".into())
+    })?;
+    let manifest = workspace.package(target_info.package_id).ok_or_else(|| {
+        Error::Options("visibility: report names a missing workspace package".into())
+    })?;
+    let mut options = ExportOptions::default();
+    options.include_hidden = true;
+    let exports = workspace
+        .exported_items_with(target, &options)
+        .map_err(|source| {
+            Error::Visibility(VisibilityError::Export {
+                manifest: manifest.manifest.to_string(),
+                source: Box::new(source),
+            })
+        })?;
+    Ok(exports.items.into_iter().map(|row| row.item).collect())
+}
+
 fn dependency_tiers(
     workspace: &Workspace,
     libraries: &BTreeMap<PackageId, Library<'_>>,
@@ -275,17 +318,7 @@ impl Library<'_> {
         let manifest = workspace.package(package).ok_or_else(|| {
             Error::Options("visibility: report names a missing workspace package".into())
         })?;
-        let mut options = ExportOptions::default();
-        options.include_hidden = true;
-        let exports = workspace
-            .exported_items_with(self.target, &options)
-            .map_err(|source| {
-                Error::Visibility(VisibilityError::Export {
-                    manifest: manifest.manifest.to_string(),
-                    source: Box::new(source),
-                })
-            })?;
-        let exported: BTreeSet<_> = exports.items.into_iter().map(|row| row.item).collect();
+        let exported = exported(workspace, self.target)?;
         let used: BTreeSet<_> = self.uses.iter().map(|(item, _)| item.id).collect();
         let written: BTreeSet<_> = self
             .uses

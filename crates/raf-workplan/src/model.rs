@@ -106,6 +106,8 @@ pub struct Workplan<'s> {
     pub(crate) capabilities: Vec<Loaded<Capability>>,
     pub(crate) changes: Vec<Loaded<Change>>,
     pub(crate) architecture: Vec<Loaded<Architecture>>,
+    /// Files that declare Architecture in another Workplan directory.
+    pub(crate) misplaced_architecture: BTreeSet<String>,
     pub(crate) evidence: Vec<Loaded<EvidenceRecord>>,
     pub(crate) assessments: Vec<Loaded<AssessmentRecord>>,
     pub(crate) reviews: Vec<Loaded<ReviewRecord>>,
@@ -182,6 +184,7 @@ impl<'s> Workplan<'s> {
             capabilities: Vec::new(),
             changes: Vec::new(),
             architecture: Vec::new(),
+            misplaced_architecture: BTreeSet::new(),
             evidence: Vec::new(),
             assessments: Vec::new(),
             reviews: Vec::new(),
@@ -203,7 +206,10 @@ impl<'s> Workplan<'s> {
 
     /// Record that the file at `path` exists as a document of `doc_type`.
     pub(crate) fn note_present(&mut self, doc_type: DocType, path: &str) {
-        let name = path.rsplit('/').next().unwrap_or(path);
+        let (directory, name) = path.rsplit_once('/').unwrap_or(("", path));
+        if doc_type == DocType::Architecture && directory != doc_type.directory() {
+            self.misplaced_architecture.insert(path.to_string());
+        }
         let stem = name.strip_suffix(".md").unwrap_or(name);
         self.present
             .insert(format!("{}{stem}", doc_type.id_prefix()));

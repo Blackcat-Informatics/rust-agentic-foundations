@@ -25,11 +25,11 @@ mod vocabulary;
 use std::collections::BTreeMap;
 
 use raf_census::{
-    Census, CensusOptions, DebtRecord, FileCtx, Fingerprint, Ledger, LedgerExtension,
-    MAX_LEDGER_BYTES, MatchClass, MigrationInput, NORMAL_FORM, Rule, RuleFixtures, RuleHit,
-    migrate_index,
+    Census, CensusOptions, DebtRecord, Error as CensusError, FileCtx, Fingerprint, Ledger,
+    LedgerExtension, MAX_LEDGER_BYTES, MatchClass, MigrationInput, NORMAL_FORM, ReportError, Rule,
+    RuleFixtures, RuleHit, migrate_index,
 };
-use raf_rdf::{Builder, Format, TermValue as Term, Triple, vocab};
+use raf_rdf::{Builder, Error as RdfError, Format, TermValue as Term, Triple, vocab};
 use raf_source::MemoryTree;
 
 const SOURCE: &str = "/// The one implementation.\npub fn home() -> u32 { 7 }\npub use home as alias;\npub fn copy() -> u32 { 7 + 1 }\n";
@@ -379,7 +379,18 @@ fn ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_nei
     );
     let exact = exact.finish().unwrap().to_text(Format::Turtle).unwrap();
     assert_eq!(exact.len(), MAX_LEDGER_BYTES);
-    Ledger::from_turtle(&exact).unwrap();
+    let set = Ledger::from_turtle(&exact).unwrap();
+    let load_base = |graph: Builder| {
+        Ledger::from_turtle(&graph.finish().unwrap().to_text(Format::Turtle).unwrap()).unwrap()
+    };
+    assert_eq!(load_base(base()).compose_jobs(&[&set]).unwrap(), exact);
+    let mut with_scope = base();
+    put(&mut with_scope, "", "excludeTestItems", Term::boolean(true));
+    assert!(matches!(
+        load_base(with_scope).compose_jobs(&[&set]),
+        Err(CensusError::Report(ReportError::Ground(RdfError::OutputLimit { max_bytes })))
+            if max_bytes == MAX_LEDGER_BYTES
+    ));
 }
 
 fn pattern_fixture_selector(matcher: &str) -> &'static str {
@@ -680,6 +691,101 @@ fn provider_policy(selector: &str, api: &str) -> Builder {
         put(&mut graph, "#provider", key, Term::simple_literal(value));
     }
     graph
+}
+
+/// Reusable jobs keep their complete owned policy. The base alone supplies
+/// workspace options, and one declared identity has exactly one owner.
+#[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "the authored fixture must produce its planned canonical input"
+)]
+fn reusable_jobs_compose_into_the_native_ledger_without_overriding_policy() {
+    let read = |graph: Builder| {
+        let text = graph.finish().unwrap().to_text(Format::Turtle).unwrap();
+        Ledger::from_turtle(&text).unwrap()
+    };
+    let mut workspace = base();
+    put(
+        &mut workspace,
+        "",
+        "minTokens",
+        Term::typed_literal("30", vocab::INTEGER),
+    );
+    let workspace = read(workspace);
+    let old_snapshot = workspace.graph().snapshot().unwrap();
+    let literal_iri = "urn:raf:report:construction#foreign";
+    let authored = read(provider_policy("purrdf-hash", "purrdf_hash::hex::encode"));
+    let mut shared = Builder::from_graph(authored.graph());
+    put(&mut shared, "#job", "extension", Term::iri("#ext"));
+    put(
+        &mut shared,
+        "#ext",
+        "type",
+        Term::iri(format!("{}Extension", vocab::REPORT)),
+    );
+    let evidence = [
+        ("urn:example:base", old_snapshot.as_str()),
+        ("urn:example:foreign", literal_iri),
+    ];
+    for (predicate, object) in evidence {
+        shared
+            .insert(Triple {
+                subject: Term::iri("#ext"),
+                predicate: Term::iri(predicate),
+                object: Term::iri(object),
+            })
+            .unwrap();
+    }
+    let shared = read(shared);
+    let joined = workspace.compose_jobs(&[&shared]).unwrap();
+    let joined = Ledger::from_turtle(&joined).unwrap();
+    assert_eq!(joined.options().min_tokens, 30);
+    assert_eq!(joined.jobs().len(), 1);
+    let job = joined.jobs().first().unwrap();
+    let provider = job.preferred_provider.as_ref().unwrap();
+    assert_eq!(provider.package, "purrdf-hash");
+    assert_eq!(provider.entry_points, ["purrdf_hash::hex::encode"]);
+    assert!(joined.graph().get("#provider").is_some());
+    let extension = joined.extension("#ext").unwrap().get("#ext").unwrap();
+    for (predicate, expected) in evidence {
+        assert_eq!(
+            extension.values(predicate).next().unwrap().iri(),
+            Some(expected)
+        );
+    }
+
+    let overlay = workspace.compose_jobs(&[&workspace]).unwrap_err();
+    assert!(
+        overlay
+            .to_string()
+            .contains("declare workspace policy in the base ledger")
+    );
+    let collision = workspace.compose_jobs(&[&shared, &shared]).unwrap_err();
+    assert!(collision.to_string().contains("ledger job set node"));
+
+    let mut repeated = base();
+    put(&mut repeated, "", "job", Term::iri("#other"));
+    put(
+        &mut repeated,
+        "#other",
+        "type",
+        Term::iri(format!("{}LedgerJob", vocab::REPORT)),
+    );
+    for (key, value) in [
+        ("jobId", "number"),
+        ("summary", "A competing declaration"),
+        ("homeSymbol", "demo::other"),
+    ] {
+        put(&mut repeated, "#other", key, Term::simple_literal(value));
+    }
+    put(&mut repeated, "#other", "enforced", Term::boolean(true));
+    let repeated = read(repeated);
+    assert!(matches!(
+        workspace.compose_jobs(&[&shared, &repeated]),
+        Err(CensusError::Report(ReportError::DuplicateJob(id)))
+            if id == "number"
+    ));
 }
 
 fn configured_provider_gate(

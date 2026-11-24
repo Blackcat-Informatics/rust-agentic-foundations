@@ -7,13 +7,13 @@ subject: cap:rdf-report-profile#explanation
 inputs:
   - kind: section
     name: cap:rdf-report-profile#explanation
-    digest: 23228a26bff86af9f44840c149fb4e03461c969be7725185140e4cd967b8320f
+    digest: b61f2b576d14a022b1933d74ec7d04f776fd7b7845a7bfe5fc9b1c7ed662e844
   - kind: symbol
     name: cargo_raf_workplan::bin_crate::cargo_raf_workplan::result
-    digest: 2a65f107bcd081697c27749bda6dbb1a6fc866372516a95d0a059f200fea9ec3
+    digest: d37bd6f018ed28f7a692ea9bcbce67a6769ecd6633606b307361dc52750160aa
   - kind: symbol
     name: cargo_raf_workplan::bin_crate::cargo_raf_workplan::result_graph
-    digest: 3c4fcd8057f6f530836d57ff77648cf4509e49da9c6f85cc815b9f5dafe88394
+    digest: 412c286093a0ac842d0021f3b1e2203ff7f2f2f27d57d5c552586edfdf671236
   - kind: symbol
     name: raf_census::Baseline::to_ntriples
     digest: 1920b9c5ca3c3355766a338a27dce1589427cbe5da7d42b9c288327b75b77544
@@ -26,6 +26,9 @@ inputs:
   - kind: symbol
     name: raf_census::Ledger::graph
     digest: 4a7292d6ff6e55eab57b060b145c29a95b64f084d955bd9fb918d4c2c8dc5c58
+  - kind: symbol
+    name: raf_census::ReferenceMatchReport
+    digest: 06c62f6fb7991a181db7abca530b50b109f1d1a7a8feb2acfd861daf9a516f81
   - kind: symbol
     name: raf_census::RegisteredCheck::to_ntriples
     digest: 37d277ed92837e1feb152f4518f66cc30aba2e975a29856e155e092d9fd188c7
@@ -51,6 +54,9 @@ inputs:
     name: raf_rdf::Builder
     digest: c40e01dbc48f103c03ffae3dd956b102d2bf164b4b639eb6878d90856aead765
   - kind: symbol
+    name: raf_rdf::Builder::for_import
+    digest: d24444b9171f91ad83b410d005727876187c11b9f866090a02fa6d3d4c3781b8
+  - kind: symbol
     name: raf_rdf::CallerFailure
     digest: 4e04f9704ecde4d349dd769cfbb515753a70375a4cf0a04f1db27e45ad731aa7
   - kind: symbol
@@ -67,13 +73,16 @@ inputs:
     digest: c55feb121a6bf77d3d99731b02b35143c066c1ad8cf0ac7a7fd3fe5f90a03ca8
   - kind: symbol
     name: raf_rdf::Error
-    digest: 1be5ac9d151cdcc0bd301e0bc6e83196ebcd5d2ac0a9287e34931c6e6027d73e
+    digest: 4615a5f557f2179d5b04fede7cf15255648314bec4a4b5328f4f31db07132957
   - kind: symbol
     name: raf_rdf::Format
     digest: f4ca082f4915706ebfbce27f90041b4f67ee70385565087ab7d611843192b455
   - kind: symbol
     name: raf_rdf::Graph
     digest: a5e40c5962425730cc176f11958de153c97e544c7c38b1ab4565e99fde7febf7
+  - kind: symbol
+    name: raf_rdf::Graph::to_text_bounded
+    digest: 5687f0cfc41a8af2ef052a8df470f94b205a8c883daa04e9187faf27209b91bf
   - kind: symbol
     name: raf_rdf::Graph::to_text_with_memory
     digest: b169470b187387132eaa53e56672ef0ab4e9e413d4a8940590ba9bc3f7c0b90b
@@ -91,22 +100,22 @@ inputs:
     digest: 8a1c21bf5d2b16ed72893ae09283a01ddb0af1e798bb379084b5736d49e0b9ae
   - kind: symbol
     name: raf_rdf::graph
-    digest: 01c4051bf6f6667f4a5b30fd836c976b8276203e60b0986ce04320f89cc0b8f2
+    digest: 4da91f228681791a95bd39b8b3eba97658902f60dd8d5d39057323daa83832de
   - kind: symbol
     name: raf_rdf::read
     digest: 1f588d6ccf77423bbd4e52d2be136606aae13ef8dcb8a835c315b603ea74953b
   - kind: symbol
     name: raf_rdf::term
-    digest: 6d30515096ac405b18b67cf0430ed527bd54f6c5f9180121f608544dc3a4bfd6
+    digest: 24c7e042853bc1e9336d6226dc5a232917d59722b3694609a96932aa6edb7aab
   - kind: symbol
     name: raf_rdf::vocab
     digest: 0026d4964ba3d687594782f98f05a89b1cd7e9d29bd10a8a66c51a017a119ab3
   - kind: symbol
     name: raf_rdf::write
-    digest: 203394b9b1956dc052f9d3bb16c1894dc426c1e05a2d462d6f1e63f34786d121
+    digest: 2f6ff13c17cb2c3cdddc90c486cf265433a3734dc502d265113052e81e871ff6
   - kind: symbol
     name: raf_workplan::report
-    digest: 3243b0f487c6dc6944be4ca7185c4d9fd5c325666c866b716fe502898b53e0e4
+    digest: b805181ff1820f0a72658bac514b2ef17b8d88d5a158d24e9a053cbbae0ac84e
 verdict: accepted
 by: agent
 ---

@@ -14,7 +14,7 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 
 use clap::{ArgAction, ArgGroup, Args as ClapArgs, Parser, Subcommand, ValueEnum};
-use raf_okf::{Actor, AssessmentVerdict, DocType, is_kebab};
+use raf_okf::{Actor, AssessmentVerdict, DecisionSectionRef, DocType, is_kebab};
 use raf_workplan::assessment::parse_subject;
 use raf_workplan::diagram::DiagramKind;
 use raf_workplan::history::HISTORY_KINDS;
@@ -446,6 +446,10 @@ pub(crate) enum Change {
 /// The commands under `docs`.
 #[derive(Debug, Clone, PartialEq, Eq, Subcommand)]
 pub(crate) enum Docs {
+    /// Print current Architecture decisions with their authored provenance.
+    CurrentDesign,
+    /// Verify retired decisions and source against a local commit. Writes nothing.
+    Retire(RetireArgs),
     /// Print checked static Markdown for a caller-owned Rustdoc include.
     Fragment(FragmentArgs),
     /// Inspect existing metadata, messages and HTML without building or publishing.
@@ -464,6 +468,25 @@ pub(crate) enum Docs {
     /// Print the capabilities of a change as they read once it is
     /// reconciled. Writes nothing.
     Preview(PreviewArgs),
+}
+
+/// Explicit retirement selection in the authored document and source indices.
+#[derive(Debug, Clone, PartialEq, Eq, ClapArgs)]
+pub(crate) struct RetireArgs {
+    /// HEAD, a full reference or a full commit id in the checkout's history.
+    #[arg(long, value_name = "REV", value_parser = word)]
+    pub(crate) base: String,
+    /// One retired Architecture section. Repeat for each section.
+    #[arg(long = "section", required = true, value_name = "arch:<slug>#<section>", value_parser = decision_section)]
+    pub(crate) sections: Vec<DecisionSectionRef>,
+    /// One associated definition by its full indexed path. Repeat as needed.
+    #[arg(long = "definition", value_name = "PATH", value_parser = word)]
+    pub(crate) definitions: Vec<String>,
+}
+
+fn decision_section(text: &str) -> Result<DecisionSectionRef, &'static str> {
+    DecisionSectionRef::parse(text)
+        .ok_or("use a named Architecture section as arch:<slug>#<section>")
 }
 
 /// Explicit static source, diagram and imported Cargo identity selection.

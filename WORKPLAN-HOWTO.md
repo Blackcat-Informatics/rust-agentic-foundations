@@ -7,13 +7,11 @@ Workplan answers two questions about a documented guarantee. Does its named impl
 
 ## Install the command
 
-On native Linux with Rust 1.98.1 or newer, resolve RAF's published main revision once. Save the full commit identifier for developer machines, CI and the dev-dependency. When reading this guide at a specific revision, set `RAF_REV` to that commit instead.
+On native Linux with Rust 1.98.1 or newer, install Workplan from crates.io. Use the same exact RAF version for the command and the dev-dependency on developer machines and in CI.
 
 ```sh
-RAF_URL=https://github.com/Blackcat-Informatics/rust-agentic-foundations.git
-RAF_REF=$(git ls-remote --exit-code "$RAF_URL" refs/heads/main) || exit 1
-RAF_REV=${RAF_REF%%[[:space:]]*}
-cargo install --locked --git "$RAF_URL" --rev "$RAF_REV" cargo-raf-workplan
+RAF_VERSION=0.8.1
+cargo install --locked --version "=$RAF_VERSION" cargo-raf-workplan
 ```
 
 Make sure Cargo's install directory (normally `$HOME/.cargo/bin`) is on `PATH`. Run the commands below from your workspace root. From another directory, pass the root itself, for example `cargo raf-workplan --root /path/to/workspace check`.
@@ -140,7 +138,7 @@ Use your project's copyright and documentation licence. Sync creates `docs/capab
 For a package at the workspace root, add the library to its `Cargo.toml` and use this integration test. In a virtual workspace, put the dev-dependency in a member package and pass the directory containing the workspace's `docs/capabilities` to `Gate::workspace`.
 
 ```sh
-cargo add --dev raf-workplan --git "$RAF_URL" --rev "$RAF_REV"
+cargo add --dev "raf-workplan@=$RAF_VERSION"
 ```
 
 ```rust
@@ -170,7 +168,9 @@ cargo raf-workplan impact --base HEAD
 
 Use `HEAD` for uncommitted work, a full commit identifier for a fixed comparison, or a full reference such as `refs/remotes/origin/main`. Follow each changed symbol through its printed binding to the capability sections, guarantees and evidence to review. Read `named` as a full path or multi-segment suffix and `weak-name` as a short name shared by potentially different items. The `all-code-bindings` label identifies a section or guarantee whose prose names no code binding strongly. Each binding identifies whether it came from the checkout or the base. A changed public item without a current code owner identifies a gap in the capability bindings.
 
-With the initial documents committed, open a change against the capability and name each affected section. Reconciliation reads the merge base with the symbolic default branch `refs/remotes/origin/HEAD`. Use a clone that has that reference and the necessary commit history.
+With the initial documents committed, open a change against the capability and name each affected section. Reconciliation reads the merge base with the symbolic default branch `refs/remotes/origin/HEAD`. The target reference and its commit history must already be available locally. An absent or direct reference fails with `the repository has no symbolic origin default branch`.
+
+For a remote named `origin`, run `git remote set-head origin --auto` after fetching its default branch. If the remote has another name, set the reference directly to its tracked default branch. For example, when `upstream/main` is already available, run `git symbolic-ref refs/remotes/origin/HEAD refs/remotes/upstream/main`. Workplan reads the symbolic reference and the local commits without fetching.
 
 ```sh
 cargo raf-workplan change new port-range --capability cap:next-port \

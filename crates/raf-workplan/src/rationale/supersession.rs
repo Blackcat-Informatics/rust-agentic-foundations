@@ -3,9 +3,9 @@
 
 //! Validate the explicitly declared replacements of named decision sections.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-use raf_okf::{Architecture, Body, Entry, Location};
+use raf_okf::{Architecture, Body, Entry, Heading, Location};
 
 use super::DECISION;
 use crate::finding::kind;
@@ -14,6 +14,16 @@ use crate::{Finding, Loaded, Workplan};
 
 type Section<'a> = (&'a str, &'a str);
 type Replacements<'a> = BTreeMap<Section<'a>, (&'a str, usize, Vec<Section<'a>>)>;
+
+/// The targets of every admitted edge, including edges from historical sections.
+pub(crate) fn historical<'a>(plan: &'a Workplan<'_>) -> BTreeSet<Section<'a>> {
+    plan.architecture()
+        .iter()
+        .flat_map(|page| &page.value().supersedes)
+        .flat_map(raf_okf::DecisionSupersession::targets)
+        .map(|target| (target.architecture(), target.section()))
+        .collect()
+}
 
 #[derive(Default)]
 enum Endpoint {
@@ -57,10 +67,9 @@ pub(super) fn check(plan: &Workplan<'_>, findings: &mut Vec<Finding>) {
     check_cycles(&replacements, findings);
 }
 
-fn read_headings(body: &Body, sections: &mut BTreeMap<&str, Endpoint>) {
-    let mut in_decision = false;
+pub(super) fn headings_with_authorship(body: &Body) -> impl Iterator<Item = (&Heading, bool)> {
     let mut generated = body.generated_blocks().iter().peekable();
-    for heading in body.headings() {
+    body.headings().iter().map(move |heading| {
         while generated
             .peek()
             .is_some_and(|block| block.outer().lines.end <= heading.line())
@@ -70,6 +79,13 @@ fn read_headings(body: &Body, sections: &mut BTreeMap<&str, Endpoint>) {
         let authored = !generated
             .peek()
             .is_some_and(|block| block.outer().lines.contains(&heading.line()));
+        (heading, authored)
+    })
+}
+
+fn read_headings(body: &Body, sections: &mut BTreeMap<&str, Endpoint>) {
+    let mut in_decision = false;
+    for (heading, authored) in headings_with_authorship(body) {
         if authored && heading.level() <= 2 {
             in_decision = heading.level() == 2 && heading.text() == DECISION;
         }

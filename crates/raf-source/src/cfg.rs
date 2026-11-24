@@ -13,6 +13,27 @@ use syn::parse::Parser as _;
 use syn::punctuated::Punctuated;
 use syn::{Expr, ExprLit, Lit, Meta, Token};
 
+/// Whether the contents of a `cfg(...)` attribute imply a test build.
+///
+/// Use this inside a [`parse_source`](crate::parse_source) visitor with tokens
+/// borrowed from the guarded syntax tree. Predicate parsing and classification
+/// recurse within the depth and stack bounds established for that tree.
+/// # Errors
+/// Refuses malformed syntax or an invalid operator in a configuration predicate.
+pub fn cfg_requires_test(tokens: &proc_macro2::TokenStream) -> Result<bool, String> {
+    parse_predicate(tokens).map(|predicate| {
+        predicate.known_for_test(false) == Some(false)
+            && predicate.known_for_test(true) != Some(false)
+    })
+}
+
+pub(crate) fn parse_predicate(tokens: &proc_macro2::TokenStream) -> Result<CfgExpr, String> {
+    let meta = parse_meta
+        .parse2(tokens.clone())
+        .map_err(|error| error.to_string())?;
+    CfgExpr::from_meta(&meta)
+}
+
 /// A parsed `cfg` predicate.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum CfgExpr {
@@ -31,6 +52,40 @@ pub(crate) enum CfgExpr {
 }
 
 impl CfgExpr {
+    /// Whether this condition applies a `cfg` guard that excludes shipping.
+    /// The declaration remains possible in tests if the condition can be
+    /// inactive or the applied guard can admit it there.
+    pub(crate) fn cfg_attr_requires_test(&self, guard: &Self) -> bool {
+        self.known_for_test(false) == Some(true)
+            && guard.known_for_test(false) == Some(false)
+            && (self.known_for_test(true) != Some(true)
+                || guard.known_for_test(true) != Some(false))
+    }
+
+    /// A definite result after substituting the test flag alone.
+    fn known_for_test(&self, enabled: bool) -> Option<bool> {
+        match self {
+            Self::Boolean(value) => Some(*value),
+            Self::Test => Some(enabled),
+            Self::Not(predicate) => predicate.known_for_test(enabled).map(|value| !value),
+            Self::All(operands) => Self::known_junction(operands, enabled, true),
+            Self::Any(operands) => Self::known_junction(operands, enabled, false),
+            Self::Other(_) => None,
+        }
+    }
+
+    fn known_junction(operands: &[Self], enabled: bool, identity: bool) -> Option<bool> {
+        let mut known = Some(identity);
+        for predicate in operands {
+            match predicate.known_for_test(enabled) {
+                Some(value) if value != identity => return Some(value),
+                None => known = None,
+                Some(_) => {}
+            }
+        }
+        known
+    }
+
     /// True when the predicate holds only in a test build.
     ///
     /// `test` does; `all(..)` does when any operand does; `any(..)` does when

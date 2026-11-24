@@ -3,10 +3,12 @@
 
 //! Closed reference receipts and full cross-boundary fingerprint witnesses.
 
-use super::{Index, IndexUnit, MemberRow, ReportError as E, mint, shape, write};
+use super::projection::{Evidence, Sites, UnitRef, member_site, required_unit, site_id};
+use super::{MemberRow, ReportError as E, mint, shape, write};
 use crate::{Fingerprint, GroupKind};
 use purrdf_lex::allocation::{Memory, OrderedTable, Resident};
 use raf_rdf::{Builder, Graph, TermValue as Term};
+use std::collections::BTreeSet;
 
 /// Manifest-verified dependency identity, with its precise observation boundary.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -139,7 +141,7 @@ pub struct ReferenceWitness {
 }
 
 fn site(row: &MemberRow) -> String {
-    mint::unit(&row.symbol, &row.file, row.line, row.start_byte)
+    site_id(member_site(row))
 }
 pub(super) fn witness_id(row: &ReferenceWitness) -> String {
     format!(
@@ -152,14 +154,18 @@ pub(super) fn witness_id(row: &ReferenceWitness) -> String {
 
 pub(super) fn source(graph: &mut Builder, source: &ReferenceSource) -> Result<(), E> {
     let id = source.identity()?;
-    write::class(graph, &id, "ReferenceSource")?;
+    source_at(graph, &id, source)
+}
+
+pub(super) fn source_at(graph: &mut Builder, id: &str, source: &ReferenceSource) -> Result<(), E> {
+    write::class(graph, id, "ReferenceSource")?;
     for (key, value) in source.fields() {
-        write::text(graph, &id, key, value)?;
+        write::text(graph, id, key, value)?;
     }
     Ok(())
 }
 
-pub(super) fn witness(graph: &mut Builder, row: &ReferenceWitness, nf: u32) -> Result<(), E> {
+pub(super) fn witness(graph: &mut Builder, row: &ReferenceWitness, nf: u32) -> Result<String, E> {
     let id = witness_id(row);
     write::class(graph, &id, "ReferenceWitness")?;
     write::put(graph, &id, "consumer", Term::iri(site(&row.consumer)))?;
@@ -169,7 +175,8 @@ pub(super) fn witness(graph: &mut Builder, row: &ReferenceWitness, nf: u32) -> R
         &id,
         "fingerprint",
         write::fingerprint(&row.fingerprint, nf)?,
-    )
+    )?;
+    Ok(id)
 }
 
 pub(super) fn constant_id(value: u128) -> String {
@@ -307,7 +314,7 @@ fn validate_constant(graph: &Graph, id: &str, node: &raf_rdf::Node<'_>) -> Resul
     Ok(())
 }
 
-pub(super) fn validate(graph: &Graph, nf: u32) -> Result<(), E> {
+pub(super) fn validate(graph: &Graph, nf: u32, used_receipts: &BTreeSet<&str>) -> Result<(), E> {
     for (id, node) in graph.nodes() {
         match shape::class(&node)? {
             "Unit" => validate_unit(graph, &node)?,
@@ -315,10 +322,7 @@ pub(super) fn validate(graph: &Graph, nf: u32) -> Result<(), E> {
                 if read_source(&node)?.identity()? != id {
                     return Err(E::Name(id));
                 }
-                if !graph.nodes().any(|(_, unit)| {
-                    unit.values(&shape::property("referenceSource"))
-                        .any(|value| value.iri() == Some(id.as_str()))
-                }) {
+                if !used_receipts.contains(id.as_str()) {
                     return Err(E::Orphan(id));
                 }
             }
@@ -397,65 +401,66 @@ pub(super) fn validate(graph: &Graph, nf: u32) -> Result<(), E> {
 }
 
 pub(super) fn project(
-    index: &Index,
+    evidence: &Evidence<'_>,
     graph: &mut Builder,
-    selected: &[&IndexUnit],
+    selected: &Sites<'_>,
 ) -> Result<(), E> {
     let mut resident = Resident;
     let mut memory = Memory::new(&mut resident);
-    let mut selected_sites = OrderedTable::default();
-    for unit in selected {
-        selected_sites
-            .insert(
-                mint::unit(&unit.symbol, &unit.file, unit.line, unit.start_byte),
-                (),
-                &mut memory,
-            )
-            .map_err(E::Storage)?;
+    let mut extra = Sites::default();
+    for row in evidence.witnesses {
+        let endpoints = [member_site(&row.consumer), member_site(&row.reference)];
+        if endpoints.iter().any(|site| selected.get(site).is_some()) {
+            for site in endpoints {
+                if selected.get(&site).is_none() {
+                    extra.insert(site, None, &mut memory).map_err(E::Storage)?;
+                }
+            }
+            witness(graph, row, evidence.normal_form)?;
+        }
     }
-    let mut witnesses = Vec::new();
-    for row in index.reference_witnesses.iter().filter(|row| {
-        selected_sites.get(&site(&row.consumer)).is_some()
-            || selected_sites.get(&site(&row.reference)).is_some()
-    }) {
-        memory.push(&mut witnesses, row).map_err(E::Storage)?;
-    }
-    let mut needed = selected_sites;
-    for row in &witnesses {
-        needed
-            .insert(site(&row.consumer), (), &mut memory)
-            .map_err(E::Storage)?;
-        needed
-            .insert(site(&row.reference), (), &mut memory)
-            .map_err(E::Storage)?;
-    }
+    evidence.locate(&mut extra)?;
+    project_units(
+        evidence,
+        graph,
+        selected
+            .iter()
+            .chain(extra.iter())
+            .map(|(site, unit)| required_unit(*site, *unit)),
+    )
+}
+
+pub(super) fn project_units<'a>(
+    evidence: &Evidence<'_>,
+    graph: &mut Builder,
+    units: impl Iterator<Item = Result<UnitRef<'a>, E>>,
+) -> Result<(), E> {
+    let mut resident = Resident;
+    let mut memory = Memory::new(&mut resident);
     let mut sources = OrderedTable::default();
-    for unit in &index.units {
-        let id = mint::unit(&unit.symbol, &unit.file, unit.line, unit.start_byte);
-        if needed.get(&id).is_none() {
-            continue;
-        }
-        if !write::has_unit(graph, &id)? {
-            write::index_unit(graph, unit, index.normal_form)?;
-        }
-        if let Some(source) = &unit.reference_source {
+    for unit in units {
+        let unit = unit?;
+        write::index_unit(graph, unit, evidence.normal_form)?;
+        if let Some(source) = unit.source() {
             sources
-                .insert(source.as_str(), (), &mut memory)
+                .insert(source, None, &mut memory)
                 .map_err(E::Storage)?;
         }
     }
-    for (source_id, ()) in sources.ordered() {
-        let mut matched = None;
-        for receipt in &index.reference_sources {
-            if receipt.identity()? == *source_id && matched.replace(receipt).is_some() {
-                return Err(E::Repeated((*source_id).into()));
-            }
-        }
-        let receipt = matched.ok_or_else(|| E::Dangling((*source_id).into()))?;
-        source(graph, receipt)?;
+    if sources.is_empty() {
+        return Ok(());
     }
-    for row in witnesses {
-        witness(graph, row, index.normal_form)?;
+    for receipt in evidence.sources {
+        let id = receipt.identity()?;
+        if let Some(matched) = sources.get_mut_by(|known| id.as_str().cmp(known))
+            && matched.replace(receipt).is_some()
+        {
+            return Err(E::Repeated(id));
+        }
+    }
+    for (id, matched) in sources.ordered() {
+        let receipt = matched.ok_or_else(|| E::Dangling((*id).into()))?;
+        source_at(graph, id, receipt)?;
     }
     Ok(())
 }

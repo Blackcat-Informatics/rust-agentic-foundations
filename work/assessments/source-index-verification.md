@@ -7,7 +7,7 @@ subject: cap:source-index#verification
 inputs:
   - kind: section
     name: cap:source-index#verification
-    digest: 62dbcf89b9e1cd26a0e4621db3d4dc5189222c0965d2f4c3659beaafcf053ced
+    digest: 20032ec5cd53571c37e43e22b6ceabde8abafe0e1de7e3f4113a225d41378007
   - kind: symbol
     name: raf_source::Budget
     digest: eaf4b98235a1475e23571f116bcdbbbb184db7eece60705c87acbeec0929c8a7
@@ -52,7 +52,7 @@ inputs:
     digest: 0e20285426d60116d397c17add6c629f1d96ef51fe7b86825b1fa6392bf60d99
   - kind: symbol
     name: raf_source::Reexport
-    digest: eefa4b17f47deca46fecdbdaaf325fc81471407cf37f64143beb42ad594b37e2
+    digest: 572d6a1c9f58f23d9a78d008f25ae9c3f26caf7f6d316217e853eeb94435acbf
   - kind: symbol
     name: raf_source::ResolveError
     digest: d34d8f56750217db463245e918fcf11e1dfba256d4a196ddd24e1007e2c6aa64
@@ -62,6 +62,9 @@ inputs:
   - kind: symbol
     name: raf_source::SpanFact
     digest: 3f34e87a61bc5e0b6a2613773985e4d63380fe7f5f67c04bf0dfecc11521c957
+  - kind: symbol
+    name: raf_source::StandardType::path
+    digest: 32935cfbdd6ae96abc26e8051650d785a1b8e9e62fef8bc270844863866b08aa
   - kind: symbol
     name: raf_source::Target
     digest: 3454a0071bcf114c264df5fd7d44d375e85b7fff9da793969fdaeea9c5ed78b0
@@ -103,7 +106,7 @@ inputs:
     digest: b8b5f637a14a46e6d191d1b38cfa7f9558663d1cb966c5ca1dae800c716201dd
   - kind: symbol
     name: raf_source::code
-    digest: f55f203e4e83eaab48e4e8ae2699342e31281d54a4ff593d1688bff8a748e6cb
+    digest: f113ec8144a833c8b16d533e464e3925411749990b5ba50339f88f8340988a0b
   - kind: symbol
     name: raf_source::parse_source
     digest: 56820f7a2c8dfe74a54889085db72458faf088b2c522d0292f8e6b1f5940e95a

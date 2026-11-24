@@ -29,7 +29,8 @@ bindings:
     - raf_rdf::ConstructionStopped
     - raf_rdf::ImportFailure
     - raf_rdf::Graph::to_text_with_memory
-    - raf_rdf::Builder
+    - raf_rdf::Graph::to_text_bounded
+    - raf_rdf::Builder::for_import
     - raf_rdf::Node
     - raf_rdf::Value
     - raf_rdf::Triple
@@ -41,9 +42,12 @@ bindings:
     - raf_census::Ledger::graph
     - raf_census::RegisteredCheck::to_ntriples
     - raf_census::RegisteredDebtWrite::to_ntriples
+    - raf_census::ReferenceMatchReport
     - cargo_raf_workplan::bin_crate::cargo_raf_workplan::result
     - cargo_raf_workplan::bin_crate::cargo_raf_workplan::result_graph
   tests:
+    - raf_census::test_crate::census_gate::reusable_jobs_compose_into_the_native_ledger_without_overriding_policy
+    - cargo_raf_census::test_crate::delivery::reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory
     - raf_census::test_crate::reports::report_form_five_conversion_checks_original_digest_and_literal_bytes
     - raf_census::embedded::debt::tests::descriptors_and_debt_tables_share_exact_grants_and_release_failed_projection_storage
     - cargo_raf_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone
@@ -130,6 +134,12 @@ native `Value` views. Interning an object or predicate does not create a subject
 RAF retains no parallel assertion map. A statement repeated across physical
 native representations is refused rather than silently dropped.
 
+`Builder::for_import` chooses an unused construction owner from the supplied
+graphs when assembling normalized assertions. Their local roots and fragments
+belong to the new graph, and absolute IRIs and datatypes retain their existing
+identities, including those that name the ordinary construction namespace.
+<!-- raf:tested-by raf_census::test_crate::census_gate::reusable_jobs_compose_into_the_native_ledger_without_overriding_policy -->
+
 `Node::objects` streams borrowed outgoing objects from the same native subject
 query, including reifier and annotation assertions. It yields each whole object;
 a triple term's components remain available through `Value::quoted`. Predicate
@@ -188,6 +198,8 @@ unchanged to the consumer's validator, so they carry no engine vocabulary.
 | `JobQuery` | `normalForm`, `reportForm` integers; selected `jobId` string; exactly one `job` link to its complete job |
 | `CountQuery` | `normalForm`, `reportForm` integers; selected `jobId` string; `copies` nonnegative integer |
 | `FingerprintQuery` | `normalForm`, `reportForm` integers; selected `symbol` string; one or more `member` links to every matching physical unit |
+| `ReferenceMatches` | `normalForm`, `reportForm` integers; optional `witness` links to committed Git reference witnesses; optional `matchRole` links to selected roles |
+| `ReferenceMatchRole` | `jobId` string; `member` link to a witness endpoint; `matchClass` match-role IRI |
 | `BodyGroup`, `ShimGroup` | `fingerprint` normal-form fingerprint IRI; `tokens` integer; `member` links to units |
 | `Unit` | `symbol`, `file` strings; `line` positive integer; `startByte` nonnegative integer; index units also carry `package` string, `tokens` integer and `shipping` boolean; optional `body`, `shim` fingerprint IRIs; `holds` links to hexadecimal-table IRIs; optional `referenceSource` receipt link |
 | `ReferenceSource` | `package`, `version`, `sourceKind`, `repository`, `selector`, `revision`, `manifest`, `checksum`, `observation` strings; identity is its native RDF snapshot |
@@ -287,6 +299,13 @@ these renderer accounts. Ordinary serialization uses the same implementation
 with resident allocation and identical canonical bytes.
 <!-- raf:tested-by raf_census::embedded::debt::tests::descriptors_and_debt_tables_share_exact_grants_and_release_failed_projection_storage,raf_rdf::test_crate::profile::ingestion_order_does_not_change_either_format_or_snapshot,raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip -->
 
+`Graph::to_text_bounded` caps the emitted UTF-8 bytes of the requested
+carrier. N-Triples feeds the normalized identity bytes directly to the
+hasher and bounds the expanded output. Turtle includes the BASE directive
+in the bound. An oversized report returns a typed limit error before any
+text is returned to the caller.
+<!-- raf:tested-by cargo_raf_census::test_crate::delivery::reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory -->
+
 ### Equivalent formats and owned names
 <!-- raf:tested-by raf_rdf::test_crate::profile::ingestion_order_does_not_change_either_format_or_snapshot,raf_rdf::read::tests::ownership_normalization_checks_the_selected_root_boundary,raf_rdf::test_crate::profile::an_external_iri_sharing_a_snapshot_prefix_is_not_local -->
 
@@ -385,6 +404,10 @@ exact string data. The command root remains the `Report` above, with
 `reportForm` 1. These typed results do not introduce a generic object/array value
 or a string containing another machine serialization.
 
+A `Retirement` result carries its pinned base and ordered section and definition
+recovery locations. Each location gives its original identity, blob path and
+inclusive line numbers in that commit.
+
 | Command class | Properties and object types |
 |---|---|
 | `Rewritten` | `path` string |
@@ -404,6 +427,9 @@ or a string containing another machine serialization.
 | `Guidance` | `capability`, `state`, `advice` strings |
 | `Impact` | `change` string; `capability` ordered `CapabilityReference` nodes; `section` ordered `SectionReference` nodes; `binding` ordered `BindingResolution` nodes; `dependant` ordered `Dependant` nodes; `link` ordered `SectionLink` nodes |
 | `SourceImpact` | `base` commit id and ordered `symbol` children of type `ChangedSymbol` |
+| `Retirement` | `base` commit id and ordered `section` and `definition` children of types `RetiredSection` and `RetiredDefinition` |
+| `RetiredSection` | `id` decision section reference, `path` blob path, inclusive `first` and `last` line integers |
+| `RetiredDefinition` | `id` full source index path, `path` blob path, inclusive `first` and `last` line integers |
 | `ChangedSymbol` | `path` and `change` strings, `public` and `unowned` booleans, ordered `binding` children of type `ImpactBinding` |
 | `ImpactBinding` | `capability`, `list` and `path` strings, `atBase` boolean indicating historical declarations, ordered `section` children of type `SectionImpact` |
 | `SectionImpact` | `subject` and `reason` strings, ordered `guarantee`, `test`, `example` and `assessment` children of types `GuaranteeReference`, `TestReference`, `ExampleReference` and `AssessmentReference` |
@@ -629,8 +655,10 @@ Census's baseline and index expose `to_turtle`, `from_turtle`, `to_ntriples` and
 
 PurRDF parses the input before closed profile validation; the profile does not
 impose a parser allocation or stack budget. Native indexes and canonical sorting
-also contribute to reader cost. Rendering retains normalized text for its hash.
-Its explicit accounts cover working storage, native traversal and output;
+also contribute to reader cost. Bounded N-Triples rendering hashes normalized
+bytes directly. Ordinary rendering and bounded Turtle rendering retain the
+normalized text. The explicit accounts cover working storage, native traversal
+and output;
 resident conveniences impose no allocation ceiling. This layer does not load
 files or admit a filesystem load
 budget; consumers enforce source/report input admission limits before supplying
@@ -660,14 +688,14 @@ The command completion cases retain the removed record path and static refusal
 conditions in both native RDF carriers.
 <!-- raf:tested-by cargo_raf_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
 
-The existing Census scalar-report case emits JobQuery, CountQuery and
-FingerprintQuery in both canonical formats. Exact inventory comparison includes
-each new class and property alongside complete Index and Baseline graphs;
-selected-result readers independently enforce their closed domain shapes.
+The Census scalar-report case emits JobQuery, CountQuery and FingerprintQuery in
+both canonical formats. The report inventory comparison includes
+ReferenceMatches alongside complete Index and Baseline graphs. Each
+selected-result reader enforces its closed domain shape.
 <!-- raf:tested-by raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats -->
 
-A reader case gives the Ledger, Baseline, Index, DebtRecord and query readers,
-in both carriers, a record with one property outside the vocabulary, in the
+A reader case gives the Ledger, Baseline, Index, DebtRecord, ReferenceMatches
+and query readers, in both carriers, a record with one property outside the vocabulary, in the
 census namespace and in a foreign one, on one node of each class the reader
 admits. Every node of a class passes through the same validation, so the
 parses grow with the classes and not with the size of a record. The classes
@@ -726,6 +754,7 @@ retains its separate semantic and normal-form golden checks.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
+| `cargo_raf_census::test_crate::delivery::reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory` | test | [Contract](#contract) |
 | `cargo_raf_workplan::bin_crate::cargo_raf_workplan::result_graph::tests::actual_reach_budget_refusal_projects_a_lines_error_without_partial_rows` | test | [Contract](#contract) |
 | `cargo_raf_workplan::test_crate::assess::moved_inputs_preserve_raw_unresolved_reasons_only_for_unresolved_changes` | test | [Verification](#verification) |
 | `cargo_raf_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
@@ -734,6 +763,7 @@ retains its separate semantic and normal-form golden checks.
 | `raf_census::embedded::debt::tests::descriptors_and_debt_tables_share_exact_grants_and_release_failed_projection_storage` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
+| `raf_census::test_crate::census_gate::reusable_jobs_compose_into_the_native_ledger_without_overriding_policy` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::written_receiver_method_selector_refuses_non_nominal_and_malformed_paths` | test | [Contract](#contract) |
 | `raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_census::test_crate::reports::every_report_reader_refuses_a_property_outside_its_vocabulary_by_name` | test | [Contract](#contract) |

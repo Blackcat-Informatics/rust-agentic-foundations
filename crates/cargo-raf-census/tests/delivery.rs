@@ -2707,6 +2707,362 @@ fn visibility_value<'a>(node: raf_rdf::Node<'a>, key: &str) -> &'a str {
         .0
 }
 
+fn write_demand_fixture(root: &Path) {
+    files::write(
+        root,
+        &[
+            (
+                "Cargo.toml",
+                "[workspace]\nresolver='3'\nmembers=['base','bridge','client','test-support']\n",
+            ),
+            (
+                "base/Cargo.toml",
+                "[package]\nname='base'\nversion='0.1.0'\nedition='2024'\n",
+            ),
+            (
+                "base/src/lib.rs",
+                "mod implementation { pub fn shared() {} }\n\
+            pub use implementation::shared as entry;\n\
+            pub fn test_only() {}\n\
+            pub fn same_package() {}\n\
+            pub fn conditional_feature() {}\n\
+            pub fn conditional_alias() {}\n\
+            pub mod exports { pub fn glob_selected() {} pub fn stable_glob() {} }\n\
+            pub fn disabled_only() {}\n\
+            pub fn local_only() {}\n\
+            pub fn local() { local_only(); }\n\
+            pub mod controls {\n\
+                pub fn match_ready() -> bool { true }\n\
+                pub fn shipping() {}\n\
+                pub fn parameter_shipping() {}\n\
+                pub fn overshadowed() {}\n\
+                pub const K: u8 = 0;\n\
+                pub mod chained { pub fn path_use() {} }\n\
+            }\n\
+            pub mod alternative { pub fn overshadowed() {} }\n\
+            pub mod paths_guarded { pub use crate::controls::chained as chain; }\n\
+            pub mod paths_unconditional { pub use crate::controls::chained as chain; }\n\
+            pub mod root_route { pub use crate::paths_unconditional as provider; }\n\
+            pub struct Model;\n\
+            impl Model { pub fn implicit(&self) {} }\n",
+            ),
+            (
+                "base/src/bin/own.rs",
+                "fn main() { base::same_package(); }\n",
+            ),
+            (
+                "bridge/Cargo.toml",
+                "[package]\nname='bridge'\nversion='0.1.0'\nedition='2024'\n\
+            [dependencies]\nbase={path='../base'}\n",
+            ),
+            (
+                "bridge/src/lib.rs",
+                "pub use base::entry as forward;\npub use base::exports;\n",
+            ),
+            (
+                "test-support/Cargo.toml",
+                "[package]\nname='test-support'\nversion='0.1.0'\nedition='2024'\n",
+            ),
+            (
+                "client/Cargo.toml",
+                "[package]\nname='client'\nversion='0.1.0'\nedition='2024'\n\
+            [dependencies]\nbase={path='../base'}\nbridge={path='../bridge'}\n\
+            [dev-dependencies]\ntest-support={path='../test-support'}\n\
+            [features]\noptional=[]\n",
+            ),
+            (
+                "client/src/lib.rs",
+                "pub fn library() { bridge::forward(); base::Model.implicit(); }\n\
+            pub fn conditional() { #[cfg(test)] use test_support::guarded; }\n\
+            pub fn compound() { #[cfg(all(test, target_os = \"linux\"))] use test_support::compound_guarded; }\n\
+            pub fn negated() { #[cfg(not(not(test)))] use test_support::negated_guarded; }\n\
+            mod guards;\n\
+            pub fn mixed_preludes() {\n\
+                drop(());\n\
+                #[cfg(test)] use test_support::api::*;\n\
+                #[cfg(test)] ping();\n\
+            }\n\
+            fn selected() {}\n\
+            mod guarded_module { pub(super) fn glob_selected() {} }\n\
+            pub fn alias() {\n\
+                #[cfg(any())] use base::disabled_only as selected;\n\
+                #[cfg(feature = \"optional\")] use base::conditional_alias as selected; selected();\n\
+                #[cfg(feature = \"optional\")] use base::exports as guarded_module;\n\
+                use guarded_module::*; glob_selected();\n\
+            }\n\
+            pub fn equivalent_globs() {\n\
+                use base::exports::*;\n\
+                #[cfg(feature = \"optional\")] use bridge::exports::*;\n\
+                stable_glob();\n\
+            }\n\
+            #[cfg(any())] fn disabled() { base::disabled_only(); }\n\
+            #[cfg(feature = \"optional\")] mod optional;\n\
+            #[cfg(test)] mod tests { use base::test_only; fn call() { test_only(); } }\n",
+            ),
+            ("client/src/main.rs", "fn main() { bridge::forward(); }\n"),
+            (
+                "client/tests/integration.rs",
+                "#[test] fn test() { bridge::forward(); base::test_only(); }\n",
+            ),
+        ],
+    );
+    files::write(root, DEMAND_GUARD_SOURCES);
+}
+
+const DEMAND_GUARD_SOURCES: &[(&str, &str)] = &[
+    (
+        "test-support/src/lib.rs",
+        "pub fn guarded() {}\npub fn compound_guarded() {}\npub fn negated_guarded() {}\npub mod api { pub fn ping() {} }\n",
+    ),
+    (
+        "client/src/optional.rs",
+        "use base::conditional_feature; pub fn call() { conditional_feature(); }\n",
+    ),
+    (
+        "client/src/guards.rs",
+        "pub fn test_local() {\n\
+            use base::controls::*;\n\
+            #[cfg(test)] let shipping = || ();\n\
+            shipping();\n\
+            #[cfg(test)] shipping();\n\
+            #[cfg(test)] let K = 1u8 else { return; };\n\
+        }\n\
+        mod parameter_case {\n\
+            use base::controls::*;\n\
+            pub fn test_parameter(#[cfg(test)] parameter_shipping: fn()) {\n\
+                parameter_shipping();\n\
+                #[cfg(test)] parameter_shipping();\n\
+            }\n\
+        }\n\
+        pub fn arm_guard() {\n\
+            match Some(()) { Some(_) if base::controls::match_ready() => {}, _ => {} }\n\
+        }\n\
+        pub fn selected_glob() {\n\
+            #[cfg(feature = \"optional\")] use base::alternative::overshadowed;\n\
+            { use base::controls::*; overshadowed(); }\n\
+        }\n\
+        pub fn settled_glob() {\n\
+            #[cfg(feature = \"optional\")] use base::paths_guarded::*;\n\
+            use chain::*;\n\
+            use provider::*;\n\
+            use base::root_route::*;\n\
+            path_use();\n\
+        }\n",
+    ),
+];
+
+/// Keep each consumer's target and test reach visible through a re-export.
+/// Unresolved dot calls and macros remain evidence gaps.
+#[test]
+#[expect(clippy::unwrap_used, reason = "every fixture operation must succeed")]
+fn visibility_demand_distinguishes_shipping_test_and_incomplete_evidence() {
+    let scratch = purrdf_testkit::TempDir::new_in(Path::new(env!("CARGO_TARGET_TMPDIR"))).unwrap();
+    let root = scratch.path();
+    write_demand_fixture(root);
+    let args = ["visibility", "--demand"];
+    let first = run(root, &args);
+    assert!(first.status.success(), "{first:?}");
+    assert_eq!(run(&root.join("client"), &args).stdout, first.stdout);
+    let graph = raf_rdf::Graph::from_text(
+        std::str::from_utf8(&first.stdout).unwrap(),
+        Format::NTriples,
+    )
+    .unwrap();
+    let shared = demand_declaration(&graph, "base::implementation::shared");
+    assert_eq!(visibility_value(shared, "demand"), "production");
+    let uses: std::collections::BTreeSet<_> = visibility_nodes(&graph, shared, "use")
+        .filter(|row| visibility_value(*row, "consumer") == "client")
+        .map(|row| {
+            (
+                visibility_value(row, "consumerTargetKind"),
+                visibility_value(row, "consumerTarget"),
+                visibility_value(row, "context"),
+            )
+        })
+        .collect();
+    assert_eq!(
+        uses,
+        [
+            ("bin", "client", "production"),
+            ("lib", "client", "production"),
+            ("test", "integration", "test")
+        ]
+        .into()
+    );
+    let only = demand_declaration(&graph, "base::test_only");
+    assert_eq!(visibility_value(only, "demand"), "test-only");
+    assert!(visibility_nodes(&graph, only, "use").any(|row| {
+        visibility_value(row, "consumerTargetKind") == "lib"
+            && visibility_value(row, "context") == "test"
+    }));
+    let same_package = demand_declaration(&graph, "base::same_package");
+    assert_eq!(visibility_value(same_package, "demand"), "production");
+    assert!(visibility_nodes(&graph, same_package, "use").any(|row| {
+        visibility_value(row, "consumer") == "base"
+            && visibility_value(row, "consumerTarget") == "own"
+    }));
+    assert_guarded_demand(&graph);
+    let local = demand_declaration(&graph, "base::local_only");
+    assert_eq!(visibility_value(local, "demand"), "no-known-use");
+    let predicate = format!("{}coverageGap", vocab::REPORT);
+    assert_eq!(local.values(&predicate).count(), 0);
+    let implicit = demand_declaration(&graph, "base::Model::implicit");
+    assert_eq!(visibility_value(implicit, "demand"), "no-known-use");
+    assert_eq!(
+        visibility_value(implicit, "coverageGap"),
+        "implicit-method-resolution"
+    );
+
+    files::write(
+        root,
+        &[(
+            "client/src/main.rs",
+            "macro_rules! use_hidden { () => { base::local_only() }; }\nfn main() { use_hidden!(); }\n",
+        )],
+    );
+    let expanded = run(root, &args);
+    assert!(expanded.status.success(), "{expanded:?}");
+    let graph = raf_rdf::Graph::from_text(
+        std::str::from_utf8(&expanded.stdout).unwrap(),
+        Format::NTriples,
+    )
+    .unwrap();
+    assert_eq!(
+        visibility_value(
+            demand_declaration(&graph, "base::local_only"),
+            "coverageGap"
+        ),
+        "macro-expansion"
+    );
+    assert_same_package_glob_refuses(root, &args);
+    assert!(!root.join("target").exists());
+}
+
+fn assert_guarded_demand(graph: &raf_rdf::Graph) {
+    for symbol in [
+        "test_support::guarded",
+        "test_support::compound_guarded",
+        "test_support::negated_guarded",
+    ] {
+        let guarded = demand_declaration(graph, symbol);
+        assert_eq!(visibility_value(guarded, "demand"), "test-only");
+        assert!(visibility_nodes(graph, guarded, "use").any(|row| {
+            visibility_value(row, "consumerTargetKind") == "lib"
+                && visibility_value(row, "context") == "test"
+        }));
+    }
+    for symbol in [
+        "base::conditional_feature",
+        "base::conditional_alias",
+        "base::exports::glob_selected",
+    ] {
+        let optional = demand_declaration(graph, symbol);
+        assert_eq!(visibility_value(optional, "demand"), "no-known-use");
+        assert_eq!(
+            visibility_value(optional, "coverageGap"),
+            "uncertain-source-context"
+        );
+    }
+    for (symbol, written, context, demand) in [
+        (
+            "base::conditional_alias",
+            "selected",
+            "unknown",
+            "no-known-use",
+        ),
+        (
+            "base::exports::glob_selected",
+            "glob_selected",
+            "unknown",
+            "no-known-use",
+        ),
+        (
+            "base::exports::stable_glob",
+            "stable_glob",
+            "production",
+            "production",
+        ),
+        ("test_support::api::ping", "ping", "test", "test-only"),
+        ("base::controls::K", "K", "test", "test-only"),
+        (
+            "base::controls::shipping",
+            "shipping",
+            "production",
+            "production",
+        ),
+        (
+            "base::controls::parameter_shipping",
+            "parameter_shipping",
+            "production",
+            "production",
+        ),
+        (
+            "base::controls::match_ready",
+            "base::controls::match_ready",
+            "production",
+            "production",
+        ),
+        (
+            "base::controls::overshadowed",
+            "overshadowed",
+            "production",
+            "production",
+        ),
+        (
+            "base::controls::chained::path_use",
+            "path_use",
+            "production",
+            "production",
+        ),
+    ] {
+        let alias = demand_declaration(graph, symbol);
+        assert_eq!(visibility_value(alias, "demand"), demand, "{symbol}");
+        assert!(visibility_nodes(graph, alias, "use").any(|row| {
+            visibility_value(row, "context") == context
+                && row
+                    .values(&format!("{}writtenPath", vocab::REPORT))
+                    .any(|path| path.literal().is_some_and(|(text, _)| text == written))
+        }));
+    }
+    for symbol in [
+        "base::controls::shipping",
+        "base::controls::parameter_shipping",
+    ] {
+        assert!(
+            !visibility_nodes(graph, demand_declaration(graph, symbol), "use")
+                .any(|row| visibility_value(row, "context") == "test"),
+            "{symbol}"
+        );
+    }
+    let disabled = demand_declaration(graph, "base::disabled_only");
+    assert_eq!(visibility_value(disabled, "demand"), "no-known-use");
+    assert_eq!(visibility_nodes(graph, disabled, "use").count(), 0);
+}
+
+fn assert_same_package_glob_refuses(root: &Path, args: &[&str]) {
+    files::write(
+        root,
+        &[(
+            "base/src/bin/own.rs",
+            "use base::same_package;\nfn main() { use std::io::*; same_package(); }\n",
+        )],
+    );
+    let ambiguous = run(root, args);
+    assert_eq!(ambiguous.status.code(), Some(1));
+    assert_eq!(ambiguous.stdout, b"");
+    assert!(String::from_utf8_lossy(&ambiguous.stderr).contains("unindexed block glob"));
+}
+
+#[expect(
+    clippy::unwrap_used,
+    reason = "the fixture declares the requested public item"
+)]
+fn demand_declaration<'a>(graph: &'a raf_rdf::Graph, symbol: &str) -> raf_rdf::Node<'a> {
+    visibility_nodes(graph, graph.get("").unwrap(), "declaration")
+        .find(|node| visibility_value(*node, "symbol") == symbol)
+        .unwrap()
+}
+
 /// Count distinct definitions and attribute written paths to their owner
 /// library, including a definition reached only through a member re-export.
 #[test]
@@ -4570,14 +4926,20 @@ fn self_test_ignores_the_workspace_flag_even_for_a_path_that_does_not_exist() {
     reason = "a failed fixture operation is a test failure at the point of use"
 )]
 fn reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory() {
-    let scratch = fixture();
+    let target = Path::new(env!("CARGO_TARGET_TMPDIR"));
+    let scratch = purrdf_testkit::TempDir::new_in(target).unwrap();
     let root = scratch.path();
+    source_fixture(root);
+    fs::write(root.join(raf_census::LEDGER_FILE), ledger(1)).unwrap();
     let body = "(value:u32)->u32 { let scaled=value*3; let shifted=scaled+7; if shifted>100 { shifted-100 } else { shifted*2 } }";
     let consumer = format!("pub fn copy{body}\n");
     let mut text = fs::read_to_string(root.join("src/lib.rs")).unwrap();
     text.push_str(&consumer);
+    for index in 0..32 {
+        writeln!(text, "pub const VALUE_{index}: u32 = {};", index + 100).unwrap();
+    }
     fs::write(root.join("src/lib.rs"), text).unwrap();
-    let outside = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();
+    let outside = purrdf_testkit::TempDir::new_in(target).unwrap();
     let repository = outside.path().join("upstream");
     let plain = outside.path().join("plain");
     let library = format!("pub fn provided{body}\n");
@@ -4658,7 +5020,88 @@ fn reference_options_select_a_pinned_commit_or_a_labelled_unpinned_directory() {
     ]);
     assert!(committed.contains("\"committed-git\""), "{committed}");
     assert!(!committed.contains("\"unpinned-tree\""));
+    bounded_reference_projections(root, repository, &commit, &committed);
     reference_option_refusals(root, repository, &commit, plain);
+}
+
+/// The selected carrier's own byte boundary applies before stdout or a file can receive data.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
+fn bounded_reference_projections(root: &Path, repository: &str, commit: &str, complete: &str) {
+    use raf_census::{Index, Query};
+
+    let index = Index::from_ntriples(complete).unwrap();
+    let matches = index.reference_matches().unwrap();
+    let pinned_text = matches.graph().to_text(Format::NTriples).unwrap();
+    assert!(pinned_text.contains(commit));
+    let query = |selector| {
+        index
+            .query(selector)
+            .unwrap()
+            .graph()
+            .to_text(Format::NTriples)
+            .unwrap()
+    };
+    let cases: [(&[&str], String); 5] = [
+        (&["job", "number"], query(Query::Job("number"))),
+        (&["count", "number"], query(Query::Count("number"))),
+        (
+            &["fingerprint", "demo::copy"],
+            query(Query::Fingerprint("demo::copy")),
+        ),
+        (&["reference-matches"], pinned_text),
+        (
+            &["reference-matches", "--format", "turtle"],
+            matches.graph().to_text(Format::Turtle).unwrap(),
+        ),
+    ];
+    let selected_limit = cases.iter().map(|(_, text)| text.len()).max().unwrap();
+    assert!(complete.len() > selected_limit);
+    let pinned = ["--reference-repo", repository, "--reference-commit", commit];
+    let limit = selected_limit.to_string();
+    let mut words = vec!["index", "--max-index-bytes", &limit];
+    words.extend(pinned);
+    let refused = run(root, &words);
+    assert_eq!(refused.status.code(), Some(1), "{refused:?}");
+    assert_eq!(refused.stdout, [] as [u8; 0]);
+
+    let complete_limit = complete.len() - 1;
+    assert!(index.to_turtle().unwrap().len() <= complete_limit);
+    let complete_limit = complete_limit.to_string();
+    let mut words = vec![
+        "index",
+        "--format",
+        "turtle",
+        "--max-index-bytes",
+        &complete_limit,
+    ];
+    words.extend(pinned);
+    let refused = run(root, &words);
+    assert_eq!(refused.status.code(), Some(1), "{refused:?}");
+    assert_eq!(refused.stdout, [] as [u8; 0]);
+
+    let destination = root.join("oversized.nt");
+    let destination_arg = destination.to_str().unwrap();
+    for (command, expected) in cases {
+        let mut words = command.to_vec();
+        words.extend(pinned);
+        let exact = expected.len().to_string();
+        let shorter = (expected.len() - 1).to_string();
+        let boundary = words.len();
+        words.extend(["--max-index-bytes", &exact]);
+        let result = run(root, &words);
+        assert!(result.status.success(), "{words:?}: {result:?}");
+        assert_eq!(result.stdout, expected.as_bytes(), "{words:?}");
+        words.truncate(boundary);
+        words.extend(["--max-index-bytes", &shorter, "--out", destination_arg]);
+        let refused = run(root, &words);
+        assert_eq!(refused.status.code(), Some(1), "{words:?}: {refused:?}");
+        assert!(String::from_utf8_lossy(&refused.stderr).contains("output bound"));
+        assert_eq!(refused.stdout, [] as [u8; 0]);
+        assert!(!destination.exists());
+    }
 }
 
 /// The refusals of the reference options, each beside the valid uses above.

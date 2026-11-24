@@ -156,6 +156,7 @@
 mod budget;
 mod cargo_version;
 mod cfg;
+pub use cfg::cfg_requires_test;
 mod configuration;
 pub use configuration::{
     ActiveConfiguration, CfgAtom, CfgSelection, DeclaredCfg, DeclaredConfiguration,
@@ -186,6 +187,7 @@ mod reach;
 mod resolve;
 mod root;
 mod settle;
+mod std_scope;
 mod syntax_storage;
 mod target;
 mod tree;
@@ -199,7 +201,7 @@ pub use budget::{
 };
 pub use code::{CodeResolveError, CodeResolver, ExternLibrary, ExternRouteKind, IndexedImport};
 pub use error::{LoadError, LoadErrorKind, Origin, TargetProblem, TreeError};
-pub use exports::{ExportError, ExportOptions, ExportedItem, Exports, Reexport};
+pub use exports::{ExportError, ExportOptions, ExportedItem, Exports, Reexport, StandardType};
 pub use facts::visit_pattern_bindings;
 pub use facts::{FieldShape, SpanFact, TestRole, Vis};
 pub use item::{

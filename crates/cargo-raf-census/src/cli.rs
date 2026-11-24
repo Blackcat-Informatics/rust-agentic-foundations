@@ -69,6 +69,9 @@ pub(crate) enum Command {
     },
     /// Inventory public workspace library declarations and cross-package uses.
     Visibility {
+        /// Report demand by consuming Cargo target with explicit coverage gaps.
+        #[arg(long)]
+        demand: bool,
         /// Native RDF 1.2 report carrier.
         #[arg(long, value_enum, default_value = "ntriples")]
         format: RdfFormat,
@@ -78,6 +81,8 @@ pub(crate) enum Command {
     },
     /// Read the complete index through the native repository gate.
     Index(QueryTarget),
+    /// Report physical matches against committed Git reference sources.
+    ReferenceMatches(QueryTarget),
     /// Inspect every classified physical match of one configured job.
     Job {
         /// Exact configured job identity.
@@ -108,6 +113,15 @@ pub(crate) enum Command {
     },
     /// Print the digest of the Cargo inputs for a production-only Clippy run.
     LintInputs,
+    /// Run production Clippy with explicit trust and capture its receipt.
+    LintCapture {
+        /// Permit Cargo to run the workspace's build scripts and procedural macros.
+        #[arg(long, required = true)]
+        trust_lints: bool,
+        /// Fresh absolute path in a build-owned directory outside the workspace.
+        #[arg(long)]
+        out: PathBuf,
+    },
     /// Seal a completed external production Clippy run as canonical Turtle.
     LintReceipt {
         /// Digest printed by lint-inputs before the build.
@@ -338,7 +352,7 @@ pub(crate) struct QueryTarget {
     /// Write the complete result here, relative to the caller, instead of stdout.
     #[arg(long)]
     pub(crate) out: Option<PathBuf>,
-    /// Maximum serialized bytes in the complete native index.
+    /// Maximum serialized bytes of the result; a complete index is measured in N-Triples.
     #[arg(
         long,
         default_value_t = raf_census::MAX_CHECK_RESPONSE_BYTES,

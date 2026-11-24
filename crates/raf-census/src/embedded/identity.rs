@@ -43,7 +43,7 @@ pub(super) fn owner<'a>(
     })
 }
 
-pub(super) fn target_kind(kind: TargetKind) -> Result<&'static str, &'static str> {
+pub(crate) fn target_kind(kind: TargetKind) -> Result<&'static str, &'static str> {
     Ok(match kind {
         TargetKind::Lib => "lib",
         TargetKind::Bin => "bin",

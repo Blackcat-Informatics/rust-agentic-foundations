@@ -313,10 +313,15 @@ exclusions:
   the index refuses to list (a public name that is ambiguous, an import cycle, a
   glob of nothing, or the item-bytes budget passed, as by several binders of one
   carried name) is an error of the report and, for a crate of `scope`, a finding;
-  it is never read as an empty surface. When public globs bring in a `pub(crate)`
-  local item and a carried re-export of another crate under the same exported
-  name, the re-export is listed and the crate-visible local item is not counted.
+  it is never read as an empty surface. When an external re-export has an
+  unknown namespace, a same-named crate-visible item stays outside the public
+  item count.
 <!-- raf:tested-by raf_workplan::test_crate::coverage::a_surface_that_cannot_be_listed_is_an_error_of_the_report_and_a_finding_in_scope,raf_workplan::test_crate::coverage::a_surface_over_the_item_budget_is_a_budget_error,raf_workplan::test_crate::coverage::cyclic_imports_and_empty_public_globs_are_report_errors_beside_listable_neighbors,raf_workplan::test_crate::coverage::carried_name_search_budget_refusal_is_not_an_empty_covered_surface,raf_workplan::test_crate::coverage::a_crate_visible_item_sharing_an_external_carried_name_is_not_a_public_item -->
+
+- Mixed Type ambiguity is an unresolved surface error. It reports the known
+  standard path and the locations of the competing indexed definitions.
+  <!-- raf:tested-by raf_workplan::test_crate::coverage::a_surface_that_cannot_be_listed_is_an_error_of_the_report_and_a_finding_in_scope -->
+
 - `check` lists the surface of each library and binary target of a crate of `scope`
   or of a crate an exclusion names, once per load; the reports list every library
   and binary target of the workspace once. The order is by crate and path, the same

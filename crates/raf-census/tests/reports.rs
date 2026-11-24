@@ -159,6 +159,7 @@ fn census_vocabulary_reports() -> Vec<String> {
             .unwrap(),
         shared_constant_report(),
         reference_report(),
+        pinned_reference_report(),
         debt.to_ntriples().unwrap(),
     ]
 }
@@ -185,6 +186,128 @@ fn reference_index() -> Index {
 )]
 fn reference_report() -> String {
     reference_index().to_ntriples().unwrap()
+}
+
+/// A committed reference and a path reference both match the consumer.
+/// Only the pinned witness reaches this report, with the consumer's job role.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
+fn pinned_reference_report() -> String {
+    let scratch = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    let repository = scratch.path().join("pinned");
+    raf_fixtures::git_repo::init(&repository);
+    let body = "(value:u32)->u32 { let doubled=value*2; doubled+65536 }";
+    files::write(
+        &repository,
+        &[
+            (
+                "Cargo.toml",
+                "[package]\nname='pinned'\nversion='1.0.0'\nedition='2024'\n",
+            ),
+            ("src/lib.rs", &format!("pub fn committed{body}")),
+        ],
+    );
+    let commit = raf_fixtures::git_repo::commit_all(&repository);
+    let tree = reference::fixture(
+        &format!("pub fn copy{body}"),
+        &format!("pub mod api {{ pub fn first{body} }}"),
+    );
+    let report = raf_census::Gate::workspace(".")
+        .without_production_lints()
+        .external_references([raf_census::ExternalReference::commit(&repository, &commit)])
+        .check_tree(&tree)
+        .unwrap();
+    let index = report.census().index(report.jobs()).unwrap();
+    assert_eq!(index.reference_witnesses.len(), 2);
+    let projection = report.reference_matches().unwrap();
+    let text = projection.to_ntriples().unwrap();
+    let decoded = Index::from_ntriples(&index.to_ntriples().unwrap()).unwrap();
+    assert_eq!(
+        decoded.reference_matches().unwrap().to_ntriples().unwrap(),
+        text
+    );
+    assert!(text.contains(&commit) && text.contains("committed-git"));
+    assert!(
+        text.contains("ReferenceMatchRole")
+            && text.contains("arithmetic")
+            && text.contains("#Copy>")
+    );
+    assert!(!text.contains("helper::api::first"));
+
+    let mut orphan = index;
+    let mut unused = orphan.reference_sources.first().unwrap().clone();
+    unused.package = "unused-source".into();
+    orphan.reference_sources.push(unused);
+    refused(orphan.to_ntriples(), "orphan");
+
+    let turtle = projection.to_turtle().unwrap();
+    let unrooted = rewrite(&turtle, |triple| {
+        (triple.predicate != property("witness")).then_some(triple)
+    });
+    refused(
+        raf_census::ReferenceMatchReport::from_turtle(&unrooted),
+        "orphan",
+    );
+    reference_roles_require_valid_jobs(decoded);
+    text
+}
+
+/// A pinned endpoint can be a job home. Giving that same physical role
+/// a Copy classification violates the reference boundary. Two job declarations
+/// with one ID are ambiguous even when their roles refer to different units.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
+fn reference_roles_require_valid_jobs(mut index: Index) {
+    let reference = index
+        .reference_witnesses
+        .iter()
+        .find(|row| row.reference.symbol == "pinned::committed")
+        .map(|row| &row.reference)
+        .unwrap();
+    let id = "pinned-home";
+    index.jobs.push(raf_census::JobRow {
+        id: id.into(),
+        home: reference.symbol.clone(),
+        matches: vec![raf_census::MatchRow {
+            symbol: reference.symbol.clone(),
+            class: MatchClass::Home,
+            file: reference.file.clone(),
+            line: reference.line,
+            start_byte: reference.start_byte,
+        }],
+        copies: 0,
+    });
+    let report = index.reference_matches().unwrap();
+    let job_id = format!("{}jobId", vocab::REPORT);
+    let (role, _) = report
+        .graph()
+        .nodes()
+        .find(|(_, node)| {
+            node.values(&job_id)
+                .any(|value| value.literal() == Some((id, vocab::STRING)))
+        })
+        .unwrap();
+    let role = TermValue::iri(role);
+    let text = report.to_turtle().unwrap();
+    let invalid = rewrite(&text, |mut triple| {
+        if triple.subject == role && triple.predicate == property("matchClass") {
+            triple.object = property("Copy");
+        }
+        Some(triple)
+    });
+    refused(
+        raf_census::ReferenceMatchReport::from_turtle(&invalid),
+        "reference unit cannot be a job COPY",
+    );
+    index.jobs.last_mut().unwrap().id = "arithmetic".into();
+    assert!(matches!(
+        index.reference_matches(),
+        Err(Error::Report(ReportError::DuplicateJob(id))) if id == "arithmetic"
+    ));
 }
 
 /// The job and fingerprint queries of the reference index, which carry its
@@ -1455,12 +1578,13 @@ fn ledger_from_facts<'a>(facts: impl IntoIterator<Item = (&'a str, &'a str, Term
 /// Ledger reader.
 fn reader_classes() -> std::collections::BTreeSet<(&'static str, &'static str)> {
     use raf_census::report::vocab::{LEDGER_FIELDS, SHAPES};
-    const READERS: [(&str, &str); 6] = [
+    const READERS: [(&str, &str); 7] = [
         ("baseline", "Baseline"),
         ("index", "Index"),
         ("job-query", "JobQuery"),
         ("count-query", "CountQuery"),
         ("fingerprint-query", "FingerprintQuery"),
+        ("reference-matches", "ReferenceMatches"),
         ("debt", "DebtRecord"),
     ];
     let mut classes = std::collections::BTreeSet::new();
@@ -1506,7 +1630,7 @@ fn read_ledger(text: &str, format: Format) -> Result<raf_census::Ledger, Error> 
     reason = "the assertion reports the unexpected outcome and terminates the test"
 )]
 fn read_record(class: &str, text: &str, format: Format) -> Result<(), Error> {
-    use raf_census::{DebtRecord, QueryReport};
+    use raf_census::{DebtRecord, QueryReport, ReferenceMatchReport};
     let turtle = format == Format::Turtle;
     match class {
         "Baseline" if turtle => Baseline::from_turtle(text).map(drop),
@@ -1516,6 +1640,8 @@ fn read_record(class: &str, text: &str, format: Format) -> Result<(), Error> {
         "DebtRecord" if turtle => DebtRecord::from_turtle(text).map(drop),
         "DebtRecord" => DebtRecord::from_ntriples(text).map(drop),
         "Ledger" => read_ledger(text, format).map(drop),
+        "ReferenceMatches" if turtle => ReferenceMatchReport::from_turtle(text).map(drop),
+        "ReferenceMatches" => ReferenceMatchReport::from_ntriples(text).map(drop),
         "JobQuery" | "CountQuery" | "FingerprintQuery" if turtle => {
             QueryReport::from_turtle(text).map(drop)
         }

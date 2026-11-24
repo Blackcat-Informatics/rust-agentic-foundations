@@ -93,6 +93,30 @@ impl Builder {
         }
     }
 
+    /// Start an empty builder for importing normalized assertions from graphs.
+    ///
+    /// Pick a construction owner that leaves the inputs' absolute IRIs and
+    /// datatypes foreign. Insert the assertions through the usual profile checks.
+    ///
+    /// # Errors
+    /// Refuses if the native construction owner space is exhausted.
+    pub fn for_import<'a>(graphs: impl IntoIterator<Item = &'a Graph>) -> Result<Self, Error> {
+        let mut occupied = BTreeSet::new();
+        for triple in graphs.into_iter().flat_map(Graph::assertions) {
+            for value in [&triple.subject, &triple.predicate, &triple.object] {
+                term::reserve_construction_owners(value, &mut occupied);
+            }
+        }
+        let mut builder = Self::new();
+        if occupied.contains(CONSTRUCTION_OWNER) {
+            builder.owner = (1..=occupied.len())
+                .map(|ordinal| format!("{CONSTRUCTION_OWNER}:{ordinal}"))
+                .find(|candidate| !occupied.contains(candidate))
+                .ok_or_else(|| Error::Value("import construction owner exhausted".into()))?;
+        }
+        Ok(builder)
+    }
+
     /// Edit a native base without copying its assertions into another graph.
     pub fn from_graph(graph: &Graph) -> Self {
         Self {
@@ -258,6 +282,15 @@ impl Graph {
     pub fn to_text(&self, format: Format) -> Result<String, Error> {
         self.validate()?;
         write::render(self, format).map(|(_, text)| text)
+    }
+
+    /// Render an immutable graph within a limit on the requested carrier's bytes.
+    ///
+    /// # Errors
+    /// Refuses a native rendering failure or a carrier that exceeds the limit.
+    /// Returns no partial text.
+    pub fn to_text_bounded(&self, format: Format, max_bytes: usize) -> Result<String, Error> {
+        write::render_bounded(self, format, max_bytes)
     }
 
     /// Render canonical bytes through the caller's original scratch and output accounts.

@@ -13,16 +13,16 @@ inputs:
     digest: 9ad00c1e9220634d4a2b8f4bb1f4d6ac8a000b2a47e0bba5f0d8078638a1fc2e
   - kind: symbol
     name: cargo_raf_census::cli
-    digest: 926e36ecae3b090d9ee9c087235415236204b44d5cb03413538f96ac241eda60
+    digest: a897091b518c0bbba79f3b4724b254e898c03ed3cf8441dcec930b45433f910f
   - kind: symbol
     name: cargo_raf_census::command
-    digest: 5d36b0ea2e7e9efabb1bad723bfe6c23c03ccd97232b18bc32a12f6213adaab6
+    digest: 81421e6af0c844d84b35cf9149fef594e65135d2056ca91f1760e07a07d04a1c
   - kind: symbol
     name: cargo_raf_census::error
     digest: fa7aa7a709101811082caa31353d45fe8668d69c81f88590bd2b887dff2c23ee
   - kind: symbol
     name: cargo_raf_census::run
-    digest: c7d2efc6878b1a58110bb94c7e02096ad41456836de022aca460d7c974321b3e
+    digest: fdd3e38b79ad9b8a860af3e8586d2b875f58ca9fe4cfec50ea43654c50b5f52d
   - kind: symbol
     name: raf_census::CHECK_PROTOCOL_VERSION
     digest: f15bea745a3732843a125a042c9bafb0eed33727b8ce1264739dd85e83950f0f
@@ -38,6 +38,9 @@ inputs:
   - kind: symbol
     name: raf_census::Gate::validate_tree_registrations
     digest: fb06b726fbf4cea861e4451b33c4baceb547f779b313b6ff9228baf3592914ca
+  - kind: symbol
+    name: raf_census::GateReport::query
+    digest: ffb220a93bc78c4f0779be52dcac1010f9e7ecf4694b5fd50d124e60fda02dbc
   - kind: symbol
     name: raf_census::MAX_CHECK_RESPONSE_BYTES
     digest: c8a061c28be622be14d14f7667e80cf9fa3c2b5f3bc44a9dcbc0a5b5561caa0c
