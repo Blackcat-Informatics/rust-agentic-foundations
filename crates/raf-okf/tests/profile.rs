@@ -1404,6 +1404,25 @@ fn depends_is_a_list_of_cap_ids_and_does_not_need_the_capability_to_exist() {
         ),
         ALPHA_PATH,
     );
+    // Every refused member is its own finding in authored order, a repeated
+    // member included; the valid members between them are not refused.
+    let refused = violations(
+        &mutate(
+            &alpha(),
+            "depends: [cap:beta]",
+            "depends: [cap:Beta, cap:gamma-2, beta, beta]",
+        ),
+        ALPHA_PATH,
+    );
+    let entries: Vec<_> = refused
+        .iter()
+        .filter(|v| v.at() == &key("depends"))
+        .map(|v| v.rule().clone())
+        .collect();
+    let bad = |entry: &str| Rule::BadCapabilityId {
+        entry: entry.into(),
+    };
+    assert_eq!(entries, [bad("cap:Beta"), bad("beta"), bad("beta")]);
 }
 
 #[test]

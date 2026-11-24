@@ -12,6 +12,9 @@ use super::{
 pub(super) const REVIEW_KINDS_SHAPE: &str =
     "a list of distinct security, correctness, design, performance or documentation kinds";
 
+/// The shape of one capability identifier: `cap:` and a kebab slug.
+pub(super) const CAPABILITY_ID_PATTERN: &str = "cap:[a-z0-9]+(-[a-z0-9]+)*";
+
 const FLAGS: [(bool, &str); 2] = [(true, "true"), (false, "false")];
 
 #[derive(Clone, Copy)]
@@ -23,6 +26,7 @@ pub(super) enum Vocabulary {
     Verdict,
     ReviewKind,
     ReviewKinds,
+    CapabilityIds,
 }
 
 impl Vocabulary {
@@ -35,6 +39,7 @@ impl Vocabulary {
             ValueKind::Verdict => Some(Self::Verdict),
             ValueKind::ReviewKind => Some(Self::ReviewKind),
             ValueKind::ReviewKinds => Some(Self::ReviewKinds),
+            ValueKind::CapabilityIds => Some(Self::CapabilityIds),
             _ => None,
         }
     }
@@ -51,7 +56,16 @@ impl Vocabulary {
 
     /// Whether the key holds a list whose every member is drawn from the vocabulary.
     pub(super) const fn is_list(self) -> bool {
-        matches!(self, Self::ReviewKinds)
+        matches!(self, Self::ReviewKinds | Self::CapabilityIds)
+    }
+
+    /// The regular expression every member must match, for a vocabulary that is not
+    /// a finite name set.
+    pub(super) const fn pattern(self) -> Option<&'static str> {
+        match self {
+            Self::CapabilityIds => Some(CAPABILITY_ID_PATTERN),
+            _ => None,
+        }
     }
 
     pub(super) fn names(self, doc_type: DocType) -> Result<Vec<&'static str>, HeaderShapeError> {
@@ -67,6 +81,7 @@ impl Vocabulary {
                 _ => return Err(HeaderShapeError::UnexpectedReport),
             },
             Self::ReviewKind | Self::ReviewKinds => ReviewKind::ALL.map(ReviewKind::name).into(),
+            Self::CapabilityIds => return Err(HeaderShapeError::UnexpectedReport),
         };
         Ok(names)
     }
@@ -90,6 +105,9 @@ impl Vocabulary {
             },
             (Self::ReviewKinds, _) => Rule::WrongShape {
                 expected: REVIEW_KINDS_SHAPE,
+            },
+            (Self::CapabilityIds, _) => Rule::WrongShape {
+                expected: "a list of cap ids",
             },
             (Self::State | Self::Actor | Self::Verdict, None) => Rule::WrongShape {
                 expected: "a scalar",

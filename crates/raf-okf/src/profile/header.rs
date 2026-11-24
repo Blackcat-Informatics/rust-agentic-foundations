@@ -38,6 +38,7 @@ const SH: &str = "http://www.w3.org/ns/shacl#";
 const CLOSED: &str = "http://www.w3.org/ns/shacl#ClosedConstraintComponent";
 const MIN_COUNT: &str = "http://www.w3.org/ns/shacl#MinCountConstraintComponent";
 const IN: &str = "http://www.w3.org/ns/shacl#InConstraintComponent";
+const PATTERN: &str = "http://www.w3.org/ns/shacl#PatternConstraintComponent";
 
 /// A failure to obtain a complete native verdict for a document's header.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -110,6 +111,7 @@ impl From<RdfDiagnostic> for HeaderShapeError {
 #[derive(Default)]
 pub(super) struct HeaderVerdicts<'a> {
     rejected: Vec<(&'static str, Rule)>,
+    refused_ids: Vec<(&'static str, String)>,
     pub(super) bindings_exact: bool,
     pub(super) items: Vec<RowKeys<'a>>,
     pub(super) debt_findings: Vec<RowKeys<'a>>,
@@ -125,6 +127,13 @@ impl HeaderVerdicts<'_> {
     pub(super) fn take_rejection(&mut self, key: &str) -> Option<Rule> {
         let index = self.rejected.iter().position(|(field, _)| *field == key)?;
         Some(self.rejected.swap_remove(index).1)
+    }
+
+    /// Whether the native shape refused `text` as a member of the list at `key`.
+    pub(super) fn refuses(&self, key: &str, text: &str) -> bool {
+        self.refused_ids
+            .iter()
+            .any(|(field, member)| *field == key && member == text)
     }
 }
 
@@ -399,6 +408,7 @@ fn add_value_constraints(
     doc_type: DocType,
 ) -> Result<(), HeaderShapeError> {
     let predicate = graph.intern_iri(&format!("{SH}in"))?;
+    let pattern = graph.intern_iri(&format!("{SH}pattern"))?;
     let list = ListVocab {
         first: graph.intern_iri(&format!("{RDF}first"))?,
         rest: graph.intern_iri(&format!("{RDF}rest"))?,
@@ -407,6 +417,14 @@ fn add_value_constraints(
     for (key, vocabulary) in finite_fields(doc_type) {
         let name = format!("{SHAPE}{}:{key}", doc_type.name());
         let field = graph.intern_iri(&name)?;
+        if let Some(expression) = vocabulary.pattern() {
+            // A value the header cannot project as texts (an empty list, a scalar or a
+            // nested value) carries the presence marker, which the value rules report.
+            let expression = format!("^({PRESENT}|{expression})$");
+            let expression = graph.intern_literal(RdfLiteral::simple(expression))?;
+            graph.push_quad(field, pattern, expression, None)?;
+            continue;
+        }
         let members = vocabulary
             .names(doc_type)?
             .into_iter()
@@ -493,24 +511,32 @@ fn header_graph<'a>(
     let mut graph = RdfDatasetBuilder::new();
     let present = graph.intern_iri(PRESENT)?;
     let mut focuses = Vec::with_capacity(maps.clone().count() + row_count);
-    let mut project =
-        |graph: &mut RdfDatasetBuilder, (name, map): (&str, &Map), values: &[(&str, Vec<&str>)]| {
-            let focus = graph.intern_iri(name)?;
-            focuses.push(NamedNode::from(name).into_term());
-            for entry in map.entries() {
-                let predicate = graph.intern_iri(&format!("{KEY}{}", entry.key()))?;
-                let Some((_, texts)) = values.iter().find(|(key, _)| *key == entry.key()) else {
-                    graph.push_quad(focus, predicate, present, None)?;
-                    continue;
-                };
-                // Each list member is its own value; an empty list has none.
-                for text in texts {
-                    let object = graph.intern_literal(RdfLiteral::simple(*text))?;
-                    graph.push_quad(focus, predicate, object, None)?;
-                }
+    let mut project = |graph: &mut RdfDatasetBuilder,
+                       (name, map): (&str, &Map),
+                       values: &[(&str, Vec<&str>)]| {
+        let focus = graph.intern_iri(name)?;
+        focuses.push(NamedNode::from(name).into_term());
+        for entry in map.entries() {
+            let predicate = graph.intern_iri(&format!("{KEY}{}", entry.key()))?;
+            let Some((_, texts)) = values.iter().find(|(key, _)| *key == entry.key()) else {
+                graph.push_quad(focus, predicate, present, None)?;
+                continue;
+            };
+            // Each list member is its own value. An empty list has none, except
+            // under a pattern key, whose required presence it must still show.
+            if texts.is_empty()
+                && finite_fields(doc_type)
+                    .any(|(key, vocabulary)| key == entry.key() && vocabulary.pattern().is_some())
+            {
+                graph.push_quad(focus, predicate, present, None)?;
             }
-            Ok::<_, HeaderShapeError>(focus)
-        };
+            for text in texts {
+                let object = graph.intern_literal(RdfLiteral::simple(*text))?;
+                graph.push_quad(focus, predicate, object, None)?;
+            }
+        }
+        Ok::<_, HeaderShapeError>(focus)
+    };
     project(&mut graph, header, &scalars)?;
     if let Some(bindings) = bindings {
         project(&mut graph, bindings, &[])?;
@@ -583,6 +609,30 @@ fn value_rejection(
         _ => return Err(HeaderShapeError::UnexpectedReport),
     }
     Ok((key, vocabulary.rejection(entry, doc_type)))
+}
+
+/// The member a pattern result refused, with the schema's own key.
+fn refused_member(
+    result: &ValidationResult,
+    map: &Map,
+    doc_type: DocType,
+    key: &str,
+) -> Result<(&'static str, String), HeaderShapeError> {
+    let (key, vocabulary) = finite_fields(doc_type)
+        .find(|(field, vocabulary)| *field == key && vocabulary.pattern().is_some())
+        .ok_or(HeaderShapeError::UnexpectedReport)?;
+    let entry = map.get(key).ok_or(HeaderShapeError::UnexpectedReport)?;
+    if focus_iri(&result.source_shape)? != format!("{SHAPE}{}:{key}", doc_type.name()) {
+        return Err(HeaderShapeError::UnexpectedReport);
+    }
+    match (vocabulary.texts(entry), &result.value) {
+        (Some(texts), Some(Term::Literal(value)))
+            if value.datatype_str() == XSD_STRING && texts.contains(&value.value()) =>
+        {
+            Ok((key, value.value().to_string()))
+        }
+        _ => Err(HeaderShapeError::UnexpectedReport),
+    }
 }
 
 fn report_top_keys<'a>(
@@ -669,6 +719,12 @@ fn report_keys<'a>(
                     return Err(HeaderShapeError::UnexpectedReport);
                 }
                 verdicts.rejected.push(rejection);
+                continue;
+            }
+            PATTERN if focus == header => {
+                verdicts
+                    .refused_ids
+                    .push(refused_member(result, map, doc_type, key)?);
                 continue;
             }
             _ => return Err(HeaderShapeError::UnexpectedReport),
