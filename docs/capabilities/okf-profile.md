@@ -680,10 +680,11 @@ decoded scalar text for Capability state and flags, Change contract
 effect, Evidence, Assessment and Review actors and type-specific verdicts,
 and Review kind. The same graph projects each member of a capability's
 `review_required` list under an `sh:in` over the closed review kinds, and each
-member of `depends` and of a change's `changes` list under an `sh:pattern` for a
-capability id; an empty `changes` list is reported through the required key's
-`sh:minCount`. Unknown spellings and non-scalar values produce the
-corresponding field findings. Duplicate `review_required` kinds remain a profile
+member of `depends`, of a change's `changes` list and of an evidence record's
+`for` list under an `sh:pattern` for a capability id; an empty `changes` list is
+reported through the required key's `sh:minCount`, and an empty `for` list
+receives its `EmptyList` finding from the record policy. Unknown spellings and
+non-scalar values produce the corresponding field findings. Duplicate `review_required` kinds remain a profile
 policy finding after the shape accepts every member. Absent capability flags
 default to false.
 <!-- raf:tested-by raf_okf::test_crate::profile::a_state_is_one_of_the_four,raf_okf::test_crate::profile::contract_effect_is_none_or_changes,raf_okf::test_crate::profile::valid_documents_of_each_type_validate_to_typed_values,raf_okf::test_crate::records::a_verdict_is_one_of_the_verdicts_of_its_type,raf_okf::test_crate::records::by_is_human_or_agent_and_never_a_name -->
