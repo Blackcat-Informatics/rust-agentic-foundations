@@ -9,12 +9,15 @@ changes: [cap:census-embedded-clones]
 affects:
   - cap:census-embedded-clones#contract
   - cap:census-embedded-clones#constraints
+  - cap:census-embedded-clones#explanation
   - cap:census-embedded-clones#verification
 contract_effect: changes
 items:
   - claim: "Native parser worker entry establishes an owned source-registry boundary before registration; host spawn callbacks cannot silently invalidate registry occupancy, capacity or lifetime admission."
     outcome: implemented
   - claim: "The syntax tree that a native parse returns is charged to the original resource account by a bound computed before the parse and reconciled against the built tree, with exhaustion refusing actionably rather than returning partial success."
+    outcome: implemented
+  - claim: "The Source guard scan funds both delimiter stacks and replacement overlap through a temporary grant from the original analysis account."
     outcome: implemented
   - claim: "Native parser work is metered under the original resource account, with exhaustion refusing actionably rather than returning partial success."
 ---

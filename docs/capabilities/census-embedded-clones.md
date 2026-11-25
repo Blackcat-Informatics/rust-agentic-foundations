@@ -164,6 +164,12 @@ worker cleanup and thread-local teardown. Facts borrow externally owned source,
 and parser-owned syntax and spans never escape their callback. This custody
 does not establish complete native allocation or work admission.
 
+The caller-thread Source guard scan takes one temporary grant from the original
+analysis account for both delimiter stacks. Source admits the root entries and
+each live layout, including replacement overlap, and destroys both stacks
+before the grant returns to the analysis. Census releases that grant before
+handling the guard result or starting the parser worker.
+
 Both Source inspection paths first prepay the root native source-text copy and
 line-offset vector. For the inspected native compiler profiles, original byte
 length `b` and `L` equal to one plus the
@@ -1133,8 +1139,9 @@ live, peak, limits and captured-refusal values are preserved;
 the terminal account offers no clone, reset or admission operation. The cause
 precedes the terminal account in field drop order, so its converted message
 remains funded until destruction. The terminal representation is naturally
-sendable and shareable without a lock. Guard preparation failures have no
-additional diagnostic string but use the same owned inspection transition.
+sendable and shareable without a lock. A guard-limit failure uses the same
+owned inspection transition with the original path and line. A prescan
+admission failure returns the original located resource refusal.
 Successful parsing and visitor refusals still refund after worker join.
 
 Public `Error::Inspection` carries this owned failure and exposes its native
@@ -1591,6 +1598,13 @@ reach of a shared function, enclosing const parameters, receiver captures,
 empty-body attributes, all generic-parameter kinds and configured pruning.
 Exact and short collection grants cover retained owner records as well as
 facts and lexical output.
+
+The exact prescan scratch grant reaches the positioned delimiter refusal and
+admits a valid input at the delimiter limit. One byte less returns the original
+memory refusal. The account can spend the scratch charge again after either
+result.
+<!-- raf:tested-by raf_census::embedded::analysis::tests::source_preparation_grants_precede_parsing_and_survive_until_each_worker_joins -->
+
 Boundary fixtures cover async function, closure and block destinations, nested
 try destinations, const functions, const-local shadowing and retained generic
 parameters. Invalid dynamic captures, outward control transfers, unavailable

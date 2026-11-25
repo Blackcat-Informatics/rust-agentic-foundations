@@ -70,6 +70,7 @@ bindings:
     - raf_source::parse_source
     - raf_source::parse_source_with_tokens
     - raf_source::prepare_source
+    - raf_source::prepare_source_with_memory
     - raf_source::PreparedSource
     - raf_source::PreparedSource::token_count
     - raf_source::PreparedSource::recursion
@@ -2085,6 +2086,13 @@ marks, separates guard words, lifetimes and numeric runs just as it does native
 tokens; it cannot conceal recursion keywords. Other non-ASCII characters
 remain native identifier data or cause native lex refusal before Syn parsing.
 These counters do not establish a complete native allocation or work bound.
+
+`prepare_source_with_memory` admits both delimiter stacks through the
+caller's memory account. The charge covers both root entries and the overlap
+between old and replacement buffers during growth. The scan checks the
+delimiter limit before either stack can grow for an opening token. Both
+stacks are destroyed before preparation returns. Successful preparation
+releases their charge.
 
 Consuming `PreparedSource::parse` or `parse_with_tokens` uses that same text
 without another guard scan. Native syntax failure still refuses before the
