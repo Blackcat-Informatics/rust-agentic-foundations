@@ -62,11 +62,11 @@ fn repository_links_resolve_from_two_depths_without_changing_cached_views() {
     ] {
         assert_eq!(remote_resource_urls(remote).len(), 1, "{remote}");
     }
-    assert!(
+    assert_eq!(
         remote_resource_urls(
             "<script>a<b</script><a href='docs/x.md'><image width=\"1\" href=\"x.png\"/>"
-        )
-        .is_empty()
+        ),
+        Vec::<String>::new()
     );
     let scratch = Scratch::new("repository-navigation");
     let root = scratch.path();
@@ -113,69 +113,47 @@ fn repository_links_resolve_from_two_depths_without_changing_cached_views() {
 /// remote resource (an absolute `http` or `https` URL, or a protocol-relative
 /// one), whatever the attribute order, quoting or element.
 fn remote_resource_urls(markup: &str) -> Vec<String> {
-    let bytes = markup.as_bytes();
     let mut found = Vec::new();
-    let mut at = 0;
-    while let Some(open) = markup[at..].find('<').map(|offset| at + offset) {
-        at = open + 1;
-        if !bytes.get(at).is_some_and(u8::is_ascii_alphabetic) {
+    for tag in markup.split('<').skip(1) {
+        if !tag.starts_with(|c: char| c.is_ascii_alphabetic()) {
             continue;
         }
-        while at < bytes.len()
-            && !bytes[at].is_ascii_whitespace()
-            && !matches!(bytes[at], b'>' | b'/')
-        {
-            at += 1;
-        }
+        let mut rest =
+            tag.trim_start_matches(|c: char| !c.is_whitespace() && !matches!(c, '>' | '/'));
         loop {
-            while at < bytes.len() && (bytes[at].is_ascii_whitespace() || bytes[at] == b'/') {
-                at += 1;
-            }
-            if at >= bytes.len() || bytes[at] == b'>' {
+            rest = rest.trim_start_matches(|c: char| c.is_whitespace() || c == '/');
+            if rest.is_empty() || rest.starts_with('>') {
                 break;
             }
-            let start = at;
-            while at < bytes.len()
-                && !bytes[at].is_ascii_whitespace()
-                && !matches!(bytes[at], b'=' | b'>' | b'/')
-            {
-                at += 1;
-            }
-            let name = markup[start..at].to_ascii_lowercase();
-            while at < bytes.len() && bytes[at].is_ascii_whitespace() {
-                at += 1;
-            }
-            if bytes.get(at) != Some(&b'=') {
+            let (name, after) = rest.split_at(
+                rest.find(|c: char| c.is_whitespace() || matches!(c, '=' | '>' | '/'))
+                    .unwrap_or(rest.len()),
+            );
+            let Some(after) = after.trim_start().strip_prefix('=') else {
+                rest = after;
                 continue;
-            }
-            at += 1;
-            while at < bytes.len() && bytes[at].is_ascii_whitespace() {
-                at += 1;
-            }
-            let value = match bytes.get(at) {
-                Some(&quote @ (b'"' | b'\'')) => {
-                    let begin = at + 1;
-                    at = markup[begin..]
-                        .find(char::from(quote))
-                        .map_or(bytes.len(), |end| begin + end);
-                    let value = &markup[begin..at];
-                    at = (at + 1).min(bytes.len());
-                    value
-                }
-                _ => {
-                    let begin = at;
-                    while at < bytes.len() && !bytes[at].is_ascii_whitespace() && bytes[at] != b'>'
-                    {
-                        at += 1;
-                    }
-                    &markup[begin..at]
-                }
             };
+            let after = after.trim_start();
+            let (value, remainder) = match after.chars().next().filter(|c| matches!(c, '"' | '\''))
+            {
+                Some(quote) => {
+                    let body = after.strip_prefix(quote).unwrap_or(after);
+                    body.split_once(quote).unwrap_or((body, ""))
+                }
+                None => after.split_at(
+                    after
+                        .find(|c: char| c.is_whitespace() || c == '>')
+                        .unwrap_or(after.len()),
+                ),
+            };
+            rest = remainder;
             let lowered = value.trim().to_ascii_lowercase();
-            if matches!(name.as_str(), "src" | "href" | "xlink:href")
-                && (lowered.starts_with("http:")
-                    || lowered.starts_with("https:")
-                    || lowered.starts_with("//"))
+            if matches!(
+                name.to_ascii_lowercase().as_str(),
+                "src" | "href" | "xlink:href"
+            ) && ["http:", "https:", "//"]
+                .iter()
+                .any(|scheme| lowered.starts_with(scheme))
             {
                 found.push(value.to_owned());
             }
