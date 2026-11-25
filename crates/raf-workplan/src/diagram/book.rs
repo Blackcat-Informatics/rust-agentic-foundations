@@ -51,9 +51,9 @@ pub fn preprocess(plan: &Workplan<'_>, mut request: Value) -> Result<Value, Diag
     }
     object(&book, "book")?;
     let sections = book
-        .get_mut("sections")
+        .get_mut("items")
         .and_then(Value::as_array_mut)
-        .ok_or_else(|| refused("book.sections must be an array"))?;
+        .ok_or_else(|| refused("book.items must be an array"))?;
     chapters(plan, sections, 0, &mut Budget::default())?;
     Ok(book)
 }

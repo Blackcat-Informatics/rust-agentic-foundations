@@ -52,6 +52,31 @@ fn fixture(root: &Path) {
     reason = "a failed fixture operation is a test failure at the point of use"
 )]
 fn repository_links_resolve_from_two_depths_without_changing_cached_views() {
+    // The remote-resource check sees a resource whatever the attribute order,
+    // quote style or scheme form, and accepts local references.
+    for remote in [
+        "<script></script><script defer src='https://example.org/app.js'></script>",
+        "<link rel=stylesheet href=//example.org/a.css>",
+        "<image width=\"1\" href=\"HTTP://example.org/image.png\"/>",
+        "<image width=\"1\" xlink:href='https://example.org/image.png'/>",
+        "<script>x</script><image href=\"https://example.org/a.png\"/>",
+        "<image href=\"&#x68;ttps://example.org/x.png\"/>",
+        "<image href='&#104;ttp&colon;//example.org/x.png'/>",
+        "<image href=\"ht&Tab;tps&#58;&sol;&sol;example.org/x.png\"/>",
+        "<image href=\"&bsol;&bsol;example.org/x.png\"/>",
+    ] {
+        assert_eq!(remote_resource_urls(remote).len(), 1, "{remote}");
+    }
+    // Tag-like text inside a script or style body is not markup, and a local
+    // or merely ampersand-bearing reference is not remote.
+    for local in [
+        "<script>a<b</script><a href='docs/x.md'><image width=\"1\" href=\"x.png\"/>",
+        "<script>var s = '<image width=\"1\" href=\"https://example.org/x.png\"/>';</script>",
+        "<style>a::after { content: '<link href=\"https://example.org/a.css\">' }</style>",
+        "<a href=\"docs/x.md?a=1&amp;b=2&unknown;\">",
+    ] {
+        assert_eq!(remote_resource_urls(local), Vec::<String>::new(), "{local}");
+    }
     let scratch = Scratch::new("repository-navigation");
     let root = scratch.path();
     fixture(root);
@@ -91,6 +116,138 @@ fn repository_links_resolve_from_two_depths_without_changing_cached_views() {
             "unrelated host bytes"
         );
     }
+}
+
+/// Returns every `src`, `href` and `xlink:href` value in `markup` that names a
+/// remote resource (an absolute `http` or `https` URL, or a protocol-relative
+/// one), whatever the attribute order, quoting or element.
+fn remote_resource_urls(markup: &str) -> Vec<String> {
+    let mut found = Vec::new();
+    let mut cursor = markup;
+    while let Some((_, tag)) = cursor.split_once('<') {
+        cursor = tag;
+        if !tag.starts_with(|c: char| c.is_ascii_alphabetic()) {
+            continue;
+        }
+        let name_end = tag
+            .find(|c: char| c.is_whitespace() || matches!(c, '>' | '/'))
+            .unwrap_or(tag.len());
+        let (element, mut rest) = tag.split_at(name_end);
+        let element = element.to_ascii_lowercase();
+        loop {
+            rest = rest.trim_start_matches(|c: char| c.is_whitespace() || c == '/');
+            if rest.is_empty() || rest.starts_with('>') {
+                break;
+            }
+            let (name, after) = rest.split_at(
+                rest.find(|c: char| c.is_whitespace() || matches!(c, '=' | '>' | '/'))
+                    .unwrap_or(rest.len()),
+            );
+            let Some(after) = after.trim_start().strip_prefix('=') else {
+                rest = after;
+                continue;
+            };
+            let after = after.trim_start();
+            let (value, remainder) = match after.chars().next().filter(|c| matches!(c, '"' | '\''))
+            {
+                Some(quote) => {
+                    let body = after.strip_prefix(quote).unwrap_or(after);
+                    body.split_once(quote).unwrap_or((body, ""))
+                }
+                None => after.split_at(
+                    after
+                        .find(|c: char| c.is_whitespace() || c == '>')
+                        .unwrap_or(after.len()),
+                ),
+            };
+            rest = remainder;
+            let lowered = browser_url(value);
+            if matches!(
+                name.to_ascii_lowercase().as_str(),
+                "src" | "href" | "xlink:href"
+            ) && ["http:", "https:", "//"]
+                .iter()
+                .any(|scheme| lowered.starts_with(scheme))
+            {
+                found.push(value.to_owned());
+            }
+        }
+        cursor = rest;
+        // Script and style bodies are text, not markup: skip to the close tag.
+        if matches!(element.as_str(), "script" | "style") {
+            let close = format!("</{element}");
+            let lowered = cursor.to_ascii_lowercase();
+            cursor = lowered
+                .find(&close)
+                .map_or("", |end| cursor.split_at(end).1);
+        }
+    }
+    found
+}
+
+/// Returns an attribute value as a browser reads it as a URL: character
+/// references decoded, ASCII tab and newlines removed, surrounding control
+/// characters and spaces trimmed, `\` read as `/`, and the case folded.
+///
+/// Numeric references (decimal and hexadecimal, with or without the closing
+/// semicolon) are decoded. Named references are decoded for `colon`, `Tab`,
+/// `NewLine`, `sol`, `bsol`, `period`, `amp`, `lt`, `gt`, `quot` and `apos`,
+/// the ones that can spell a scheme or delimiter.
+fn browser_url(value: &str) -> String {
+    let mut decoded = String::new();
+    let mut rest = value;
+    while let Some((head, tail)) = rest.split_once('&') {
+        decoded.push_str(head);
+        rest = tail;
+        if let Some((character, remainder)) = reference(rest) {
+            decoded.push(character);
+            rest = remainder;
+        } else {
+            decoded.push('&');
+        }
+    }
+    decoded.push_str(rest);
+    decoded
+        .chars()
+        .filter(|c| !matches!(c, '\t' | '\n' | '\r'))
+        .map(|c| if c == '\\' { '/' } else { c })
+        .collect::<String>()
+        .trim_matches(|c: char| c.is_ascii_control() || c == ' ')
+        .to_ascii_lowercase()
+}
+
+/// Decodes the character reference that follows an ampersand, returning the
+/// character and the text after the reference.
+fn reference(text: &str) -> Option<(char, &str)> {
+    if let Some(numeric) = text.strip_prefix('#') {
+        let (radix, digits) = match numeric.strip_prefix(['x', 'X']) {
+            Some(hex) => (16, hex),
+            None => (10, numeric),
+        };
+        let count = digits
+            .find(|c: char| !c.is_digit(radix))
+            .unwrap_or(digits.len());
+        let (number, after) = digits.split_at(count);
+        let character = u32::from_str_radix(number, radix)
+            .ok()
+            .and_then(char::from_u32)?;
+        return Some((character, after.strip_prefix(';').unwrap_or(after)));
+    }
+    [
+        ("colon;", ':'),
+        ("Tab;", '\t'),
+        ("NewLine;", '\n'),
+        ("sol;", '/'),
+        ("bsol;", '\\'),
+        ("period;", '.'),
+        ("amp;", '&'),
+        ("lt;", '<'),
+        ("gt;", '>'),
+        ("quot;", '"'),
+        ("apos;", '\''),
+    ]
+    .into_iter()
+    .find_map(|(name, character)| Some((character, text.strip_prefix(name)?)))
 }
 
 #[expect(
@@ -144,6 +301,13 @@ fn check_links(root: &Path, directory: &Path, cached: &raf_workplan::diagram::Di
     }
     assert!(links > 0);
     let html = fs::read_to_string(page).unwrap();
+    // The offline explorer loads nothing: its script is inline and no page or
+    // SVG asset names a remote resource, so it works from any directory.
+    assert!(html.contains("<script>"));
+    assert!(!html.contains("<script src"));
+    assert!(!html.contains("<link "));
+    assert_eq!(remote_resource_urls(&html), Vec::<String>::new());
+    assert_eq!(remote_resource_urls(&svg), Vec::<String>::new());
     for detail in cached.details() {
         assert!(html.contains(&format!("{}.html", detail.view().name())));
         assert!(
