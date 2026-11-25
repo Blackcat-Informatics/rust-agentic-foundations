@@ -52,6 +52,22 @@ fn fixture(root: &Path) {
     reason = "a failed fixture operation is a test failure at the point of use"
 )]
 fn repository_links_resolve_from_two_depths_without_changing_cached_views() {
+    // The remote-resource check sees a resource whatever the attribute order,
+    // quote style or scheme form, and accepts local references.
+    for remote in [
+        "<script></script><script defer src='https://example.org/app.js'></script>",
+        "<link rel=stylesheet href=//example.org/a.css>",
+        "<image width=\"1\" href=\"HTTP://example.org/image.png\"/>",
+        "<image width=\"1\" xlink:href='https://example.org/image.png'/>",
+    ] {
+        assert_eq!(remote_resource_urls(remote).len(), 1, "{remote}");
+    }
+    assert!(
+        remote_resource_urls(
+            "<script>a<b</script><a href='docs/x.md'><image width=\"1\" href=\"x.png\"/>"
+        )
+        .is_empty()
+    );
     let scratch = Scratch::new("repository-navigation");
     let root = scratch.path();
     fixture(root);
@@ -91,6 +107,81 @@ fn repository_links_resolve_from_two_depths_without_changing_cached_views() {
             "unrelated host bytes"
         );
     }
+}
+
+/// Returns every `src`, `href` and `xlink:href` value in `markup` that names a
+/// remote resource (an absolute `http` or `https` URL, or a protocol-relative
+/// one), whatever the attribute order, quoting or element.
+fn remote_resource_urls(markup: &str) -> Vec<String> {
+    let bytes = markup.as_bytes();
+    let mut found = Vec::new();
+    let mut at = 0;
+    while let Some(open) = markup[at..].find('<').map(|offset| at + offset) {
+        at = open + 1;
+        if !bytes.get(at).is_some_and(u8::is_ascii_alphabetic) {
+            continue;
+        }
+        while at < bytes.len()
+            && !bytes[at].is_ascii_whitespace()
+            && !matches!(bytes[at], b'>' | b'/')
+        {
+            at += 1;
+        }
+        loop {
+            while at < bytes.len() && (bytes[at].is_ascii_whitespace() || bytes[at] == b'/') {
+                at += 1;
+            }
+            if at >= bytes.len() || bytes[at] == b'>' {
+                break;
+            }
+            let start = at;
+            while at < bytes.len()
+                && !bytes[at].is_ascii_whitespace()
+                && !matches!(bytes[at], b'=' | b'>' | b'/')
+            {
+                at += 1;
+            }
+            let name = markup[start..at].to_ascii_lowercase();
+            while at < bytes.len() && bytes[at].is_ascii_whitespace() {
+                at += 1;
+            }
+            if bytes.get(at) != Some(&b'=') {
+                continue;
+            }
+            at += 1;
+            while at < bytes.len() && bytes[at].is_ascii_whitespace() {
+                at += 1;
+            }
+            let value = match bytes.get(at) {
+                Some(&quote @ (b'"' | b'\'')) => {
+                    let begin = at + 1;
+                    at = markup[begin..]
+                        .find(char::from(quote))
+                        .map_or(bytes.len(), |end| begin + end);
+                    let value = &markup[begin..at];
+                    at = (at + 1).min(bytes.len());
+                    value
+                }
+                _ => {
+                    let begin = at;
+                    while at < bytes.len() && !bytes[at].is_ascii_whitespace() && bytes[at] != b'>'
+                    {
+                        at += 1;
+                    }
+                    &markup[begin..at]
+                }
+            };
+            let lowered = value.trim().to_ascii_lowercase();
+            if matches!(name.as_str(), "src" | "href" | "xlink:href")
+                && (lowered.starts_with("http:")
+                    || lowered.starts_with("https:")
+                    || lowered.starts_with("//"))
+            {
+                found.push(value.to_owned());
+            }
+        }
+    }
+    found
 }
 
 #[expect(
@@ -149,9 +240,8 @@ fn check_links(root: &Path, directory: &Path, cached: &raf_workplan::diagram::Di
     assert!(html.contains("<script>"));
     assert!(!html.contains("<script src"));
     assert!(!html.contains("<link "));
-    assert!(!html.contains("src=\"http"));
-    assert!(!html.contains("href=\"http"));
-    assert!(!svg.contains("<image href=\"http"));
+    assert_eq!(remote_resource_urls(&html), Vec::<String>::new());
+    assert_eq!(remote_resource_urls(&svg), Vec::<String>::new());
     for detail in cached.details() {
         assert!(html.contains(&format!("{}.html", detail.view().name())));
         assert!(
