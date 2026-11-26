@@ -710,10 +710,34 @@ impl<'a> Walker<'a> {
         Ok(frontier)
     }
 
+    /// The canonical path of the file that `spelling` identifies: the spelling
+    /// that sorts first among the spellings the walk reached it by.
+    fn canonical_path(&self, spelling: &RelPath) -> Result<RelPath, LoadError> {
+        let internal = |what: &str| {
+            LoadError::new(
+                spelling,
+                None,
+                LoadErrorKind::Internal {
+                    what: what.to_owned(),
+                },
+            )
+        };
+        let id = self
+            .spellings
+            .get(spelling)
+            .ok_or_else(|| internal("a declaration names a file the walk never identified"))?;
+        let position = self
+            .by_id
+            .get(id)
+            .copied()
+            .ok_or_else(|| internal("a spelling of the walk names no parsed file"))?;
+        Ok(self.files[position].path.clone())
+    }
+
     /// The parsed files, keyed by the spelling each keeps (the one that sorts
     /// first of those it was reached by), and every arrival
     /// in the order of the walk, with the table of module paths.
-    pub(crate) fn finish(self) -> Result<Walked, LoadError> {
+    pub(crate) fn finish(mut self) -> Result<Walked, LoadError> {
         let visits = self
             .visits
             .iter()
@@ -722,42 +746,23 @@ impl<'a> Walker<'a> {
                 reach,
             })
             .collect();
-        // A declaration names its parent file by the spelling it arrived under,
-        // and a file reached under two spellings keeps one canonical path. Map
-        // every spelling to that path, so each declaration names the file that
-        // the index keys it by.
-        let canonical: HashMap<RelPath, RelPath, FixedState> = self
-            .spellings
-            .iter()
-            .map(|(spelling, id)| {
-                let position = self.by_id.get(id).copied().ok_or_else(|| {
-                    LoadError::new(
-                        spelling,
-                        None,
-                        LoadErrorKind::Internal {
-                            what: "a spelling of the walk names no parsed file".to_owned(),
-                        },
-                    )
-                })?;
-                Ok((spelling.clone(), self.files[position].path.clone()))
-            })
-            .collect::<Result<_, LoadError>>()?;
-        let mut files = BTreeMap::new();
-        for mut known in self.files {
-            for reach in &mut known.reached {
-                if let Some((declaring, _)) = reach.declaration.as_mut() {
-                    *declaring = canonical.get(declaring).cloned().ok_or_else(|| {
-                        LoadError::new(
-                            declaring,
-                            None,
-                            LoadErrorKind::Internal {
-                                what: "a declaration names a file the walk never identified"
-                                    .to_owned(),
-                            },
-                        )
-                    })?;
-                }
+        // A declaration names its parent file by the spelling it arrived under.
+        // Each spelling identifies one file, whose canonical path is its own
+        // entry in `files`, so the path is read in place and no second table of
+        // spellings is built beside the walk's own.
+        for index in 0..self.files.len() {
+            for reach_index in 0..self.files[index].reached.len() {
+                let Some((declaring, start)) =
+                    self.files[index].reached[reach_index].declaration.clone()
+                else {
+                    continue;
+                };
+                let canonical = self.canonical_path(&declaring)?;
+                self.files[index].reached[reach_index].declaration = Some((canonical, start));
             }
+        }
+        let mut files = BTreeMap::new();
+        for known in self.files {
             let path = known.path;
             let visited = Visited {
                 parsed: known.parsed,
