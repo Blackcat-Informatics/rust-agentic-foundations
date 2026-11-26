@@ -3862,6 +3862,57 @@ fn token_patterns_normalize_body_local_declarations_without_renaming_module_item
 
 #[test]
 #[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
+fn token_patterns_match_only_the_files_their_scope_admits() {
+    // A file outside includePath is never a hit, and the same text inside it is
+    // reported under its own module. The unscoped neighbour reports both.
+    let run = |graph: Builder| -> Vec<String> {
+        let ledger = graph.finish().unwrap().to_text(Format::Turtle).unwrap();
+        let tree: MemoryTree = [
+            (
+                "Cargo.toml",
+                "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n".to_owned(),
+            ),
+            (
+                "src/lib.rs",
+                "pub mod admitted;\npub mod other;\npub fn home(){}\npub use home as alias;\n"
+                    .to_owned(),
+            ),
+            ("src/admitted.rs", "pub fn a(){check!(1);}\n".to_owned()),
+            ("src/other.rs", "pub fn b(){check!(2);}\n".to_owned()),
+            ("helpers-ledger.ttl", ledger),
+        ]
+        .into_iter()
+        .collect();
+        fixture_gate(".").check_tree(&tree).unwrap().jobs()[0]
+            .matches
+            .iter()
+            .map(|found| found.symbol.to_string())
+            .collect()
+    };
+    let mut scoped = lexical_pattern_graph("tokens", "check!($_)");
+    put(
+        &mut scoped,
+        "#pattern",
+        "includePath",
+        Term::simple_literal("src/admitted.rs"),
+    );
+    assert_eq!(run(scoped), vec!["demo::admitted::a".to_owned()]);
+    let unscoped = run(lexical_pattern_graph("tokens", "check!($_)"));
+    assert!(
+        unscoped.contains(&"demo::admitted::a".to_owned()),
+        "{unscoped:?}"
+    );
+    assert!(
+        unscoped.contains(&"demo::other::b".to_owned()),
+        "{unscoped:?}"
+    );
+}
+
+#[test]
+#[expect(
     clippy::panic,
     clippy::unwrap_used,
     reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"

@@ -73,11 +73,23 @@ fn run<'p, 'w>(
     let mut found = paths::collect(&path_patterns, workspace, census, code, references, limits)?;
     if !compiled.is_empty() {
         for file in workspace.files() {
-            if census.source_context(&file.path).is_none() {
+            let Some(context) = census.source_context(&file.path) else {
+                continue;
+            };
+            // A pattern whose scope excludes this file can never report a hit in
+            // it (the same file context decides every hit), so its matching is
+            // not run. A file no pattern admits is never normalized.
+            let admitted: Vec<_> = compiled
+                .iter()
+                .filter(|(pattern, _)| {
+                    pattern.scope.is_unscoped() || pattern.scope.admits_file(context, &file.path)
+                })
+                .collect();
+            if admitted.is_empty() {
                 continue;
             }
             let normalized = source::normalized(workspace, file, owners, limits)?;
-            for (pattern, form) in &compiled {
+            for (pattern, form) in admitted {
                 for (byte, line) in tokens::find(&pattern.id, form, &normalized, limits)? {
                     retain(&mut found, pattern, &file.path, byte, line, None, limits)?;
                 }
