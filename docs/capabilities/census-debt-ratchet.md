@@ -26,6 +26,7 @@ bindings:
     - raf_census::MAX_DEBT_BYTES
     - raf_census::gate::bounds
   tests:
+    - raf_census::test_crate::census_gate::ratchet::a_ratcheted_top_level_hit_in_an_out_of_line_module_records_one_debt_site
     - raf_census::publication::tests::published_records_and_unowned_temporaries_survive_typed_finalization_failures
     - cargo_raf_census::test_crate::delivery::debt_publication_never_creates_a_declared_missing_rust_target
     - cargo_raf_census::test_crate::delivery::debt_publication_preserves_unowned_entries_and_busy_records
@@ -113,7 +114,7 @@ group; a write records the present scope. An absent record takes the present
 scope, so a scope alone never requires a record.
 
 ### Counted site ratchet
-<!-- raf:tested-by rust_agentic_foundations::test_crate::self_census::the_repository_debt_record_round_trips_byte_for_byte,raf_census::test_crate::census_gate::ratchet::ratcheted_patterns_record_counted_sites_and_hold_both_directions,raf_census::test_crate::census_gate::ratchet::ratcheted_rules_record_counted_sites_and_hold_both_directions,raf_census::test_crate::census_gate::ratchet::a_required_rule_cannot_also_be_ratcheted,raf_census::test_crate::debt::ratcheted_sites_grow_on_new_keys_and_rising_counts_and_lower_on_falls_and_stale_rows,raf_census::test_crate::debt::counted_nodes_refuse_redundant_counts_and_unowned_assertions,raf_census::test_crate::debt::both_native_spellings_round_trip_and_input_order_does_not_change_bytes,raf_census::test_crate::debt::invalid_groups_and_zero_copy_rows_are_refused,cargo_raf_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate -->
+<!-- raf:tested-by rust_agentic_foundations::test_crate::self_census::the_repository_debt_record_round_trips_byte_for_byte,raf_census::test_crate::census_gate::ratchet::ratcheted_patterns_record_counted_sites_and_hold_both_directions,raf_census::test_crate::census_gate::ratchet::ratcheted_rules_record_counted_sites_and_hold_both_directions,raf_census::test_crate::census_gate::ratchet::a_required_rule_cannot_also_be_ratcheted,raf_census::test_crate::debt::ratcheted_sites_grow_on_new_keys_and_rising_counts_and_lower_on_falls_and_stale_rows,raf_census::test_crate::debt::counted_nodes_refuse_redundant_counts_and_unowned_assertions,raf_census::test_crate::debt::both_native_spellings_round_trip_and_input_order_does_not_change_bytes,raf_census::test_crate::debt::invalid_groups_and_zero_copy_rows_are_refused,cargo_raf_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate,raf_census::test_crate::census_gate::ratchet::a_ratcheted_top_level_hit_in_an_out_of_line_module_records_one_debt_site -->
 
 A ledger Pattern that states ratcheted true, or a rule that a job names in
 ratchetedRule, does not produce findings. Its hits
@@ -124,7 +125,9 @@ hit of it is growth. A `DebtSite` names the file, the rule and a `SiteKey`.
 
 For a pattern or job rule, the site key is a BLAKE3-256 digest of the enclosing source symbol
 and the first ordinary or raw string literal at or after the hit inside that item
-(none when no literal follows the hit in that item). Line numbers and byte offsets are never
+(none when no literal follows the hit in that item). A hit in the top-level code
+of an out-of-line module file is enclosed by that module, which spans the whole
+file. Line numbers and byte offsets are never
 hashed, so inserting lines above a recorded site leaves the record
 byte-identical. Renaming the enclosing item or editing the keyed literal is one
 missing key plus one new key, and the new key is growth. Hits that share a file,
@@ -405,6 +408,7 @@ or execution of an external native implementation.
 | `raf_census::publication::tests::published_records_and_unowned_temporaries_survive_typed_finalization_failures` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ledger_grouping_scope_is_stated_by_the_index_and_the_debt_record` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::numeric_bounds::numeric_ratchet_tracks_roles_and_unclassified_multiplicity_across_line_movement` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::ratchet::a_ratcheted_top_level_hit_in_an_out_of_line_module_records_one_debt_site` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ratchet::a_required_rule_cannot_also_be_ratcheted` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ratchet::ratcheted_patterns_record_counted_sites_and_hold_both_directions` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_census::test_crate::census_gate::ratchet::ratcheted_rules_record_counted_sites_and_hold_both_directions` | test | [Contract](#contract), [Examples](#examples) |

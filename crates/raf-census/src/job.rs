@@ -125,9 +125,12 @@ pub struct JobMatch {
     pub symbol: String,
     /// The file, relative to the workspace root.
     pub file: String,
-    /// The 1-based line of the unit's name.
+    /// The 1-based line of the unit's name, or 1 for a module that spans the
+    /// whole of `file`: a crate root, or an out-of-line module file whose top
+    /// level holds the match.
     pub line: usize,
-    /// The byte offset where the source item starts.
+    /// The byte offset where the source item starts in `file`, or 0 for a
+    /// module that spans the whole of `file`.
     pub start_byte: usize,
     /// How the unit stands to the job.
     pub class: MatchClass,

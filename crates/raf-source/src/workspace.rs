@@ -766,6 +766,24 @@ impl Workspace {
             .collect()
     }
 
+    /// The `mod name;` items whose declaration led the module walk to `file`.
+    /// The top-level code of an out-of-line module file lies in no item of its
+    /// own, so these items own it. A declaration reaches only the files it
+    /// names: of two `mod` items for one module path under different
+    /// configurations, each owns its own `path` file. Empty for a file that no
+    /// `mod` item declares; a crate root that no other target declares has only
+    /// its own whole-file item.
+    #[must_use]
+    pub fn declaring_modules(&self, file: &RelPath) -> Vec<&Item> {
+        self.index
+            .module_file_items
+            .get(file)
+            .into_iter()
+            .flatten()
+            .map(|id| &self.index.items[id.index()])
+            .collect()
+    }
+
     /// True when the item is in a shipping target and is not test code.
     #[must_use]
     pub fn is_shipping(&self, item: &Item) -> bool {

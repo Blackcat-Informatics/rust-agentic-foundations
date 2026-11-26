@@ -217,7 +217,7 @@ inputs:
     digest: 867f248bb0be451cc449e9f20d34ab159228a8516798ac4f8ed893ee7c107015
   - kind: symbol
     name: raf_census::JobMatch
-    digest: 708dbaabe78efaf4a5e9c7c0bd24b75374673e1ad3b188fe99c2f320fe51e3a3
+    digest: 6a15e7aa073bf31091209e3bec7f18954e46340853aa4f6a2e1bf5aefef8a4be
   - kind: symbol
     name: raf_census::JobReport
     digest: e302ee1a65face3346fc7117755ebbec2b9d053aba29cc87fcc2729a06f6cb50

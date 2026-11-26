@@ -1099,3 +1099,31 @@ fn a_pattern_reached_through_another_jobs_rule_cannot_be_ratcheted() {
     let error = load(via_rule(true)).unwrap_err().to_string();
     assert!(error.contains("state ratcheted on the pattern"), "{error}");
 }
+
+#[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
+fn a_ratcheted_top_level_hit_in_an_out_of_line_module_records_one_debt_site() {
+    // INVARIANT: the declaring `mod` item owns the whole of an out-of-line module
+    // file, so a ratcheted hit in its top-level code is debt of that file, counted
+    // as one site, rather than a finding or a refusal for lying in no source item.
+    let mut graph = lexical_pattern_graph("macro", "blocked");
+    put(&mut graph, "#pattern", "ratcheted", Term::boolean(true));
+    let report = fixture_gate(".")
+        .check_tree(&ratchet_tree_over(
+            graph,
+            &[("a", "\nblocked!();\n")],
+            "pub fn home(){}",
+            None,
+        ))
+        .unwrap();
+    let files: Vec<_> = report
+        .debt()
+        .sites()
+        .keys()
+        .map(|site| site.file().to_string())
+        .collect();
+    assert_eq!(files, ["src/a.rs"], "{:?}", report.findings());
+}

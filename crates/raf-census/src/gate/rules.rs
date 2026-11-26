@@ -704,10 +704,20 @@ fn source_hit(
     {
         sites.retain(|item| !workspace.same_source(item).is_empty());
     }
+    if sites.is_empty() {
+        // Top-level code of an out-of-line module file lies in no item of its
+        // own; the `mod` item that declares the file owns it. A file no module
+        // declares has no owner, and the refusal below stands.
+        sites = workspace.declaring_modules(file);
+    }
+    // A physical site is the declaring file and offset of the item, not its logical
+    // path: two declarations at the same offset in different files are two owners,
+    // while one declaration reached under several logical paths or targets shares
+    // one key and deduplicates.
     let mut by_location = BTreeMap::new();
     for item in sites {
         by_location
-            .entry(item.span.start_byte)
+            .entry((item.file.clone(), item.span.start_byte))
             .or_insert_with(Vec::new)
             .push(item);
     }
@@ -715,7 +725,11 @@ fn source_hit(
     let (Some(mut sites), None) = (locations.next(), locations.next()) else {
         return Err(refused(
             hit.rule,
-            "detector hit requires one physical source item",
+            &format!(
+                "{file}:{}: detector hit requires one physical source item; \
+                 declare the file from one `mod` item or move the code into an item",
+                hit.line
+            ),
         ));
     };
     sites.sort_by(|a, b| {
@@ -730,11 +744,16 @@ fn source_hit(
     let target = workspace
         .target(item.target)
         .ok_or_else(|| refused(hit.rule, "source item has no owning target"))?;
-    let key = (
-        item.path.to_string(),
-        file.to_string(),
-        item.span.start_byte,
-    );
+    // The subject is a region of the hit file: the item itself, or, when the
+    // owner is the `mod` item that declares the file from another file, the
+    // whole file from its first byte, as a crate root owns its own file. Every
+    // coordinate of the subject lies in the hit file.
+    let (start_byte, line) = if item.file == *file {
+        (item.span.start_byte, item.name_line)
+    } else {
+        (0, 1)
+    };
+    let key = (item.path.to_string(), file.to_string(), start_byte);
     collected
         .subjects
         .entry(key.clone())
@@ -743,8 +762,8 @@ fn source_hit(
             source_file: file.clone(),
             symbol: item.path.to_string(),
             file: file.to_string(),
-            start_byte: item.span.start_byte,
-            line: item.name_line,
+            start_byte,
+            line,
             package: target.package.clone(),
         });
     collected
@@ -776,5 +795,65 @@ pub(super) fn refused(id: &str, reason: &str) -> Error {
         file: format!("rule:{id}"),
         line: 1,
         reason: reason.into(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use raf_source::{MemoryTree, RelPath};
+
+    fn hit(byte: usize) -> Hit<'static> {
+        Hit {
+            rule: "serde-json",
+            byte,
+            line: 1,
+            message: String::new(),
+            call_reaches: Vec::new(),
+        }
+    }
+
+    #[test]
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )]
+    fn attribution_refuses_an_unloaded_file_no_module_declares_and_attributes_the_crate_root() {
+        // INVARIANT: the owner of a top-level hit is its containing item, else the
+        // module that declares its file, else nothing. The workspace scanner loads
+        // only the files that the module tree of a target reaches, so `src/loose.rs`
+        // here is an unloaded path: no module declares it and the attribution
+        // boundary refuses it. A top-level hit in the crate root, which the target
+        // loads, belongs to the root module (a whole-file item).
+        let tree = MemoryTree::from([
+            (
+                "Cargo.toml",
+                "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+            ),
+            ("src/lib.rs", "use serde_json::Value;\npub fn home() {}\n"),
+            ("src/loose.rs", "use serde_json::Value;\n"),
+        ]);
+        let workspace = Workspace::load(&tree, &["."]).unwrap();
+        let mut collected = Collected::default();
+        let loose = RelPath::new("src/loose.rs").unwrap();
+        let error = source_hit(&workspace, &loose, &mut collected, hit(0)).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("detector hit requires one physical source item"),
+            "{error}"
+        );
+        let root = RelPath::new("src/lib.rs").unwrap();
+        collected
+            .hits
+            .insert("serde-json".to_owned(), BTreeMap::new());
+        source_hit(&workspace, &root, &mut collected, hit(0)).unwrap();
+        assert!(
+            collected
+                .hits
+                .get("serde-json")
+                .is_some_and(|sites| !sites.is_empty()),
+            "a top-level hit in the crate root must be recorded against the root module"
+        );
     }
 }

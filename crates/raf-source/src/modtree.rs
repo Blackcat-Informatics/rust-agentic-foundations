@@ -88,6 +88,9 @@ pub struct Reach {
     pub predicate: Option<String>,
     /// The `path` attribute that led the walk to this file, if one did.
     pub path_attribute: Option<PathSite>,
+    /// The file and name offset of the `mod name;` declaration that led the
+    /// walk to this file; `None` for a target root.
+    pub(crate) declaration: Option<(RelPath, usize)>,
 }
 
 /// The `path` attribute through which the walk reached a file.
@@ -228,6 +231,9 @@ fn join(
 struct Site<'a> {
     file: &'a RelPath,
     line: usize,
+    /// The byte at which the declared name starts, which identifies the
+    /// declaration within its file.
+    name_start: usize,
     module: &'a str,
 }
 
@@ -704,10 +710,34 @@ impl<'a> Walker<'a> {
         Ok(frontier)
     }
 
+    /// The canonical path of the file that `spelling` identifies: the spelling
+    /// that sorts first among the spellings the walk reached it by.
+    fn canonical_path(&self, spelling: &RelPath) -> Result<RelPath, LoadError> {
+        let internal = |what: &str| {
+            LoadError::new(
+                spelling,
+                None,
+                LoadErrorKind::Internal {
+                    what: what.to_owned(),
+                },
+            )
+        };
+        let id = self
+            .spellings
+            .get(spelling)
+            .ok_or_else(|| internal("a declaration names a file the walk never identified"))?;
+        let position = self
+            .by_id
+            .get(id)
+            .copied()
+            .ok_or_else(|| internal("a spelling of the walk names no parsed file"))?;
+        Ok(self.files[position].path.clone())
+    }
+
     /// The parsed files, keyed by the spelling each keeps (the one that sorts
     /// first of those it was reached by), and every arrival
     /// in the order of the walk, with the table of module paths.
-    pub(crate) fn finish(self) -> Result<Walked, LoadError> {
+    pub(crate) fn finish(mut self) -> Result<Walked, LoadError> {
         let visits = self
             .visits
             .iter()
@@ -716,6 +746,21 @@ impl<'a> Walker<'a> {
                 reach,
             })
             .collect();
+        // A declaration names its parent file by the spelling it arrived under.
+        // Each spelling identifies one file, whose canonical path is its own
+        // entry in `files`, so the path is read in place and no second table of
+        // spellings is built beside the walk's own.
+        for index in 0..self.files.len() {
+            for reach_index in 0..self.files[index].reached.len() {
+                let Some((declaring, start)) =
+                    self.files[index].reached[reach_index].declaration.clone()
+                else {
+                    continue;
+                };
+                let canonical = self.canonical_path(&declaring)?;
+                self.files[index].reached[reach_index].declaration = Some((canonical, start));
+            }
+        }
         let mut files = BTreeMap::new();
         for known in self.files {
             let path = known.path;
@@ -1017,6 +1062,7 @@ impl<'a> Walker<'a> {
             test: scope.test,
             predicate: arrival.predicate.map(str::to_owned),
             path_attribute: arrival.path_attribute,
+            declaration: site.map(|s| (s.file.clone(), s.name_start)),
         };
         let (charged, line) = site.map_or((path, None), |s| (s.file, Some(s.line)));
         self.meter
@@ -1099,6 +1145,7 @@ impl<'a> Walker<'a> {
         let site = Site {
             file,
             line: module.name_line,
+            name_start: module.name_start,
             module: &module.name,
         };
         let has_alternatives = !module.paths.conditional.is_empty();
@@ -1218,6 +1265,7 @@ impl<'a> Walker<'a> {
         };
         let name = module.name.clone();
         let line = module.name_line;
+        let name_start = module.name_start;
         let inline = module.inline.is_some();
         let alternative = alternative.clone();
         let origin = Origin::PathAttr {
@@ -1232,6 +1280,7 @@ impl<'a> Walker<'a> {
         let site = Site {
             file: &file,
             line,
+            name_start,
             module: &name,
         };
         let dir = join(&declared.ctx.dir, &alternative.path, &file, line, &origin)?;

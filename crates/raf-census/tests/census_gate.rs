@@ -6560,3 +6560,299 @@ fn module_paths_outside_their_package_are_required_findings_beside_contained_one
     let locked = required.check_locked(&tree, &catalog, &local, &[]).unwrap();
     assert_eq!(locked.findings(), report.findings());
 }
+
+#[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
+fn a_top_level_hit_in_an_out_of_line_module_is_attributed_to_its_declaring_module() {
+    // INVARIANT: top-level code of an out-of-line module file lies in no item of
+    // its own; the `mod` item that declares the file owns the hit, and the finding
+    // names the file and line of the hit. An inline module with the same use is the
+    // neighbour that must keep attributing to its own module.
+    let outline = detector_fixture_with(
+        base(),
+        "pub mod yamlld;\npub fn home(){}",
+        "",
+        &[("home/src/yamlld.rs", "use serde_json::Value;\n")],
+    );
+    let report = fixture_gate(".")
+        .require_rules(["serde-json"])
+        .check_tree(&outline)
+        .unwrap();
+    assert!(
+        report
+            .findings()
+            .iter()
+            .any(|finding| finding.contains("yamlld.rs:1:") && finding.contains("demo::yamlld")),
+        "{:?}",
+        report.findings()
+    );
+    let inline = detector_fixture_with(
+        base(),
+        "pub mod yamlld { use serde_json::Value; }\npub fn home(){}",
+        "",
+        &[],
+    );
+    let report = fixture_gate(".")
+        .require_rules(["serde-json"])
+        .check_tree(&inline)
+        .unwrap();
+    assert!(
+        report
+            .findings()
+            .iter()
+            .any(|finding| finding.contains("demo::yamlld")),
+        "{:?}",
+        report.findings()
+    );
+}
+
+#[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
+fn a_top_level_hit_is_reported_and_varied_at_the_declaring_module_in_its_own_file() {
+    // INVARIANT: the `mod` item declared in another file owns the whole module
+    // file, as a crate root owns its own: a job match names the module and the
+    // module file at its first byte and line, and a ledger variant naming that
+    // module and file accepts the hit. The declaration and the hit sit on other
+    // lines of other files, so a location mixed from the two points nowhere.
+    let consumer = "pub fn a() {}\n\n\npub mod yamlld;\n";
+    let extra = [("consumer/src/yamlld.rs", "\n\nuse serde_json::Value;\n")];
+    let report = fixture_gate(".")
+        .check_tree(&detector_fixture_with(
+            detector_ledger("serde-json"),
+            "/// Home.\npub fn home(){}",
+            consumer,
+            &extra,
+        ))
+        .unwrap();
+    let job = &report.jobs()[0];
+    assert_eq!(job.copies, 1, "{report:?}");
+    let found = job
+        .matches
+        .iter()
+        .find(|found| found.symbol == "consumer::yamlld")
+        .unwrap();
+    assert_eq!(
+        (found.file.as_str(), found.line, found.start_byte),
+        ("consumer/src/yamlld.rs", 1, 0),
+        "{report:?}"
+    );
+    let mut varied = detector_ledger("serde-json");
+    put(&mut varied, "#job", "variant", Term::iri("#variant"));
+    put(
+        &mut varied,
+        "#variant",
+        "type",
+        Term::iri(format!("{}Variant", vocab::REPORT)),
+    );
+    for (key, value) in [
+        ("symbol", "consumer::yamlld"),
+        ("file", "consumer/src/yamlld.rs"),
+        ("detector", "serde-json"),
+        ("criterion", "layering"),
+        ("reason", "The module reads a separate format"),
+    ] {
+        put(&mut varied, "#variant", key, Term::simple_literal(value));
+    }
+    put(
+        &mut varied,
+        "#variant",
+        "anchor",
+        Term::iri("urn:raf:code:demo::home"),
+    );
+    let report = fixture_gate(".")
+        .check_tree(&detector_fixture_with(
+            varied,
+            "/// Home.\npub fn home(){}",
+            consumer,
+            &extra,
+        ))
+        .unwrap();
+    assert_eq!(report.jobs()[0].copies, 0, "{report:?}");
+    assert!(
+        report.jobs()[0]
+            .matches
+            .iter()
+            .any(|found| found.symbol == "consumer::yamlld" && found.class == MatchClass::Variant),
+        "{report:?}"
+    );
+}
+
+#[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
+fn configured_path_alternatives_each_own_only_the_file_they_name() {
+    // INVARIANT: a file belongs to the declaration that reaches it, not to every
+    // declaration of the same module path. Two `mod imp;` items under exclusive
+    // configurations name two files through `path`, so each file has one owner and
+    // a top-level hit in either is attributed rather than refused as ambiguous.
+    let tree = detector_fixture_with(
+        base(),
+        "#[cfg(unix)]\n#[path = \"unix.rs\"]\npub mod imp;\n#[cfg(windows)]\n#[path = \"windows.rs\"]\npub mod imp;\npub fn home(){}",
+        "",
+        &[
+            ("home/src/unix.rs", "use serde_json::Value;\n"),
+            ("home/src/windows.rs", "use serde_json::Value;\n"),
+        ],
+    );
+    let report = fixture_gate(".")
+        .require_rules(["serde-json"])
+        .check_tree(&tree)
+        .unwrap();
+    for file in ["unix.rs:1:", "windows.rs:1:"] {
+        assert!(
+            report
+                .findings()
+                .iter()
+                .any(|finding| finding.contains(file) && finding.contains("demo::imp")),
+            "{file}: {:?}",
+            report.findings()
+        );
+    }
+}
+
+#[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
+fn a_file_declared_by_two_module_items_is_refused_as_ambiguous() {
+    // INVARIANT: a hit in the top-level code of a file that two `mod` items declare
+    // has two owners and no single physical source item, so it is refused rather
+    // than attributed to whichever declaration was recorded last.
+    let ambiguous = detector_fixture_with(
+        base(),
+        "#[cfg(feature = \"a\")]\npub mod yamlld;\n#[cfg(not(feature = \"a\"))]\npub mod yamlld;\npub fn home(){}",
+        "",
+        &[("home/src/yamlld.rs", "use serde_json::Value;\n")],
+    );
+    let error = fixture_gate(".")
+        .require_rules(["serde-json"])
+        .check_tree(&ambiguous)
+        .unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("detector hit requires one physical source item"),
+        "{error}"
+    );
+}
+
+#[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
+fn a_file_declared_at_one_offset_by_two_parent_files_is_refused_as_ambiguous() {
+    // INVARIANT: the physical site of a declaration is its declaring file and its
+    // offset together. Two parent files that declare the same file at the same
+    // offset are two sites, so the hit is refused rather than collapsed to one owner.
+    let ambiguous = detector_fixture_with(
+        base(),
+        "pub mod a;\npub mod b;\npub fn home(){}",
+        "",
+        &[
+            (
+                "home/src/a.rs",
+                "#[path = \"yamlld.rs\"]\npub mod yamlld;\n",
+            ),
+            (
+                "home/src/b.rs",
+                "#[path = \"yamlld.rs\"]\npub mod yamlld;\n",
+            ),
+            ("home/src/yamlld.rs", "use serde_json::Value;\n"),
+        ],
+    );
+    let error = fixture_gate(".")
+        .require_rules(["serde-json"])
+        .check_tree(&ambiguous)
+        .unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("detector hit requires one physical source item"),
+        "{error}"
+    );
+}
+
+#[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
+fn an_undeclared_loose_file_is_never_visited_and_a_root_top_level_hit_belongs_to_the_root() {
+    // INVARIANT: the loader visits only files that a `mod` item or a crate root
+    // reaches, so a loose file that nothing declares produces no finding and no
+    // refusal. A top-level hit in the crate root belongs to the root module.
+    let tree = detector_fixture_with(
+        base(),
+        "use serde_json::Value;\npub fn home(){}",
+        "",
+        &[("home/src/loose.rs", "use serde_json::Value;\n")],
+    );
+    let report = fixture_gate(".")
+        .require_rules(["serde-json"])
+        .check_tree(&tree)
+        .unwrap();
+    assert!(
+        report
+            .findings()
+            .iter()
+            .all(|finding| !finding.contains("loose.rs")),
+        "{:?}",
+        report.findings()
+    );
+    assert!(
+        report
+            .findings()
+            .iter()
+            .any(|finding| finding.contains("lib.rs:1:") && finding.contains("demo")),
+        "{:?}",
+        report.findings()
+    );
+}
+
+#[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
+fn a_declaration_reached_through_two_target_paths_is_one_physical_owner() {
+    // INVARIANT: `leaf` is one declaration in `shared.rs`, which the library and the
+    // binary both load under their own module paths. The top-level hit of its file
+    // has one physical declaring site, so it is reported once rather than refused
+    // as two owners.
+    let tree: MemoryTree = [
+        (
+            "Cargo.toml",
+            "[package]\nname='demo'\nversion='0.1.0'\nedition='2021'\n".into(),
+        ),
+        ("src/lib.rs", "pub mod shared;\n".into()),
+        ("src/main.rs", "mod shared;\nfn main() {}\n".into()),
+        ("src/shared.rs", "pub mod leaf;\n".into()),
+        ("src/shared/leaf.rs", "use serde_json::Value;\n".into()),
+        (
+            "helpers-ledger.ttl",
+            base().finish().unwrap().to_text(Format::Turtle).unwrap(),
+        ),
+    ]
+    .into_iter()
+    .collect();
+    let report = fixture_gate(".")
+        .require_rules(["serde-json"])
+        .check_tree(&tree)
+        .unwrap();
+    let findings: Vec<_> = report
+        .findings()
+        .iter()
+        .filter(|finding| finding.contains("leaf.rs:1:"))
+        .collect();
+    assert_eq!(findings.len(), 1, "{:?}", report.findings());
+}

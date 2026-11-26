@@ -124,11 +124,14 @@ fn count_sites(
             .ok_or_else(|| refused("ratchet", &format!("{file}: source text is absent")))?;
         let literals = string_literals("ratchet", file, text, limits)?;
         for (rule, symbol, byte, line, message) in rows {
+            // Top-level code of an out-of-line module file is owned by the
+            // declaring `mod` item, whose region is the whole file.
             let end = workspace
                 .item_at(&path, byte)
                 .iter()
                 .map(|item| item.span.end_byte)
                 .max()
+                .or_else(|| (!workspace.declaring_modules(&path).is_empty()).then_some(text.len()))
                 .ok_or_else(|| {
                     refused(rule, &format!("{file}:{line}: hit lies in no source item"))
                 })?;

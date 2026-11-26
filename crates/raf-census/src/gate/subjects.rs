@@ -24,13 +24,22 @@ pub(super) fn variant(
         let item = workspace
             .item(site)
             .ok_or("variant source item is absent")?;
-        if item.file != file {
+        // A `mod` item declared in another file owns the variant's file from its
+        // first byte, as a crate root owns its own file.
+        let physical = if item.file == file {
+            (item.file.clone(), item.span.start_byte)
+        } else if workspace
+            .declaring_modules(&file)
+            .iter()
+            .any(|declaring| declaring.id == site)
+        {
+            (file.clone(), 0)
+        } else {
             continue;
-        }
-        let physical = (item.file.clone(), item.span.start_byte);
+        };
         let key = owners
             .get(&physical)
-            .filter(|_| !workspace.same_source(item).is_empty())
+            .filter(|_| item.file == file && !workspace.same_source(item).is_empty())
             .map(|unit| super::owners::key(unit))
             .or_else(|| {
                 subjects

@@ -359,6 +359,11 @@ pub(crate) struct Index {
     pub(crate) block_modules: Vec<BlockModule>,
     /// The module that a `mod` item stands for.
     pub(crate) module_of: BTreeMap<ItemId, usize>,
+    /// The `mod` items that declare each out-of-line module file, one per
+    /// declaration (a file may be declared under several cfg alternatives or
+    /// targets). A file's top-level code is covered by no item of its own, so
+    /// these name its owners.
+    pub(crate) module_file_items: BTreeMap<RelPath, Vec<ItemId>>,
     /// Lexical homes of exported macros placed in a different export module.
     pub(crate) macro_modules: BTreeMap<ItemId, usize>,
     /// The crate roots that an `extern crate` item stands for.
@@ -1062,6 +1067,42 @@ impl<'a> Builder<'a> {
             Some(decl.name_line),
         )?;
         self.index.module_of.insert(id, child);
+        // The files the walk reached through this very declaration: an inline
+        // module reaches none, and a sibling declaration of the same module path
+        // under another configuration reaches its own.
+        let site = (cx.file, decl.name_start);
+        let mut declared: Vec<RelPath> = self
+            .files_at
+            .get(&(cx.target, path.as_str()))
+            .into_iter()
+            .flatten()
+            .filter(|file| {
+                file.reached.iter().any(|reach| {
+                    reach.target == cx.target
+                        && reach.module_path.as_str() == path
+                        && reach
+                            .declaration
+                            .as_ref()
+                            .is_some_and(|(declaring, start)| (declaring, *start) == site)
+                })
+            })
+            .map(|file| file.path.clone())
+            .collect();
+        // A file is listed once per reach; a declaration owns it once.
+        declared.sort();
+        declared.dedup();
+        for file in declared {
+            self.store.charge(
+                btree_entry::<RelPath, ItemId>(),
+                cx.file,
+                Some(decl.name_line),
+            )?;
+            self.index
+                .module_file_items
+                .entry(file)
+                .or_default()
+                .push(id);
+        }
         Ok(child)
     }
 
@@ -1171,6 +1212,7 @@ impl Index {
             module_by_path: BTreeMap::new(),
             block_modules: Vec::new(),
             module_of: BTreeMap::new(),
+            module_file_items: BTreeMap::new(),
             crate_of: BTreeMap::new(),
             crate_roots: BTreeMap::new(),
             target_roots: Vec::new(),

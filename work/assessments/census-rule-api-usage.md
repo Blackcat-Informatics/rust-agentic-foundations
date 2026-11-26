@@ -28,7 +28,7 @@ inputs:
     digest: 0503ad24db1afab83d45d098775da0f6d1304ee95c9a905293ccd91d1b73bbd5
   - kind: symbol
     name: raf_census::gate::rules
-    digest: e484f2d8cbadccb223f6584ef8f6d1295a6d2ea7154f0bff927d8705589fe034
+    digest: 153f17dbfbe06cdfc0e667fe48c390a7db006b55acd823b4c5d0c8f2404be7a0
 verdict: accepted
 by: agent
 ---
