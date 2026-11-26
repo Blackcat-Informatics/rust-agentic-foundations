@@ -1343,3 +1343,37 @@ fn an_assessment_is_never_written_through_a_linked_directory_and_a_real_one_reco
     );
     assert_eq!(snapshot(root), before);
 }
+
+#[test]
+fn a_renewal_keeps_the_licence_lines_of_the_record_it_replaces() {
+    // A renewal that gives no SPDX options replaces the verdict, digests and
+    // timestamp only: both licence lines of the record it replaces stay, and
+    // the renewed record still loads clean.
+    let fixture = Fixture::new("[demo::run]", "");
+    let options = RecordOptions::new()
+        .copyright("Example Owner <owner@example.invalid>")
+        .licence("MIT");
+    let request = AssessmentRequest::new(CONTRACT, AssessmentVerdict::Accepted, Actor::Agent)
+        .options(options);
+    on_disk(fixture.root(), |plan| {
+        plan.record_assessment(fixture.root(), &request)
+    })
+    .expect("the first record is written with its licence lines");
+    let renewed = fixture
+        .assess(CONTRACT, AssessmentVerdict::Accepted, Actor::Agent)
+        .expect("the record is renewed");
+    assert!(renewed.replaced);
+    let text = read(fixture.root(), ASSESSMENT);
+    assert!(
+        text.contains(concat!(
+            "\n# SPDX-",
+            "FileCopyrightText: Example Owner <owner@example.invalid>\n"
+        )),
+        "{text}"
+    );
+    assert!(
+        text.contains(concat!("\n# SPDX-", "License-Identifier: MIT\n")),
+        "{text}"
+    );
+    assert_eq!(on_disk(fixture.root(), findings), []);
+}

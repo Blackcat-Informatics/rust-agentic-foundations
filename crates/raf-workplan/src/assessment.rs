@@ -1171,8 +1171,11 @@ impl Workplan<'_> {
             Some(_) => return Err(RecordError::Exists { path }.into()),
             None => false,
         };
+        // A renewal replaces only what it owns; the SPDX lines of the record
+        // it replaces are kept unless the request gives its own.
         let path = if replaced {
-            record::replace_in(store, &record, &request.options)?
+            let options = record::kept_spdx(store, &path, &request.options)?;
+            record::replace_in(store, &record, &options)?
         } else {
             record::create_in(store, &record, &request.options)?
         };

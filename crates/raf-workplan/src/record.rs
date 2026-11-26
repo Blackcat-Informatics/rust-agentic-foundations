@@ -415,6 +415,35 @@ pub fn replace_in(
     Ok(path)
 }
 
+/// `options`, or the SPDX lines of the record that exists at `path` when
+/// `options` gives none, so that a renewal keeps the header it does not own.
+///
+/// # Errors
+///
+/// [`RecordError::Write`] when the existing record cannot be read as text.
+pub(crate) fn kept_spdx(
+    store: &mut dyn RecordStore,
+    path: &RelPath,
+    options: &RecordOptions,
+) -> Result<RecordOptions, RecordError> {
+    if options.copyright.is_some() || options.licence.is_some() {
+        return Ok(options.clone());
+    }
+    let existing = store
+        .tree()?
+        .read(path, raf_okf::MAX_TEXT_BYTES as u64)
+        .map_err(|source| RecordError::Write {
+            path: path.to_string(),
+            source: io::Error::other(source),
+        })?;
+    // The header lines sit between the opening fence and the closing fence.
+    let frontmatter = existing.split("\n---").next().unwrap_or(&existing);
+    Ok(match spdx::read(frontmatter) {
+        Some((copyright, licence)) => RecordOptions::new().copyright(copyright).licence(licence),
+        None => options.clone(),
+    })
+}
+
 #[cfg(all(test, unix))]
 mod tests {
     use super::{DiskRecordStore, Record, RecordError, RecordOptions, RecordStore, replace};
