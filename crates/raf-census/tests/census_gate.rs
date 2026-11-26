@@ -6608,3 +6608,30 @@ fn a_top_level_hit_in_an_out_of_line_module_is_attributed_to_its_declaring_modul
         report.findings()
     );
 }
+
+#[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
+fn a_file_declared_by_two_module_items_is_refused_as_ambiguous() {
+    // INVARIANT: a hit in the top-level code of a file that two `mod` items declare
+    // has two owners and no single physical source item, so it is refused rather
+    // than attributed to whichever declaration was recorded last.
+    let ambiguous = detector_fixture_with(
+        base(),
+        "#[cfg(feature = \"a\")]\npub mod yamlld;\n#[cfg(not(feature = \"a\"))]\npub mod yamlld;\npub fn home(){}",
+        "",
+        &[("home/src/yamlld.rs", "use serde_json::Value;\n")],
+    );
+    let error = fixture_gate(".")
+        .require_rules(["serde-json"])
+        .check_tree(&ambiguous)
+        .unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("detector hit requires one physical source item"),
+        "{error}"
+    );
+}
