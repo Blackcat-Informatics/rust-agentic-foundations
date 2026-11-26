@@ -3862,6 +3862,70 @@ fn token_patterns_normalize_body_local_declarations_without_renaming_module_item
 
 #[test]
 #[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
+fn token_patterns_match_only_the_files_their_scope_admits() {
+    // A file outside includePath is neither normalized nor charged to the matching
+    // grant. With a grant that fits only the admitted file, the scoped rule
+    // succeeds and its unscoped neighbour is refused at the padded file.
+    let padding = "pub fn pad(){let _=(1,2,3,4,5,6,7,8);}\n".repeat(200);
+    let run = |graph: Builder| -> Result<Vec<String>, String> {
+        let ledger = graph.finish().unwrap().to_text(Format::Turtle).unwrap();
+        let tree: MemoryTree = [
+            (
+                "Cargo.toml",
+                "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n".to_owned(),
+            ),
+            (
+                "src/lib.rs",
+                "pub mod admitted;\npub mod other;\npub fn home(){}\npub use home as alias;\n"
+                    .to_owned(),
+            ),
+            ("src/admitted.rs", "pub fn a(){check!(1);}\n".to_owned()),
+            (
+                "src/other.rs",
+                format!("pub fn b(){{check!(2);}}\n{padding}"),
+            ),
+            ("helpers-ledger.ttl", ledger),
+        ]
+        .into_iter()
+        .collect();
+        let report = fixture_gate(".")
+            .matching_limits(purrdf_jsonschema::ecma::MatchLimits {
+                steps: 3_000,
+                states: 64,
+            })
+            .check_tree(&tree)
+            .map_err(|error| error.to_string())?;
+        Ok(report.jobs()[0]
+            .matches
+            .iter()
+            .map(|found| found.symbol.clone())
+            .collect())
+    };
+    let mut scoped = lexical_pattern_graph("tokens", "check!($_)");
+    put(
+        &mut scoped,
+        "#pattern",
+        "includePath",
+        Term::simple_literal("src/admitted.rs"),
+    );
+    assert_eq!(run(scoped), Ok(vec!["demo::admitted::a".to_owned()]));
+    let refused = run(lexical_pattern_graph("tokens", "check!($_)")).unwrap_err();
+    assert!(refused.contains("rule:approved-call"), "{refused}");
+    assert!(
+        refused.contains("matching stopped at src/other.rs"),
+        "{refused}"
+    );
+    assert!(
+        refused.contains("unfinished admitted files: src/other.rs"),
+        "{refused}"
+    );
+}
+
+#[test]
+#[expect(
     clippy::panic,
     clippy::unwrap_used,
     reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
@@ -3878,6 +3942,16 @@ fn lexical_patterns_share_an_explicit_native_budget_and_release_only_their_own_s
         .check_tree(&tree)
         .unwrap_err();
     assert!(refused.to_string().contains("step limit"), "{refused}");
+    assert!(
+        refused
+            .to_string()
+            .contains("matching stopped at src/lib.rs"),
+        "{refused}"
+    );
+    assert!(
+        refused.to_string().contains("rule:approved-call"),
+        "{refused}"
+    );
     assert!(fixture_gate(".").check_tree(&tree).unwrap().is_clean());
     let syn::Item::Fn(item) = &retained.items[0] else {
         panic!("retained function")
