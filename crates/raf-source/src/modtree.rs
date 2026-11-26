@@ -722,8 +722,42 @@ impl<'a> Walker<'a> {
                 reach,
             })
             .collect();
+        // A declaration names its parent file by the spelling it arrived under,
+        // and a file reached under two spellings keeps one canonical path. Map
+        // every spelling to that path, so each declaration names the file that
+        // the index keys it by.
+        let canonical: HashMap<RelPath, RelPath, FixedState> = self
+            .spellings
+            .iter()
+            .map(|(spelling, id)| {
+                let position = self.by_id.get(id).copied().ok_or_else(|| {
+                    LoadError::new(
+                        spelling,
+                        None,
+                        LoadErrorKind::Internal {
+                            what: "a spelling of the walk names no parsed file".to_owned(),
+                        },
+                    )
+                })?;
+                Ok((spelling.clone(), self.files[position].path.clone()))
+            })
+            .collect::<Result<_, LoadError>>()?;
         let mut files = BTreeMap::new();
-        for known in self.files {
+        for mut known in self.files {
+            for reach in &mut known.reached {
+                if let Some((declaring, _)) = reach.declaration.as_mut() {
+                    *declaring = canonical.get(declaring).cloned().ok_or_else(|| {
+                        LoadError::new(
+                            declaring,
+                            None,
+                            LoadErrorKind::Internal {
+                                what: "a declaration names a file the walk never identified"
+                                    .to_owned(),
+                            },
+                        )
+                    })?;
+                }
+            }
             let path = known.path;
             let visited = Visited {
                 parsed: known.parsed,

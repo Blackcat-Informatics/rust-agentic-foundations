@@ -35,7 +35,7 @@ bindings:
     - raf_census::test_crate::census_gate::a_declaration_reached_through_two_target_paths_is_one_physical_owner
     - raf_census::test_crate::census_gate::a_top_level_hit_is_reported_and_varied_at_the_declaring_module_in_its_own_file
     - raf_census::test_crate::census_gate::configured_path_alternatives_each_own_only_the_file_they_name
-    - raf_census::gate::rules::tests::attribution_refuses_a_file_no_module_declares_and_attributes_the_crate_root
+    - raf_census::gate::rules::tests::attribution_refuses_an_unloaded_file_no_module_declares_and_attributes_the_crate_root
     - raf_census::test_crate::census_gate::structure_detectors_judge_calls_against_the_jobs_declared_entry_points
     - raf_census::test_crate::census_gate::structure_variants_require_the_job_scoped_detector
     - raf_census::test_crate::census_gate::foreign_host_import_reports_only_repeats_of_the_homes_host_function
@@ -688,7 +688,7 @@ required findings with neighbouring clean source.
 | `cargo_raf_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets` | test | [Usage](#usage), [Examples](#examples) |
 | `raf_census::detectors::tests::every_executable_detector_has_positive_and_negative_gate_fixtures` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::example_crate::providers` | example target | [Usage](#usage) |
-| `raf_census::gate::rules::tests::attribution_refuses_a_file_no_module_declares_and_attributes_the_crate_root` | test | [Verification](#verification) |
+| `raf_census::gate::rules::tests::attribution_refuses_an_unloaded_file_no_module_declares_and_attributes_the_crate_root` | test | [Verification](#verification) |
 | `raf_census::test_crate::census_gate::a_declaration_reached_through_two_target_paths_is_one_physical_owner` | test | [Verification](#verification) |
 | `raf_census::test_crate::census_gate::a_file_declared_at_one_offset_by_two_parent_files_is_refused_as_ambiguous` | test | [Verification](#verification) |
 | `raf_census::test_crate::census_gate::a_file_declared_by_two_module_items_is_refused_as_ambiguous` | test | [Contract](#contract) |

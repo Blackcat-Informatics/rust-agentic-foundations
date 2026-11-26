@@ -7,7 +7,7 @@ subject: cap:source-index#contract
 inputs:
   - kind: section
     name: cap:source-index#contract
-    digest: 1213870c10bdc0c61058dafe7cf15aea16d637a4735b311c7ac7a77e9434abba
+    digest: 2c09c27cb57977c87c14165ae458188c23d0ea52a68d819058b00df1666d8aa8
   - kind: symbol
     name: raf_source::Budget
     digest: eaf4b98235a1475e23571f116bcdbbbb184db7eece60705c87acbeec0929c8a7

@@ -717,6 +717,7 @@ bindings:
     - raf_source::test_crate::workspace_containment::a_file_reached_through_a_directory_symlink_is_one_file_under_the_spelling_that_sorts_first
     - raf_source::test_crate::workspace_containment::a_module_that_reaches_its_own_file_through_a_directory_symlink_is_a_cycle
     - raf_source::test_crate::module_tree::a_file_reached_under_two_spellings_is_read_once_and_keeps_the_spelling_that_sorts_first
+    - raf_source::test_crate::declared_alias::a_child_of_a_parent_reached_under_two_spellings_is_owned_by_both_declarations
     - raf_source::test_crate::memory_tree::the_identity_of_a_file_is_its_normalised_key_and_refuses_what_read_refuses
     - raf_source::test_crate::disk_tree_containment::the_identity_of_a_file_is_the_device_and_inode_of_its_verified_handle
     - raf_source::test_crate::symbol_index::items_on_one_long_line_of_wide_characters_get_exact_byte_offsets
@@ -2412,7 +2413,10 @@ together. A file reached by several module paths, by two targets such as a share
 `z` links to `src`), is read and parsed once, listed once under the spelling that
 sorts first, and recorded under every path it was reached by; a `dir/..` pair is
 collapsed only when `dir` is a real directory, so a spelling is one the disk can
-follow, and one file has one spelling in the index. The walk stops at the first
+follow, and one file has one spelling in the index. Each `mod` declaration in such a
+file owns the children it declares, whichever spelling the file arrived under: the
+declaration is recorded under the canonical spelling, so `declaring_modules` of a
+child lists every declaration of its parent that names it. The walk stops at the first
 error. `Workspace::targets` yields the targets, and `Workspace::files` yields each
 source file once with its text and the module paths it was reached by.
 
@@ -5716,6 +5720,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::corpus_replay::files_at_a_budget_exit_zero_and_files_over_it_are_refused_naming_file_and_budget` | test | [Verification](#verification) |
 | `raf_source::test_crate::corpus_replay::the_shape_table_matches_the_expected_names` | test | [Verification](#verification) |
 | `raf_source::test_crate::corpus_replay::write_corpus` | test | [Verification](#verification) |
+| `raf_source::test_crate::declared_alias::a_child_of_a_parent_reached_under_two_spellings_is_owned_by_both_declarations` | test | [Verification](#verification) |
 | `raf_source::test_crate::dependency_declarations::declarations_retain_sources_flags_aliases_and_unevaluated_conditions` | test | [Contract](#contract) |
 | `raf_source::test_crate::dependency_declarations::inheritance_preserves_both_entries_and_the_workspace_path_base` | test | [Contract](#contract) |
 | `raf_source::test_crate::dependency_declarations::malformed_declarations_refuse_with_valid_neighbors` | test | [Contract](#contract), [Explanation](#explanation) |

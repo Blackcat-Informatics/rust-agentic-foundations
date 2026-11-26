@@ -818,11 +818,13 @@ mod tests {
         clippy::unwrap_used,
         reason = "a failed fixture operation is a test failure at the point of use"
     )]
-    fn attribution_refuses_a_file_no_module_declares_and_attributes_the_crate_root() {
+    fn attribution_refuses_an_unloaded_file_no_module_declares_and_attributes_the_crate_root() {
         // INVARIANT: the owner of a top-level hit is its containing item, else the
-        // module that declares its file, else nothing. A file that no module
-        // declares has no owner and is refused at this boundary, while a top-level
-        // hit in the crate root belongs to the root module (a whole-file item).
+        // module that declares its file, else nothing. The workspace scanner loads
+        // only the files that the module tree of a target reaches, so `src/loose.rs`
+        // here is an unloaded path: no module declares it and the attribution
+        // boundary refuses it. A top-level hit in the crate root, which the target
+        // loads, belongs to the root module (a whole-file item).
         let tree = MemoryTree::from([
             (
                 "Cargo.toml",
