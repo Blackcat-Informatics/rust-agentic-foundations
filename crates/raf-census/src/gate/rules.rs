@@ -725,7 +725,11 @@ fn source_hit(
     let (Some(mut sites), None) = (locations.next(), locations.next()) else {
         return Err(refused(
             hit.rule,
-            "detector hit requires one physical source item",
+            &format!(
+                "{file}:{}: detector hit requires one physical source item; \
+                 declare the file from one `mod` item or move the code into an item",
+                hit.line
+            ),
         ));
     };
     sites.sort_by(|a, b| {
@@ -740,11 +744,16 @@ fn source_hit(
     let target = workspace
         .target(item.target)
         .ok_or_else(|| refused(hit.rule, "source item has no owning target"))?;
-    let key = (
-        item.path.to_string(),
-        file.to_string(),
-        item.span.start_byte,
-    );
+    // The subject is a region of the hit file: the item itself, or, when the
+    // owner is the `mod` item that declares the file from another file, the
+    // whole file from its first byte, as a crate root owns its own file. Every
+    // coordinate of the subject lies in the hit file.
+    let (start_byte, line) = if item.file == *file {
+        (item.span.start_byte, item.name_line)
+    } else {
+        (0, 1)
+    };
+    let key = (item.path.to_string(), file.to_string(), start_byte);
     collected
         .subjects
         .entry(key.clone())
@@ -753,8 +762,8 @@ fn source_hit(
             source_file: file.clone(),
             symbol: item.path.to_string(),
             file: file.to_string(),
-            start_byte: item.span.start_byte,
-            line: item.name_line,
+            start_byte,
+            line,
             package: target.package.clone(),
         });
     collected
@@ -809,11 +818,11 @@ mod tests {
         clippy::unwrap_used,
         reason = "a failed fixture operation is a test failure at the point of use"
     )]
-    fn attribution_refuses_a_loaded_file_no_module_declares_and_attributes_the_crate_root() {
+    fn attribution_refuses_a_file_no_module_declares_and_attributes_the_crate_root() {
         // INVARIANT: the owner of a top-level hit is its containing item, else the
-        // module that declares its file, else nothing. A loaded file that no module
-        // declares has no owner and is refused, while a top-level hit in the crate
-        // root belongs to the root module (a whole-file item), not to the refusal.
+        // module that declares its file, else nothing. A file that no module
+        // declares has no owner and is refused at this boundary, while a top-level
+        // hit in the crate root belongs to the root module (a whole-file item).
         let tree = MemoryTree::from([
             (
                 "Cargo.toml",

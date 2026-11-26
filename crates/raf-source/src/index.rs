@@ -1067,12 +1067,25 @@ impl<'a> Builder<'a> {
             Some(decl.name_line),
         )?;
         self.index.module_of.insert(id, child);
-        // An out-of-line module's file is declared here; an inline module has none.
+        // The files the walk reached through this very declaration: an inline
+        // module reaches none, and a sibling declaration of the same module path
+        // under another configuration reaches its own.
+        let site = (cx.file, decl.name_start);
         let declared: Vec<RelPath> = self
             .files_at
             .get(&(cx.target, path.as_str()))
             .into_iter()
             .flatten()
+            .filter(|file| {
+                file.reached.iter().any(|reach| {
+                    reach.target == cx.target
+                        && reach.module_path.as_str() == path
+                        && reach
+                            .declaration
+                            .as_ref()
+                            .is_some_and(|(declaring, start)| (declaring, *start) == site)
+                })
+            })
             .map(|file| file.path.clone())
             .collect();
         for file in declared {

@@ -766,10 +766,13 @@ impl Workspace {
             .collect()
     }
 
-    /// The `mod` items that declare the out-of-line module whose file is
-    /// `file`. Its top-level code lies in no item of its own, so these are the
-    /// items that own it. Empty for a file that no `mod` item declares, such as
-    /// a crate root, whose own item spans the whole file.
+    /// The `mod name;` items whose declaration led the module walk to `file`.
+    /// The top-level code of an out-of-line module file lies in no item of its
+    /// own, so these items own it. A declaration reaches only the files it
+    /// names: of two `mod` items for one module path under different
+    /// configurations, each owns its own `path` file. Empty for a file that no
+    /// `mod` item declares, such as a crate root, whose own item spans the
+    /// whole file.
     #[must_use]
     pub fn declaring_modules(&self, file: &RelPath) -> Vec<&Item> {
         self.index

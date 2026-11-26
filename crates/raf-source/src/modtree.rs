@@ -88,6 +88,9 @@ pub struct Reach {
     pub predicate: Option<String>,
     /// The `path` attribute that led the walk to this file, if one did.
     pub path_attribute: Option<PathSite>,
+    /// The file and name offset of the `mod name;` declaration that led the
+    /// walk to this file; `None` for a target root.
+    pub(crate) declaration: Option<(RelPath, usize)>,
 }
 
 /// The `path` attribute through which the walk reached a file.
@@ -228,6 +231,9 @@ fn join(
 struct Site<'a> {
     file: &'a RelPath,
     line: usize,
+    /// The byte at which the declared name starts, which identifies the
+    /// declaration within its file.
+    name_start: usize,
     module: &'a str,
 }
 
@@ -1017,6 +1023,7 @@ impl<'a> Walker<'a> {
             test: scope.test,
             predicate: arrival.predicate.map(str::to_owned),
             path_attribute: arrival.path_attribute,
+            declaration: site.map(|s| (s.file.clone(), s.name_start)),
         };
         let (charged, line) = site.map_or((path, None), |s| (s.file, Some(s.line)));
         self.meter
@@ -1099,6 +1106,7 @@ impl<'a> Walker<'a> {
         let site = Site {
             file,
             line: module.name_line,
+            name_start: module.name_start,
             module: &module.name,
         };
         let has_alternatives = !module.paths.conditional.is_empty();
@@ -1218,6 +1226,7 @@ impl<'a> Walker<'a> {
         };
         let name = module.name.clone();
         let line = module.name_line;
+        let name_start = module.name_start;
         let inline = module.inline.is_some();
         let alternative = alternative.clone();
         let origin = Origin::PathAttr {
@@ -1232,6 +1241,7 @@ impl<'a> Walker<'a> {
         let site = Site {
             file: &file,
             line,
+            name_start,
             module: &name,
         };
         let dir = join(&declared.ctx.dir, &alternative.path, &file, line, &origin)?;

@@ -6614,6 +6614,115 @@ fn a_top_level_hit_in_an_out_of_line_module_is_attributed_to_its_declaring_modul
     clippy::unwrap_used,
     reason = "a failed fixture operation is a test failure at the point of use"
 )]
+fn a_top_level_hit_is_reported_and_varied_at_the_declaring_module_in_its_own_file() {
+    // INVARIANT: the `mod` item declared in another file owns the whole module
+    // file, as a crate root owns its own: a job match names the module and the
+    // module file at its first byte and line, and a ledger variant naming that
+    // module and file accepts the hit. The declaration and the hit sit on other
+    // lines of other files, so a location mixed from the two points nowhere.
+    let consumer = "pub fn a() {}\n\n\npub mod yamlld;\n";
+    let extra = [("consumer/src/yamlld.rs", "\n\nuse serde_json::Value;\n")];
+    let report = fixture_gate(".")
+        .check_tree(&detector_fixture_with(
+            detector_ledger("serde-json"),
+            "/// Home.\npub fn home(){}",
+            consumer,
+            &extra,
+        ))
+        .unwrap();
+    let job = &report.jobs()[0];
+    assert_eq!(job.copies, 1, "{report:?}");
+    let found = job
+        .matches
+        .iter()
+        .find(|found| found.symbol == "consumer::yamlld")
+        .unwrap();
+    assert_eq!(
+        (found.file.as_str(), found.line, found.start_byte),
+        ("consumer/src/yamlld.rs", 1, 0),
+        "{report:?}"
+    );
+    let mut varied = detector_ledger("serde-json");
+    put(&mut varied, "#job", "variant", Term::iri("#variant"));
+    put(
+        &mut varied,
+        "#variant",
+        "type",
+        Term::iri(format!("{}Variant", vocab::REPORT)),
+    );
+    for (key, value) in [
+        ("symbol", "consumer::yamlld"),
+        ("file", "consumer/src/yamlld.rs"),
+        ("detector", "serde-json"),
+        ("criterion", "layering"),
+        ("reason", "The module reads a separate format"),
+    ] {
+        put(&mut varied, "#variant", key, Term::simple_literal(value));
+    }
+    put(
+        &mut varied,
+        "#variant",
+        "anchor",
+        Term::iri("urn:raf:code:demo::home"),
+    );
+    let report = fixture_gate(".")
+        .check_tree(&detector_fixture_with(
+            varied,
+            "/// Home.\npub fn home(){}",
+            consumer,
+            &extra,
+        ))
+        .unwrap();
+    assert_eq!(report.jobs()[0].copies, 0, "{report:?}");
+    assert!(
+        report.jobs()[0]
+            .matches
+            .iter()
+            .any(|found| found.symbol == "consumer::yamlld" && found.class == MatchClass::Variant),
+        "{report:?}"
+    );
+}
+
+#[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
+fn configured_path_alternatives_each_own_only_the_file_they_name() {
+    // INVARIANT: a file belongs to the declaration that reaches it, not to every
+    // declaration of the same module path. Two `mod imp;` items under exclusive
+    // configurations name two files through `path`, so each file has one owner and
+    // a top-level hit in either is attributed rather than refused as ambiguous.
+    let tree = detector_fixture_with(
+        base(),
+        "#[cfg(unix)]\n#[path = \"unix.rs\"]\npub mod imp;\n#[cfg(windows)]\n#[path = \"windows.rs\"]\npub mod imp;\npub fn home(){}",
+        "",
+        &[
+            ("home/src/unix.rs", "use serde_json::Value;\n"),
+            ("home/src/windows.rs", "use serde_json::Value;\n"),
+        ],
+    );
+    let report = fixture_gate(".")
+        .require_rules(["serde-json"])
+        .check_tree(&tree)
+        .unwrap();
+    for file in ["unix.rs:1:", "windows.rs:1:"] {
+        assert!(
+            report
+                .findings()
+                .iter()
+                .any(|finding| finding.contains(file) && finding.contains("demo::imp")),
+            "{file}: {:?}",
+            report.findings()
+        );
+    }
+}
+
+#[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
 fn a_file_declared_by_two_module_items_is_refused_as_ambiguous() {
     // INVARIANT: a hit in the top-level code of a file that two `mod` items declare
     // has two owners and no single physical source item, so it is refused rather
