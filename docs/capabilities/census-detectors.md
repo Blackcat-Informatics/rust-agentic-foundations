@@ -28,6 +28,8 @@ bindings:
     - raf_census::test_crate::census_gate::hex_detectors_apply_to_their_declared_targets_and_actual_format_fields
     - raf_census::test_crate::census_gate::contextual_literal_detectors_use_only_their_jobs_home_evidence
     - raf_census::test_crate::census_gate::contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope
+    - raf_census::test_crate::census_gate::a_top_level_hit_in_an_out_of_line_module_is_attributed_to_its_declaring_module
+    - raf_census::test_crate::census_gate::a_file_declared_by_two_module_items_is_refused_as_ambiguous
     - raf_census::test_crate::census_gate::structure_detectors_judge_calls_against_the_jobs_declared_entry_points
     - raf_census::test_crate::census_gate::structure_variants_require_the_job_scoped_detector
     - raf_census::test_crate::census_gate::foreign_host_import_reports_only_repeats_of_the_homes_host_function
@@ -235,13 +237,14 @@ that is being checked. Both detectors
 name the home as the replacement.
 
 ### Source ownership and byte-layout recognition
-<!-- raf:tested-by raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries,raf_census::test_crate::census_gate::layout_findings_require_related_operands_and_rendered_prefix_order,raf_census::test_crate::census_gate::a_top_level_hit_in_an_out_of_line_module_is_attributed_to_its_declaring_module -->
+<!-- raf:tested-by raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries,raf_census::test_crate::census_gate::layout_findings_require_related_operands_and_rendered_prefix_order,raf_census::test_crate::census_gate::a_top_level_hit_in_an_out_of_line_module_is_attributed_to_its_declaring_module,raf_census::test_crate::census_gate::a_file_declared_by_two_module_items_is_refused_as_ambiguous -->
 
 Byte-layout recognition runs on the bounded source parse and assigns each hit
 to the innermost actual source item, deduplicated by physical Census ownership.
 A hit in the top-level code of an out-of-line module file lies in no item of its
-own, so it belongs to the `mod` items that declare that file. A hit that no item
-and no declaring `mod` item holds is refused.
+own, so it belongs to the `mod` items that declare that file. A file that two or
+more `mod` items declare has no single owner, so a hit in its top-level code is
+refused. A hit that no item and no declaring `mod` item holds is refused.
 Its shipping eligibility comes from that owner's aggregate target reaches.
 Alignment recognition requires the added bias to equal the complemented low
 mask; clearing low bits alone is not rounding up. First-mismatch recognition
@@ -675,6 +678,8 @@ required findings with neighbouring clean source.
 | `cargo_raf_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets` | test | [Usage](#usage), [Examples](#examples) |
 | `raf_census::detectors::tests::every_executable_detector_has_positive_and_negative_gate_fixtures` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::example_crate::providers` | example target | [Usage](#usage) |
+| `raf_census::test_crate::census_gate::a_file_declared_by_two_module_items_is_refused_as_ambiguous` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::a_top_level_hit_in_an_out_of_line_module_is_attributed_to_its_declaring_module` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::configured_provider_checks_every_context_of_a_shared_consumer_body` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::configured_provider_detects_unlisted_competitors_in_the_adapter_package` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
