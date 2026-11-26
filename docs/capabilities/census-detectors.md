@@ -30,6 +30,10 @@ bindings:
     - raf_census::test_crate::census_gate::contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope
     - raf_census::test_crate::census_gate::a_top_level_hit_in_an_out_of_line_module_is_attributed_to_its_declaring_module
     - raf_census::test_crate::census_gate::a_file_declared_by_two_module_items_is_refused_as_ambiguous
+    - raf_census::test_crate::census_gate::a_file_declared_at_one_offset_by_two_parent_files_is_refused_as_ambiguous
+    - raf_census::test_crate::census_gate::an_undeclared_loose_file_is_never_visited_and_a_root_top_level_hit_belongs_to_the_root
+    - raf_census::test_crate::census_gate::a_declaration_reached_through_two_target_paths_is_one_physical_owner
+    - raf_census::gate::rules::tests::attribution_refuses_a_loaded_file_no_module_declares_and_attributes_the_crate_root
     - raf_census::test_crate::census_gate::structure_detectors_judge_calls_against_the_jobs_declared_entry_points
     - raf_census::test_crate::census_gate::structure_variants_require_the_job_scoped_detector
     - raf_census::test_crate::census_gate::foreign_host_import_reports_only_repeats_of_the_homes_host_function
@@ -678,8 +682,12 @@ required findings with neighbouring clean source.
 | `cargo_raf_census::test_crate::delivery::native_index_never_builds_or_executes_consumer_targets` | test | [Usage](#usage), [Examples](#examples) |
 | `raf_census::detectors::tests::every_executable_detector_has_positive_and_negative_gate_fixtures` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::example_crate::providers` | example target | [Usage](#usage) |
+| `raf_census::gate::rules::tests::attribution_refuses_a_loaded_file_no_module_declares_and_attributes_the_crate_root` | test | [Verification](#verification) |
+| `raf_census::test_crate::census_gate::a_declaration_reached_through_two_target_paths_is_one_physical_owner` | test | [Verification](#verification) |
+| `raf_census::test_crate::census_gate::a_file_declared_at_one_offset_by_two_parent_files_is_refused_as_ambiguous` | test | [Verification](#verification) |
 | `raf_census::test_crate::census_gate::a_file_declared_by_two_module_items_is_refused_as_ambiguous` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::a_top_level_hit_in_an_out_of_line_module_is_attributed_to_its_declaring_module` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::an_undeclared_loose_file_is_never_visited_and_a_root_top_level_hit_belongs_to_the_root` | test | [Verification](#verification) |
 | `raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::configured_provider_checks_every_context_of_a_shared_consumer_body` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::configured_provider_detects_unlisted_competitors_in_the_adapter_package` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |

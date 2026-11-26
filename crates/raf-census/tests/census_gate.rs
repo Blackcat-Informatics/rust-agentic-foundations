@@ -6709,3 +6709,41 @@ fn an_undeclared_loose_file_is_never_visited_and_a_root_top_level_hit_belongs_to
         report.findings()
     );
 }
+
+#[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
+fn a_declaration_reached_through_two_target_paths_is_one_physical_owner() {
+    // INVARIANT: `leaf` is one declaration in `shared.rs`, which the library and the
+    // binary both load under their own module paths. The top-level hit of its file
+    // has one physical declaring site, so it is reported once rather than refused
+    // as two owners.
+    let tree: MemoryTree = [
+        (
+            "Cargo.toml",
+            "[package]\nname='demo'\nversion='0.1.0'\nedition='2021'\n".into(),
+        ),
+        ("src/lib.rs", "pub mod shared;\n".into()),
+        ("src/main.rs", "mod shared;\nfn main() {}\n".into()),
+        ("src/shared.rs", "pub mod leaf;\n".into()),
+        ("src/shared/leaf.rs", "use serde_json::Value;\n".into()),
+        (
+            "helpers-ledger.ttl",
+            base().finish().unwrap().to_text(Format::Turtle).unwrap(),
+        ),
+    ]
+    .into_iter()
+    .collect();
+    let report = fixture_gate(".")
+        .require_rules(["serde-json"])
+        .check_tree(&tree)
+        .unwrap();
+    let findings: Vec<_> = report
+        .findings()
+        .iter()
+        .filter(|finding| finding.contains("leaf.rs:1:"))
+        .collect();
+    assert_eq!(findings.len(), 1, "{:?}", report.findings());
+}
