@@ -1174,7 +1174,7 @@ impl Workplan<'_> {
         // A renewal replaces only what it owns; the SPDX lines of the record
         // it replaces are kept unless the request gives its own.
         let path = if replaced {
-            let options = record::kept_spdx(store, &path, &request.options)?;
+            let options = Self::kept_spdx(store, &path, &request.options)?;
             record::replace_in(store, &record, &options)?
         } else {
             record::create_in(store, &record, &request.options)?
@@ -1186,6 +1186,37 @@ impl Workplan<'_> {
             path,
             record,
             replaced,
+        })
+    }
+
+    /// The options a renewal writes with: `options`, or the SPDX lines of the
+    /// record at `path` that it replaces when `options` gives none.
+    ///
+    /// # Errors
+    ///
+    /// [`RecordError::Write`] when the record at `path` cannot be read as text.
+    fn kept_spdx(
+        store: &mut dyn record::RecordStore,
+        path: &RelPath,
+        options: &RecordOptions,
+    ) -> Result<RecordOptions, RecordError> {
+        if options.copyright.is_some() || options.licence.is_some() {
+            return Ok(options.clone());
+        }
+        let existing = store
+            .tree()?
+            .read(path, raf_okf::MAX_TEXT_BYTES as u64)
+            .map_err(|source| RecordError::Write {
+                path: path.to_string(),
+                source: std::io::Error::other(source),
+            })?;
+        // The header lines sit between the opening fence and the closing fence.
+        let frontmatter = existing.split("\n---").next().unwrap_or(&existing);
+        Ok(match crate::spdx::read(frontmatter) {
+            Some((copyright, licence)) => {
+                RecordOptions::new().copyright(copyright).licence(licence)
+            }
+            None => options.clone(),
         })
     }
 

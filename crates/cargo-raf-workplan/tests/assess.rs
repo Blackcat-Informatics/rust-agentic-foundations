@@ -143,8 +143,10 @@ fn a_verdict_writes_exactly_one_record_and_a_rejection_still_exits_zero() {
     assert_eq!((quiet.stdout.as_str(), quiet.stderr.as_str()), ("", ""));
     assert_eq!(changed(&rejected, &repo.snapshot()), [RECORD]);
     let text = repo.read(RECORD);
-    assert!(text.starts_with("---\ntype: Assessment\n"), "{text}");
-    assert!(!text.contains("SPDX-"), "{text}");
+    // The renewal keeps the licence lines of the record it replaces.
+    assert!(text.starts_with("---\n# SPDX-"), "{text}");
+    assert!(text.contains(COPYRIGHT) && text.contains(LICENCE), "{text}");
+    assert!(text.contains("\ntype: Assessment\n"), "{text}");
     assert!(text.contains("verdict: accepted"));
 }
 

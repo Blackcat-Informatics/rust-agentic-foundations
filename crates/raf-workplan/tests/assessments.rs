@@ -1345,6 +1345,10 @@ fn an_assessment_is_never_written_through_a_linked_directory_and_a_real_one_reco
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "a failed prerequisite must fail this test at the point of use"
+)]
 fn a_renewal_keeps_the_licence_lines_of_the_record_it_replaces() {
     // A renewal that gives no SPDX options replaces the verdict, digests and
     // timestamp only: both licence lines of the record it replaces stay, and
