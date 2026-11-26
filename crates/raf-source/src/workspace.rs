@@ -771,8 +771,8 @@ impl Workspace {
     /// own, so these items own it. A declaration reaches only the files it
     /// names: of two `mod` items for one module path under different
     /// configurations, each owns its own `path` file. Empty for a file that no
-    /// `mod` item declares, such as a crate root, whose own item spans the
-    /// whole file.
+    /// `mod` item declares; a crate root that no other target declares has only
+    /// its own whole-file item.
     #[must_use]
     pub fn declaring_modules(&self, file: &RelPath) -> Vec<&Item> {
         self.index

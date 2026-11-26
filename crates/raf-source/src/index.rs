@@ -1071,7 +1071,7 @@ impl<'a> Builder<'a> {
         // module reaches none, and a sibling declaration of the same module path
         // under another configuration reaches its own.
         let site = (cx.file, decl.name_start);
-        let declared: Vec<RelPath> = self
+        let mut declared: Vec<RelPath> = self
             .files_at
             .get(&(cx.target, path.as_str()))
             .into_iter()
@@ -1088,6 +1088,9 @@ impl<'a> Builder<'a> {
             })
             .map(|file| file.path.clone())
             .collect();
+        // A file is listed once per reach; a declaration owns it once.
+        declared.sort();
+        declared.dedup();
         for file in declared {
             self.store.charge(
                 btree_entry::<RelPath, ItemId>(),

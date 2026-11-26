@@ -49,7 +49,7 @@ inputs:
     digest: ce9285cecbd58e2a6d033688136b5d1894999266cad2efb56444db22e032177d
   - kind: symbol
     name: raf_census::gate::ratchet
-    digest: fc3073601caac390144919d80b4b640e67611a2967da2798b9478977434a085f
+    digest: b782facf176f9c9a3c102830ba607a7dcbd7c6f64a30909d7f5a6707cf533268
   - kind: symbol
     name: raf_census::gate::read_debt
     digest: 36e6eb156f338e4e47f59110e2db42163b1310898dd8e06a56c9c9e3a850b697
