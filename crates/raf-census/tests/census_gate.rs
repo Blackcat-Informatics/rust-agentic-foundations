@@ -3918,6 +3918,10 @@ fn token_patterns_match_only_the_files_their_scope_admits() {
         refused.contains("matching stopped at src/other.rs"),
         "{refused}"
     );
+    assert!(
+        refused.contains("unfinished admitted files: src/other.rs"),
+        "{refused}"
+    );
 }
 
 #[test]

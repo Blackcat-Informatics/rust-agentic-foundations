@@ -9,7 +9,7 @@ mod tokens;
 
 use purrdf_jsonschema::ecma::MatchLimits;
 use purrdf_lex::walk::WorkList;
-use raf_source::{RelPath, Workspace};
+use raf_source::{RelPath, SourceFile, Workspace};
 
 use crate::normalize::{Kind, Node, leading_forms, literal_kind};
 use crate::{Census, Error, Form, LedgerPattern, PatternMatcher, Slice, StringKind};
@@ -72,7 +72,9 @@ fn run<'p, 'w>(
     }
     let mut found = paths::collect(&path_patterns, workspace, census, code, references, limits)?;
     if !compiled.is_empty() {
-        for file in workspace.files() {
+        let files: Vec<&SourceFile> = workspace.files().collect();
+        let patterns: Vec<&LedgerPattern> = compiled.iter().map(|(pattern, _)| *pattern).collect();
+        for (index, file) in files.iter().copied().enumerate() {
             let Some(context) = census.source_context(&file.path) else {
                 continue;
             };
@@ -95,11 +97,17 @@ fn run<'p, 'w>(
                         .map(|(pattern, _)| pattern.id.as_str())
                         .collect::<Vec<_>>()
                         .join(", ");
-                    stopped_at(error, &file.path, Some(&rules))
+                    stopped_at(error, &file.path, Some(&rules), || {
+                        unfinished(&files[index..], census, &patterns)
+                    })
                 })?;
             for (pattern, form) in admitted {
-                let hits = tokens::find(&pattern.id, form, &normalized, limits)
-                    .map_err(|error| stopped_at(error, &file.path, None))?;
+                let hits =
+                    tokens::find(&pattern.id, form, &normalized, limits).map_err(|error| {
+                        stopped_at(error, &file.path, None, || {
+                            unfinished(&files[index..], census, &patterns)
+                        })
+                    })?;
                 for (byte, line) in hits {
                     retain(&mut found, pattern, &file.path, byte, line, None, limits)?;
                 }
@@ -228,12 +236,16 @@ fn retain<'p, 'w>(
     Ok(())
 }
 
-/// Names the file where a step-limit refusal stopped matching. Every admitted
-/// file after it is unfinished, so the refusal states that the matching stopped
-/// there. Normalization charges the shared `tokens` scope, which is no ledger
-/// rule; `rules` then names the patterns that admitted the file instead. Other
-/// errors pass through unchanged.
-fn stopped_at(error: Error, file: &RelPath, rules: Option<&str>) -> Error {
+/// Names the file where a step-limit refusal stopped matching and every admitted
+/// file that it left unfinished, in workspace order. Normalization charges the
+/// shared `tokens` scope, which is no ledger rule; `rules` then names the patterns
+/// that admitted the file instead. Other errors pass through unchanged.
+fn stopped_at(
+    error: Error,
+    file: &RelPath,
+    rules: Option<&str>,
+    unfinished: impl FnOnce() -> String,
+) -> Error {
     match error {
         Error::Source {
             file: scope,
@@ -247,12 +259,30 @@ fn stopped_at(error: Error, file: &RelPath, rules: Option<&str>) -> Error {
                 },
                 line,
                 reason: format!(
-                    "{reason}; matching stopped at {file}, and the admitted files after it were not finished"
+                    "{reason}; matching stopped at {file}; unfinished admitted files: {}",
+                    unfinished()
                 ),
             }
         }
         other => other,
     }
+}
+
+/// Lists, in workspace order, the files of `files` that some compiled token
+/// pattern admits. The refusal names them, so the caller knows what was not matched.
+fn unfinished(files: &[&SourceFile], census: &Census, patterns: &[&LedgerPattern]) -> String {
+    files
+        .iter()
+        .filter(|file| {
+            census.source_context(&file.path).is_some_and(|context| {
+                patterns.iter().any(|pattern| {
+                    pattern.scope.is_unscoped() || pattern.scope.admits_file(context, &file.path)
+                })
+            })
+        })
+        .map(|file| file.path.to_string())
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 pub(in crate::gate) fn charge(id: &str, limits: &mut MatchLimits, work: u64) -> Result<(), Error> {
