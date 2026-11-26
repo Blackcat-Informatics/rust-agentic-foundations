@@ -88,9 +88,12 @@ fn run<'p, 'w>(
             if admitted.is_empty() {
                 continue;
             }
-            let normalized = source::normalized(workspace, file, owners, limits)?;
+            let normalized = source::normalized(workspace, file, owners, limits)
+                .map_err(|error| stopped_at(error, &file.path))?;
             for (pattern, form) in admitted {
-                for (byte, line) in tokens::find(&pattern.id, form, &normalized, limits)? {
+                let hits = tokens::find(&pattern.id, form, &normalized, limits)
+                    .map_err(|error| stopped_at(error, &file.path))?;
+                for (byte, line) in hits {
                     retain(&mut found, pattern, &file.path, byte, line, None, limits)?;
                 }
             }
@@ -216,6 +219,28 @@ fn retain<'p, 'w>(
         owners,
     });
     Ok(())
+}
+
+/// Names the file where a step-limit refusal stopped matching. Every admitted
+/// file after it is unfinished, so the refusal states that the matching stopped
+/// there. Other errors pass through unchanged.
+fn stopped_at(error: Error, file: &RelPath) -> Error {
+    match error {
+        Error::Source {
+            file: scope,
+            line,
+            reason,
+        } if scope.starts_with("rule:") && reason.contains("step limit exhausted") => {
+            Error::Source {
+                file: scope,
+                line,
+                reason: format!(
+                    "{reason}; matching stopped at {file}, and the admitted files after it were not finished"
+                ),
+            }
+        }
+        other => other,
+    }
 }
 
 pub(in crate::gate) fn charge(id: &str, limits: &mut MatchLimits, work: u64) -> Result<(), Error> {

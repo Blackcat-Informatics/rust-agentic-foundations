@@ -13,6 +13,7 @@ bindings:
     - raf_census::syntax
     - raf_census::Gate::matching_limits
   tests:
+    - raf_census::test_crate::census_gate::token_patterns_match_only_the_files_their_scope_admits
     - raf_census::test_crate::census_gate::many_constant_sites_keep_indexed_matching_within_the_default_grant
     - raf_census::gate::patterns::paths::cache::tests::index_growth_retains_the_original_grant_and_old_storage_on_refusal
     - raf_census::gate::patterns::paths::cache::tests::native_storage_failures_keep_their_typed_cause
@@ -114,7 +115,7 @@ is declared) and under no exclude prefix, and the target that owns the item at t
 kind: it is in targetKind (or none is declared) and not in excludeTargetKind. raf:shippingOnly
 admits only non-test code of a library or binary, so a #[cfg(test)] module, an integration test, a
 bench, an example and a build script are silent. A module-level macro invocation is judged by its own test role and target, so a #[cfg(test)] invocation at a crate root is silent under raf:shippingOnly. A path or call hit in a file that several targets reach is judged by the targets whose own resolution of the written path matched the declared definition, so a scope on the library does not admit a hit that only an integration test resolves. A hit outside every item is judged by its file. An
-unscoped pattern reports exactly as before. A tokens pattern is never matched in a file that its path and target context exclude, so that file spends no matching grant, and the reported hits are unchanged. Unknown kind names, a kind both included and excluded,
+unscoped pattern reports exactly as before. A tokens pattern is not matched in a file that its path and target context exclude. A file that no tokens pattern admits is not normalized and spends no matching grant; a file that another tokens pattern admits is normalized, and the reported hits are unchanged. Unknown kind names, a kind both included and excluded,
 a scope that admits no target kind, an include prefix inside an exclude prefix, a path that is
 absolute, above the root or the root itself, and raf:shippingOnly stated as false refuse at ledger
 load with the property to change. A referenced pattern whose every occurrence
@@ -490,6 +491,7 @@ method's line.
 | `raf_census::test_crate::census_gate::ratchet::target_kind_scope_includes_and_excludes_kinds_beside_unscoped_hits` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::same_head_imports_keep_distinct_type_and_value_bindings` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::token_patterns_include_file_level_macro_arguments_without_renaming_item_names` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::token_patterns_match_only_the_files_their_scope_admits` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::token_patterns_normalize_body_local_declarations_without_renaming_module_items` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::transitive_block_imports_classify_their_expanded_namespace` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::type_patterns_follow_aliases_without_capturing_generic_or_module_shadows` | test | [Contract](#contract), [Constraints](#constraints) |

@@ -3929,6 +3929,12 @@ fn lexical_patterns_share_an_explicit_native_budget_and_release_only_their_own_s
         .check_tree(&tree)
         .unwrap_err();
     assert!(refused.to_string().contains("step limit"), "{refused}");
+    assert!(
+        refused
+            .to_string()
+            .contains("matching stopped at src/lib.rs"),
+        "{refused}"
+    );
     assert!(fixture_gate(".").check_tree(&tree).unwrap().is_clean());
     let syn::Item::Fn(item) = &retained.items[0] else {
         panic!("retained function")
