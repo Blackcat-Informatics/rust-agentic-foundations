@@ -710,10 +710,13 @@ fn source_hit(
         // declares has no owner, and the refusal below stands.
         sites = workspace.declaring_modules(file);
     }
+    // A physical site is its declaring file and offset together: two declarations
+    // at the same offset in different files are two owners, while one declaration
+    // reached through several targets shares one key and deduplicates.
     let mut by_location = BTreeMap::new();
     for item in sites {
         by_location
-            .entry(item.span.start_byte)
+            .entry((item.path.clone(), item.span.start_byte))
             .or_insert_with(Vec::new)
             .push(item);
     }
@@ -782,5 +785,63 @@ pub(super) fn refused(id: &str, reason: &str) -> Error {
         file: format!("rule:{id}"),
         line: 1,
         reason: reason.into(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use raf_source::{MemoryTree, RelPath};
+
+    fn hit(byte: usize) -> Hit<'static> {
+        Hit {
+            rule: "serde-json",
+            byte,
+            line: 1,
+            message: String::new(),
+            call_reaches: Vec::new(),
+        }
+    }
+
+    #[test]
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )]
+    fn attribution_refuses_a_loaded_file_no_module_declares_and_attributes_the_crate_root() {
+        // INVARIANT: the owner of a top-level hit is its containing item, else the
+        // module that declares its file, else nothing. A loaded file that no module
+        // declares has no owner and is refused, while a top-level hit in the crate
+        // root belongs to the root module (a whole-file item), not to the refusal.
+        let tree = MemoryTree::from([
+            (
+                "Cargo.toml",
+                "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+            ),
+            ("src/lib.rs", "use serde_json::Value;\npub fn home() {}\n"),
+            ("src/loose.rs", "use serde_json::Value;\n"),
+        ]);
+        let workspace = Workspace::load(&tree, &["."]).unwrap();
+        let mut collected = Collected::default();
+        let loose = RelPath::new("src/loose.rs").unwrap();
+        let error = source_hit(&workspace, &loose, &mut collected, hit(0)).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("detector hit requires one physical source item"),
+            "{error}"
+        );
+        let root = RelPath::new("src/lib.rs").unwrap();
+        collected
+            .hits
+            .insert("serde-json".to_owned(), BTreeMap::new());
+        source_hit(&workspace, &root, &mut collected, hit(0)).unwrap();
+        assert!(
+            collected
+                .hits
+                .get("serde-json")
+                .is_some_and(|sites| !sites.is_empty()),
+            "a top-level hit in the crate root must be recorded against the root module"
+        );
     }
 }

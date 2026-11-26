@@ -6635,3 +6635,77 @@ fn a_file_declared_by_two_module_items_is_refused_as_ambiguous() {
         "{error}"
     );
 }
+
+#[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
+fn a_file_declared_at_one_offset_by_two_parent_files_is_refused_as_ambiguous() {
+    // INVARIANT: the physical site of a declaration is its declaring file and its
+    // offset together. Two parent files that declare the same file at the same
+    // offset are two sites, so the hit is refused rather than collapsed to one owner.
+    let ambiguous = detector_fixture_with(
+        base(),
+        "pub mod a;\npub mod b;\npub fn home(){}",
+        "",
+        &[
+            (
+                "home/src/a.rs",
+                "#[path = \"yamlld.rs\"]\npub mod yamlld;\n",
+            ),
+            (
+                "home/src/b.rs",
+                "#[path = \"yamlld.rs\"]\npub mod yamlld;\n",
+            ),
+            ("home/src/yamlld.rs", "use serde_json::Value;\n"),
+        ],
+    );
+    let error = fixture_gate(".")
+        .require_rules(["serde-json"])
+        .check_tree(&ambiguous)
+        .unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("detector hit requires one physical source item"),
+        "{error}"
+    );
+}
+
+#[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
+fn an_undeclared_loose_file_is_never_visited_and_a_root_top_level_hit_belongs_to_the_root() {
+    // INVARIANT: the loader visits only files that a `mod` item or a crate root
+    // reaches, so a loose file that nothing declares produces no finding and no
+    // refusal. A top-level hit in the crate root belongs to the root module.
+    let tree = detector_fixture_with(
+        base(),
+        "use serde_json::Value;\npub fn home(){}",
+        "",
+        &[("home/src/loose.rs", "use serde_json::Value;\n")],
+    );
+    let report = fixture_gate(".")
+        .require_rules(["serde-json"])
+        .check_tree(&tree)
+        .unwrap();
+    assert!(
+        report
+            .findings()
+            .iter()
+            .all(|finding| !finding.contains("loose.rs")),
+        "{:?}",
+        report.findings()
+    );
+    assert!(
+        report
+            .findings()
+            .iter()
+            .any(|finding| finding.contains("lib.rs:1:") && finding.contains("demo")),
+        "{:?}",
+        report.findings()
+    );
+}
