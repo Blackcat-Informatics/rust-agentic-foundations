@@ -88,11 +88,18 @@ fn run<'p, 'w>(
             if admitted.is_empty() {
                 continue;
             }
-            let normalized = source::normalized(workspace, file, owners, limits)
-                .map_err(|error| stopped_at(error, &file.path))?;
+            let normalized =
+                source::normalized(workspace, file, owners, limits).map_err(|error| {
+                    let rules = admitted
+                        .iter()
+                        .map(|(pattern, _)| pattern.id.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    stopped_at(error, &file.path, Some(&rules))
+                })?;
             for (pattern, form) in admitted {
                 let hits = tokens::find(&pattern.id, form, &normalized, limits)
-                    .map_err(|error| stopped_at(error, &file.path))?;
+                    .map_err(|error| stopped_at(error, &file.path, None))?;
                 for (byte, line) in hits {
                     retain(&mut found, pattern, &file.path, byte, line, None, limits)?;
                 }
@@ -223,8 +230,10 @@ fn retain<'p, 'w>(
 
 /// Names the file where a step-limit refusal stopped matching. Every admitted
 /// file after it is unfinished, so the refusal states that the matching stopped
-/// there. Other errors pass through unchanged.
-fn stopped_at(error: Error, file: &RelPath) -> Error {
+/// there. Normalization charges the shared `tokens` scope, which is no ledger
+/// rule; `rules` then names the patterns that admitted the file instead. Other
+/// errors pass through unchanged.
+fn stopped_at(error: Error, file: &RelPath, rules: Option<&str>) -> Error {
     match error {
         Error::Source {
             file: scope,
@@ -232,7 +241,10 @@ fn stopped_at(error: Error, file: &RelPath) -> Error {
             reason,
         } if scope.starts_with("rule:") && reason.contains("step limit exhausted") => {
             Error::Source {
-                file: scope,
+                file: match rules {
+                    Some(rules) if scope == "rule:tokens" => format!("rule:{rules}"),
+                    _ => scope,
+                },
                 line,
                 reason: format!(
                     "{reason}; matching stopped at {file}, and the admitted files after it were not finished"

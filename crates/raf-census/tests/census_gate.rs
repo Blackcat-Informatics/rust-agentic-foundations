@@ -3866,9 +3866,11 @@ fn token_patterns_normalize_body_local_declarations_without_renaming_module_item
     reason = "a failed fixture operation is a test failure at the point of use"
 )]
 fn token_patterns_match_only_the_files_their_scope_admits() {
-    // A file outside includePath is never a hit, and the same text inside it is
-    // reported under its own module. The unscoped neighbour reports both.
-    let run = |graph: Builder| -> Vec<String> {
+    // A file outside includePath is neither normalized nor charged to the matching
+    // grant. With a grant that fits only the admitted file, the scoped rule
+    // succeeds and its unscoped neighbour is refused at the padded file.
+    let padding = "pub fn pad(){let _=(1,2,3,4,5,6,7,8);}\n".repeat(200);
+    let run = |graph: Builder| -> Result<Vec<String>, String> {
         let ledger = graph.finish().unwrap().to_text(Format::Turtle).unwrap();
         let tree: MemoryTree = [
             (
@@ -3881,16 +3883,26 @@ fn token_patterns_match_only_the_files_their_scope_admits() {
                     .to_owned(),
             ),
             ("src/admitted.rs", "pub fn a(){check!(1);}\n".to_owned()),
-            ("src/other.rs", "pub fn b(){check!(2);}\n".to_owned()),
+            (
+                "src/other.rs",
+                format!("pub fn b(){{check!(2);}}\n{padding}"),
+            ),
             ("helpers-ledger.ttl", ledger),
         ]
         .into_iter()
         .collect();
-        fixture_gate(".").check_tree(&tree).unwrap().jobs()[0]
+        let report = fixture_gate(".")
+            .matching_limits(purrdf_jsonschema::ecma::MatchLimits {
+                steps: 3_000,
+                states: 64,
+            })
+            .check_tree(&tree)
+            .map_err(|error| error.to_string())?;
+        Ok(report.jobs()[0]
             .matches
             .iter()
             .map(|found| found.symbol.clone())
-            .collect()
+            .collect())
     };
     let mut scoped = lexical_pattern_graph("tokens", "check!($_)");
     put(
@@ -3899,15 +3911,12 @@ fn token_patterns_match_only_the_files_their_scope_admits() {
         "includePath",
         Term::simple_literal("src/admitted.rs"),
     );
-    assert_eq!(run(scoped), vec!["demo::admitted::a".to_owned()]);
-    let unscoped = run(lexical_pattern_graph("tokens", "check!($_)"));
+    assert_eq!(run(scoped), Ok(vec!["demo::admitted::a".to_owned()]));
+    let refused = run(lexical_pattern_graph("tokens", "check!($_)")).unwrap_err();
+    assert!(refused.contains("rule:approved-call"), "{refused}");
     assert!(
-        unscoped.contains(&"demo::admitted::a".to_owned()),
-        "{unscoped:?}"
-    );
-    assert!(
-        unscoped.contains(&"demo::other::b".to_owned()),
-        "{unscoped:?}"
+        refused.contains("matching stopped at src/other.rs"),
+        "{refused}"
     );
 }
 
@@ -3933,6 +3942,10 @@ fn lexical_patterns_share_an_explicit_native_budget_and_release_only_their_own_s
         refused
             .to_string()
             .contains("matching stopped at src/lib.rs"),
+        "{refused}"
+    );
+    assert!(
+        refused.to_string().contains("rule:approved-call"),
         "{refused}"
     );
     assert!(fixture_gate(".").check_tree(&tree).unwrap().is_clean());
