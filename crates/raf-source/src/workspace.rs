@@ -766,16 +766,19 @@ impl Workspace {
             .collect()
     }
 
-    /// The `mod` item that declares the out-of-line module whose file is
-    /// `file`. Its top-level code lies in no item of its own, so this is the
-    /// item that owns it. Returns `None` for a file that no `mod` item declares,
-    /// such as a crate root, whose own item spans the whole file.
+    /// The `mod` items that declare the out-of-line module whose file is
+    /// `file`. Its top-level code lies in no item of its own, so these are the
+    /// items that own it. Empty for a file that no `mod` item declares, such as
+    /// a crate root, whose own item spans the whole file.
     #[must_use]
-    pub fn declaring_module(&self, file: &RelPath) -> Option<&Item> {
+    pub fn declaring_modules(&self, file: &RelPath) -> Vec<&Item> {
         self.index
             .module_file_items
             .get(file)
+            .into_iter()
+            .flatten()
             .map(|id| &self.index.items[id.index()])
+            .collect()
     }
 
     /// True when the item is in a shipping target and is not test code.

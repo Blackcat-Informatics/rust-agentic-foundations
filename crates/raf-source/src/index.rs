@@ -359,9 +359,11 @@ pub(crate) struct Index {
     pub(crate) block_modules: Vec<BlockModule>,
     /// The module that a `mod` item stands for.
     pub(crate) module_of: BTreeMap<ItemId, usize>,
-    /// The `mod` item that declares each out-of-line module file. A file's
-    /// top-level code is covered by no item of its own, so this names its owner.
-    pub(crate) module_file_items: BTreeMap<RelPath, ItemId>,
+    /// The `mod` items that declare each out-of-line module file, one per
+    /// declaration (a file may be declared under several cfg alternatives or
+    /// targets). A file's top-level code is covered by no item of its own, so
+    /// these name its owners.
+    pub(crate) module_file_items: BTreeMap<RelPath, Vec<ItemId>>,
     /// Lexical homes of exported macros placed in a different export module.
     pub(crate) macro_modules: BTreeMap<ItemId, usize>,
     /// The crate roots that an `extern crate` item stands for.
@@ -1079,7 +1081,11 @@ impl<'a> Builder<'a> {
                 cx.file,
                 Some(decl.name_line),
             )?;
-            self.index.module_file_items.insert(file, id);
+            self.index
+                .module_file_items
+                .entry(file)
+                .or_default()
+                .push(id);
         }
         Ok(child)
     }

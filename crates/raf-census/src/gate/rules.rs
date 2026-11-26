@@ -708,7 +708,7 @@ fn source_hit(
         // Top-level code of an out-of-line module file lies in no item of its
         // own; the `mod` item that declares the file owns it. A file no module
         // declares has no owner, and the refusal below stands.
-        sites = workspace.declaring_module(file).into_iter().collect();
+        sites = workspace.declaring_modules(file);
     }
     let mut by_location = BTreeMap::new();
     for item in sites {

@@ -240,7 +240,7 @@ name the home as the replacement.
 Byte-layout recognition runs on the bounded source parse and assigns each hit
 to the innermost actual source item, deduplicated by physical Census ownership.
 A hit in the top-level code of an out-of-line module file lies in no item of its
-own, so it belongs to the `mod` item that declares that file. A hit that no item
+own, so it belongs to the `mod` items that declare that file. A hit that no item
 and no declaring `mod` item holds is refused.
 Its shipping eligibility comes from that owner's aggregate target reaches.
 Alignment recognition requires the added bias to equal the complemented low
