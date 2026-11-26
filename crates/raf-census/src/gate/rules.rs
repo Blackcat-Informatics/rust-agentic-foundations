@@ -710,13 +710,14 @@ fn source_hit(
         // declares has no owner, and the refusal below stands.
         sites = workspace.declaring_modules(file);
     }
-    // A physical site is its declaring file and offset together: two declarations
-    // at the same offset in different files are two owners, while one declaration
-    // reached through several targets shares one key and deduplicates.
+    // A physical site is the declaring file and offset of the item, not its logical
+    // path: two declarations at the same offset in different files are two owners,
+    // while one declaration reached under several logical paths or targets shares
+    // one key and deduplicates.
     let mut by_location = BTreeMap::new();
     for item in sites {
         by_location
-            .entry((item.path.clone(), item.span.start_byte))
+            .entry((item.file.clone(), item.span.start_byte))
             .or_insert_with(Vec::new)
             .push(item);
     }
