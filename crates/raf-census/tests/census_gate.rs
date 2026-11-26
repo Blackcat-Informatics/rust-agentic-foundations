@@ -3889,7 +3889,7 @@ fn token_patterns_match_only_the_files_their_scope_admits() {
         fixture_gate(".").check_tree(&tree).unwrap().jobs()[0]
             .matches
             .iter()
-            .map(|found| found.symbol.to_string())
+            .map(|found| found.symbol.clone())
             .collect()
     };
     let mut scoped = lexical_pattern_graph("tokens", "check!($_)");
