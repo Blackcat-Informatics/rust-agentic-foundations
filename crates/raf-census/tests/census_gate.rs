@@ -6560,3 +6560,51 @@ fn module_paths_outside_their_package_are_required_findings_beside_contained_one
     let locked = required.check_locked(&tree, &catalog, &local, &[]).unwrap();
     assert_eq!(locked.findings(), report.findings());
 }
+
+#[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
+fn a_top_level_hit_in_an_out_of_line_module_is_attributed_to_its_declaring_module() {
+    // INVARIANT: top-level code of an out-of-line module file lies in no item of
+    // its own; the `mod` item that declares the file owns the hit, and the finding
+    // names the file and line of the hit. An inline module with the same use is the
+    // neighbour that must keep attributing to its own module.
+    let outline = detector_fixture_with(
+        base(),
+        "pub mod yamlld;\npub fn home(){}",
+        "",
+        &[("home/src/yamlld.rs", "use serde_json::Value;\n")],
+    );
+    let report = fixture_gate(".")
+        .require_rules(["serde-json"])
+        .check_tree(&outline)
+        .unwrap();
+    assert!(
+        report
+            .findings()
+            .iter()
+            .any(|finding| finding.contains("yamlld.rs:1:") && finding.contains("demo::yamlld")),
+        "{:?}",
+        report.findings()
+    );
+    let inline = detector_fixture_with(
+        base(),
+        "pub mod yamlld { use serde_json::Value; }\npub fn home(){}",
+        "",
+        &[],
+    );
+    let report = fixture_gate(".")
+        .require_rules(["serde-json"])
+        .check_tree(&inline)
+        .unwrap();
+    assert!(
+        report
+            .findings()
+            .iter()
+            .any(|finding| finding.contains("demo::yamlld")),
+        "{:?}",
+        report.findings()
+    );
+}

@@ -235,10 +235,13 @@ that is being checked. Both detectors
 name the home as the replacement.
 
 ### Source ownership and byte-layout recognition
-<!-- raf:tested-by raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries,raf_census::test_crate::census_gate::layout_findings_require_related_operands_and_rendered_prefix_order -->
+<!-- raf:tested-by raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries,raf_census::test_crate::census_gate::layout_findings_require_related_operands_and_rendered_prefix_order,raf_census::test_crate::census_gate::a_top_level_hit_in_an_out_of_line_module_is_attributed_to_its_declaring_module -->
 
 Byte-layout recognition runs on the bounded source parse and assigns each hit
 to the innermost actual source item, deduplicated by physical Census ownership.
+A hit in the top-level code of an out-of-line module file lies in no item of its
+own, so it belongs to the `mod` item that declares that file. A hit that no item
+and no declaring `mod` item holds is refused.
 Its shipping eligibility comes from that owner's aggregate target reaches.
 Alignment recognition requires the added bias to equal the complemented low
 mask; clearing low bits alone is not rounding up. First-mismatch recognition

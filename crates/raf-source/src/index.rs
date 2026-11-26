@@ -359,6 +359,9 @@ pub(crate) struct Index {
     pub(crate) block_modules: Vec<BlockModule>,
     /// The module that a `mod` item stands for.
     pub(crate) module_of: BTreeMap<ItemId, usize>,
+    /// The `mod` item that declares each out-of-line module file. A file's
+    /// top-level code is covered by no item of its own, so this names its owner.
+    pub(crate) module_file_items: BTreeMap<RelPath, ItemId>,
     /// Lexical homes of exported macros placed in a different export module.
     pub(crate) macro_modules: BTreeMap<ItemId, usize>,
     /// The crate roots that an `extern crate` item stands for.
@@ -1062,6 +1065,22 @@ impl<'a> Builder<'a> {
             Some(decl.name_line),
         )?;
         self.index.module_of.insert(id, child);
+        // An out-of-line module's file is declared here; an inline module has none.
+        let declared: Vec<RelPath> = self
+            .files_at
+            .get(&(cx.target, path.as_str()))
+            .into_iter()
+            .flatten()
+            .map(|file| file.path.clone())
+            .collect();
+        for file in declared {
+            self.store.charge(
+                btree_entry::<RelPath, ItemId>(),
+                cx.file,
+                Some(decl.name_line),
+            )?;
+            self.index.module_file_items.insert(file, id);
+        }
         Ok(child)
     }
 
@@ -1171,6 +1190,7 @@ impl Index {
             module_by_path: BTreeMap::new(),
             block_modules: Vec::new(),
             module_of: BTreeMap::new(),
+            module_file_items: BTreeMap::new(),
             crate_of: BTreeMap::new(),
             crate_roots: BTreeMap::new(),
             target_roots: Vec::new(),
