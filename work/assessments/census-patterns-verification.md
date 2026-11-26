@@ -1,4 +1,6 @@
 ---
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: CC-BY-4.0
 type: Assessment
 id: assessment:census-patterns-verification
 subject: cap:census-patterns#verification
