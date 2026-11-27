@@ -398,7 +398,7 @@ Use the registry edition of RAF beside the dependency it compares against.
 hex = "=0.4.3"
 
 [dev-dependencies]
-raf-census = "=0.8.1"
+raf-census = "=0.9.0"
 ```
 
 The consumer holds a `Cargo.lock` that lists `hex` with its checksum, the
