@@ -48,6 +48,7 @@ if [[ ! -x $snapshot/.githooks/pre-commit || ! -x $snapshot/.githooks/pre-merge-
 fi
 
 make --no-print-directory fmt ROOT="$snapshot"
+make --no-print-directory reuse ROOT="$snapshot"
 CARGO_TARGET_DIR="$target" make --no-print-directory clippy ROOT="$snapshot"
 (
     cd "$snapshot"
