@@ -31,7 +31,7 @@ inputs:
     digest: 9c6ade67fe9ff855815bec907d2b5f290db140b814c1c121caebaaa7886fb998
   - kind: symbol
     name: raf_workplan::record
-    digest: cea3cd0f078143621b900d501b96d3d5ffebaa3612871621d044320784e14bed
+    digest: f89ca56144a88ae87e5eb0d95172db3d52ff49085cb74c0fddc6682b79cdf591
 verdict: accepted
 by: agent
 ---

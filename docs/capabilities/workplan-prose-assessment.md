@@ -30,6 +30,7 @@ bindings:
     - raf_workplan::test_crate::assessments::a_renewal_of_a_crlf_record_keeps_every_line_ending
     - raf_workplan::test_crate::assessments::a_renewal_of_a_record_with_verdict_before_inputs_keeps_one_verdict
     - raf_workplan::test_crate::assessments::a_renewal_keeps_the_comments_in_every_position_of_the_record
+    - raf_workplan::test_crate::assessments::a_renewal_refuses_a_record_that_the_reference_scan_rejects
     - raf_workplan::test_crate::assessments::a_renewal_with_spdx_options_replaces_only_the_spdx_lines
     - raf_workplan::test_crate::assessments::a_renewal_without_spdx_options_keeps_a_copyright_only_header
     - raf_workplan::test_crate::assessments::a_suffix_two_bindings_end_in_names_both
@@ -116,7 +117,7 @@ A bound crate root can be an assessment input. Its record can be published and
 reloaded, and editing the root source invalidates the recorded digest.
 
 ### Canonical assessment records
-<!-- raf:tested-by raf_workplan::test_crate::assessments::an_unchanged_section_is_current_and_a_second_record_is_byte_identical_and_replaces_the_first,raf_workplan::test_crate::assessments::a_record_named_otherwise_than_its_subject_is_a_finding_and_not_the_assessment_of_it,raf_workplan::test_crate::assessments::an_evidence_record_a_claim_of_the_section_names_is_an_input,raf_workplan::test_crate::assessments::each_refusal_writes_nothing_and_its_neighbour_records,raf_workplan::test_crate::assessments::a_huge_section_and_ten_thousand_named_symbols_are_recorded_and_judged,raf_workplan::test_crate::assessments::a_renewal_drops_the_timestamp_and_keeps_the_tags,raf_workplan::test_crate::assessments::a_renewal_of_a_crlf_record_keeps_every_line_ending,raf_workplan::test_crate::assessments::a_renewal_of_a_record_with_verdict_before_inputs_keeps_one_verdict,raf_workplan::test_crate::assessments::a_renewal_keeps_the_comments_in_every_position_of_the_record,raf_workplan::test_crate::assessments::a_renewal_with_spdx_options_replaces_only_the_spdx_lines,raf_workplan::test_crate::assessments::a_renewal_without_spdx_options_keeps_a_copyright_only_header -->
+<!-- raf:tested-by raf_workplan::test_crate::assessments::an_unchanged_section_is_current_and_a_second_record_is_byte_identical_and_replaces_the_first,raf_workplan::test_crate::assessments::a_record_named_otherwise_than_its_subject_is_a_finding_and_not_the_assessment_of_it,raf_workplan::test_crate::assessments::an_evidence_record_a_claim_of_the_section_names_is_an_input,raf_workplan::test_crate::assessments::each_refusal_writes_nothing_and_its_neighbour_records,raf_workplan::test_crate::assessments::a_huge_section_and_ten_thousand_named_symbols_are_recorded_and_judged,raf_workplan::test_crate::assessments::a_renewal_drops_the_timestamp_and_keeps_the_tags,raf_workplan::test_crate::assessments::a_renewal_of_a_crlf_record_keeps_every_line_ending,raf_workplan::test_crate::assessments::a_renewal_of_a_record_with_verdict_before_inputs_keeps_one_verdict,raf_workplan::test_crate::assessments::a_renewal_keeps_the_comments_in_every_position_of_the_record,raf_workplan::test_crate::assessments::a_renewal_refuses_a_record_that_the_reference_scan_rejects,raf_workplan::test_crate::assessments::a_renewal_with_spdx_options_replaces_only_the_spdx_lines,raf_workplan::test_crate::assessments::a_renewal_without_spdx_options_keeps_a_copyright_only_header -->
 
 An assessment is the record
 `work/assessments/<capability slug>-<section>.md`, with the id
@@ -145,11 +146,16 @@ the capability. A weak name therefore only ever adds an input and never narrows
 the set. Recording a verdict for a section that has an assessment replaces that
 record. Of the earlier record, every line the renewal does not own is kept with its line
 ending: the header and its comment lines, `type`, `id`, `subject`, the tags, the
-comments inside the inputs block, and the body. The renewal owns the inputs rows,
-the verdict and the assessor, which are written from the request and the current
-section, and the timestamp, which it removes because the writer sets none. Given
-SPDX options, the request's SPDX lines replace the record's SPDX lines and nothing
-else in the header. The renewed text is parsed and validated before it is written. A bound symbol that is an input
+comments inside the inputs block, in their places between the rows, and the body.
+The renewal owns the inputs rows, the verdict and the assessor, which are written
+from the request and the current section, and the timestamp, which it removes
+because the writer sets none. The inputs rows take the place of the rows they
+renew; a row beyond the old rows is added after the last of them, and an old row
+the request no longer needs is removed. Given a copyright or a licence option,
+that line replaces the first line of its kind in the header, and every other
+header line is kept. The renewed text is read back through the checks a new record
+passes, including the reference scan, before it is written, and a text that
+fails them is refused with nothing written. A bound symbol that is an input
 and does not resolve, or a claim on a record that does not load, is refused,
 since the record would keep no digest of it, and so is a record over the
 document bound. Recording writes that one file and never edits a document.
@@ -213,8 +219,9 @@ The runnable API example `raf_workplan::assessment::record_slug` derives the sta
   records the assessment, replacing the one the section had, if any; given
   together, `--copyright <text>` and `--licence <id>` open the record with its
   two SPDX lines. A renewal given neither keeps every line of the record it replaces
-  that it does not own, so its licence lines and comments stay; given both, the
-  request's SPDX lines replace the record's SPDX lines.
+  that it does not own, so its licence lines and comments stay; a copyright or
+  licence option replaces the first line of its kind in the header and leaves the
+  other header lines.
 - `cargo raf-workplan assess --list` shows each assessment, whether it is current,
   and the inputs that moved.
 
@@ -361,8 +368,8 @@ files. The existing command-line cases continue to publish through the disk stor
   that does not resolve.
 - A regenerated generated block leaves the neighbouring assessment current.
 - A renewal keeps the comments in every position, the line endings and the key order
-  of the record it replaces, removes its timestamp, and replaces only the SPDX lines
-  the request gives.
+  of the record it replaces, removes its timestamp, and replaces only the header
+  lines the request names. A renewal that changes no value leaves the file identical.
 - The digest is identical across two runs on the same tree: a second record of
   the same verdict is the same bytes, and it replaces the first.
 - The context is byte-identical for a human and an agent, and the two records
@@ -428,6 +435,7 @@ files. The existing command-line cases continue to publish through the disk stor
 | `raf_workplan::test_crate::assessments::a_renewal_keeps_the_comments_in_every_position_of_the_record` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::assessments::a_renewal_of_a_crlf_record_keeps_every_line_ending` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::assessments::a_renewal_of_a_record_with_verdict_before_inputs_keeps_one_verdict` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::assessments::a_renewal_refuses_a_record_that_the_reference_scan_rejects` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::assessments::a_renewal_with_spdx_options_replaces_only_the_spdx_lines` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::assessments::a_renewal_without_spdx_options_keeps_a_copyright_only_header` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::assessments::a_suffix_two_bindings_end_in_names_both` | test | [Contract](#contract) |

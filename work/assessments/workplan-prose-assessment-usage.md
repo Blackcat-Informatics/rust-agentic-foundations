@@ -7,7 +7,7 @@ subject: cap:workplan-prose-assessment#usage
 inputs:
   - kind: section
     name: cap:workplan-prose-assessment#usage
-    digest: c660274b3bceb8567e6e005c25c30bdb805c0f4e2ebca1fc8bb3338175c8eb1b
+    digest: 9b110cdad1c0bfbaf3c6fab247811d1208169c2308a9f9581e22e937c0768b78
   - kind: symbol
     name: raf_workplan::Workplan::assess_context
     digest: 48c085f83be3f08e24c6de886469e950441dec54620b011a06845d33cc6e713c
@@ -19,7 +19,7 @@ inputs:
     digest: 4caeaed4de776e9011875e46e8298d6b2482a504ece8af8ba57119f6224c2962
   - kind: symbol
     name: raf_workplan::Workplan::record_assessment
-    digest: 5cea2ee0c39de64e21a862ea1936c6cc0afc44bc64b685fdb502419cbb6e75ad
+    digest: 650761b2bfe7cbf7312f09c36db00631fa679f17dc13fcaaf953bd07ce5e2ddc
   - kind: symbol
     name: raf_workplan::Workplan::record_assessment_in
     digest: ebde2af1d68a275119254469624ce9b194c49cdbb4d78dcbdd4190cf91269795

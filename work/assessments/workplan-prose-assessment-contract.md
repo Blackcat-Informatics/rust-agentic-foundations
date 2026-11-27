@@ -7,7 +7,7 @@ subject: cap:workplan-prose-assessment#contract
 inputs:
   - kind: section
     name: cap:workplan-prose-assessment#contract
-    digest: 6813ca0573e99a9a222375bff82b60fa2976d4cac618741d952c69049735de62
+    digest: e02e6087a33bbe24f29ad5ea7440474ef3229bf5a94d80597d70d295d3fd1b9f
   - kind: symbol
     name: raf_workplan::Workplan::assess_context
     digest: 48c085f83be3f08e24c6de886469e950441dec54620b011a06845d33cc6e713c
@@ -19,16 +19,16 @@ inputs:
     digest: 4caeaed4de776e9011875e46e8298d6b2482a504ece8af8ba57119f6224c2962
   - kind: symbol
     name: raf_workplan::Workplan::record_assessment
-    digest: 5cea2ee0c39de64e21a862ea1936c6cc0afc44bc64b685fdb502419cbb6e75ad
+    digest: 650761b2bfe7cbf7312f09c36db00631fa679f17dc13fcaaf953bd07ce5e2ddc
   - kind: symbol
     name: raf_workplan::Workplan::record_assessment_in
     digest: ebde2af1d68a275119254469624ce9b194c49cdbb4d78dcbdd4190cf91269795
   - kind: symbol
     name: raf_workplan::assessment
-    digest: 7e0911122a1f2dd3a60a0e44b6661417859fbc403a7a1123b18c2c2fc2db21f6
+    digest: 8f63d908792b3d54958caa68e43d3428ac7fea62666e7e3d9762508e9696d811
   - kind: symbol
     name: raf_workplan::record
-    digest: cea3cd0f078143621b900d501b96d3d5ffebaa3612871621d044320784e14bed
+    digest: f89ca56144a88ae87e5eb0d95172db3d52ff49085cb74c0fddc6682b79cdf591
 verdict: accepted
 by: agent
 ---

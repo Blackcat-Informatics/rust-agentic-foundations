@@ -1136,7 +1136,7 @@ impl Workplan<'_> {
     /// When a record of the section is there, the new one replaces it,
     /// through a temporary file and a rename. A renewal keeps every line of the
     /// old one that it does not own: it replaces the inputs rows, the verdict,
-    /// the assessor and the SPDX lines when `options` give them, and removes the
+    /// the assessor, and the copyright or licence line that `options` give, and removes the
     /// timestamp. Otherwise the file is created exclusively. `work` and
     /// `work/assessments` must each be a directory, and a symbolic link there,
     /// inside the root or out of it, or a file is refused. Every check is made
@@ -1195,14 +1195,17 @@ impl Workplan<'_> {
     /// Renew the record at the path of `record` in place. The lines the
     /// renewal owns are replaced: the inputs rows, `verdict` and `by`, and any
     /// `timestamp`, which is removed because the writer sets none. When
-    /// `options` give SPDX lines, they replace the file's SPDX lines. Every
-    /// other line is kept with its own line ending. The renewed text is parsed
-    /// and validated before it is written.
+    /// `options` give a copyright or a licence line, that line replaces the
+    /// first line of its kind in the header, and every other header line is
+    /// kept. Every other line is kept with its own line ending. The renewed
+    /// text is read back through the same checks as a new record before it is
+    /// written.
     ///
     /// # Errors
     ///
     /// The errors of [`record::replace_in`] for the file, and
-    /// [`RecordError::Write`] when the renewed text does not parse.
+    /// [`RecordError::Invalid`] when the renewed text does not read back as a
+    /// record with no finding.
     fn renew_in_place(
         store: &mut dyn record::RecordStore,
         record: &Record,
@@ -1225,13 +1228,8 @@ impl Workplan<'_> {
         })?;
         Self::validate_text(&document, &path)?;
         let rendered = record.text(options)?;
-        let replace_spdx = options.copyright.is_some() || options.licence.is_some();
-        let text = renewed_text(&existing, &document, &rendered, replace_spdx);
-        let document = Document::parse(&text).map_err(|source| RecordError::Write {
-            path: path.to_string(),
-            source: std::io::Error::other(source),
-        })?;
-        Self::validate_text(&document, &path)?;
+        let text = renewed_text(&existing, &document, &rendered, &spdx_keys(options));
+        record::read_back(&path, &text)?;
         store.replace(&path, &text)?;
         Ok(path)
     }
@@ -1392,17 +1390,31 @@ fn currency_from_rows(
     }
 }
 
-const SPDX_COMMENT: &str = "# SPDX-";
+/// The SPDX keys of the header lines a renewal replaces: the copyright and
+/// the licence line, for the options that give them.
+fn spdx_keys(options: &RecordOptions) -> Vec<&'static str> {
+    let mut keys = Vec::new();
+    if options.copyright.is_some() {
+        keys.push(concat!("# SPDX-", "FileCopyrightText:"));
+    }
+    if options.licence.is_some() {
+        keys.push(concat!("# SPDX-", "License-Identifier:"));
+    }
+    keys
+}
 
-/// The text of the file `existing` renewed from its `rendered` record. The
-/// owned lines are replaced and every other line is kept with its ending:
-/// `verdict` and `by` take the rendered lines, the inputs rows take the
-/// rendered rows at the position of the first row, `timestamp` is dropped,
-/// and, when `replace_spdx` is set, the SPDX lines take the rendered ones.
+/// The text of the file `existing` renewed from its `rendered` record. Each
+/// owned line is replaced where it stands and every other line is kept with
+/// its ending, so a renewal that changes no value leaves the file identical:
+/// `verdict` and `by` take the rendered lines; the input rows take the
+/// rendered rows in order, a row beyond the old ones is added after the last
+/// old row, and an old row with no rendered row is dropped; `timestamp` is
+/// dropped; and, for each SPDX key, the first header line with that key takes
+/// the rendered line. A key the file lacks is added after the opening fence.
 ///
 /// `existing` must already be a validated record: its `inputs`, `verdict` and
 /// `by` entries are present, so their lines are found from the parse.
-fn renewed_text(existing: &str, document: &Document, rendered: &str, replace_spdx: bool) -> String {
+fn renewed_text(existing: &str, document: &Document, rendered: &str, keys: &[&str]) -> String {
     let lines: Vec<(&str, &str)> = existing.split_inclusive('\n').map(split_ending).collect();
     let contents: Vec<&str> = lines.iter().map(|(content, _)| *content).collect();
     let line_of = |key: &str| {
@@ -1419,19 +1431,9 @@ fn renewed_text(existing: &str, document: &Document, rendered: &str, replace_spd
     };
     let timestamp = line_of("timestamp");
     let rows = block_rows(&contents, inputs);
-    let first_row_ending = rows
-        .first()
-        .map_or(lines[inputs].1, |&index| lines[index].1);
     let header_end = (1..contents.len())
         .find(|&index| is_top_level(contents[index]))
         .unwrap_or(contents.len());
-    let spdx: Vec<usize> = if replace_spdx {
-        (1..header_end)
-            .filter(|&index| contents[index].starts_with(SPDX_COMMENT))
-            .collect()
-    } else {
-        Vec::new()
-    };
 
     let rendered: Vec<&str> = rendered.lines().collect();
     let rendered_top = |key: &str| rendered.iter().copied().find(|line| line.starts_with(key));
@@ -1447,33 +1449,54 @@ fn renewed_text(existing: &str, document: &Document, rendered: &str, replace_spd
                 .collect(),
             None => Vec::new(),
         };
-    let rendered_spdx: Vec<&str> = rendered
-        .iter()
-        .copied()
-        .filter(|line| line.starts_with(SPDX_COMMENT))
-        .collect();
+
+    // Owned lines by their index in the existing text: the line that replaces
+    // them, the lines dropped, and the lines added after an index.
+    let mut replaced: BTreeMap<usize, &str> = BTreeMap::new();
+    let mut dropped: BTreeSet<usize> = timestamp.into_iter().collect();
+    let mut added: BTreeMap<usize, Vec<&str>> = BTreeMap::new();
+    replaced.insert(verdict, verdict_line);
+    replaced.insert(by, by_line);
+    for key in keys {
+        let Some(line) = rendered.iter().copied().find(|line| line.starts_with(key)) else {
+            unreachable!("INVARIANT: a rendered record has the SPDX line of each option")
+        };
+        match (1..header_end).find(|&index| contents[index].starts_with(key)) {
+            Some(index) => {
+                replaced.insert(index, line);
+            }
+            None => added.entry(0).or_default().push(line),
+        }
+    }
+    for (position, &index) in rows.iter().enumerate() {
+        match rendered_rows.get(position) {
+            Some(row) => {
+                replaced.insert(index, row);
+            }
+            None => {
+                dropped.insert(index);
+            }
+        }
+    }
+    if let Some(extra) = rendered_rows
+        .get(rows.len()..)
+        .filter(|extra| !extra.is_empty())
+    {
+        let after = rows.last().copied().unwrap_or(inputs);
+        added.entry(after).or_default().extend_from_slice(extra);
+    }
 
     let mut out = String::with_capacity(existing.len() + rendered.len());
     for (index, (content, ending)) in lines.iter().enumerate() {
-        if index == 1 && replace_spdx && spdx.is_empty() {
-            push_all(&mut out, &rendered_spdx, lines[0].1);
-        }
-        if index == verdict {
-            push_line(&mut out, verdict_line, ending);
-        } else if index == by {
-            push_line(&mut out, by_line, ending);
-        } else if spdx.first() == Some(&index) {
-            push_all(&mut out, &rendered_spdx, ending);
-        } else if rows.first() == Some(&index) {
-            push_all(&mut out, &rendered_rows, first_row_ending);
-        } else if spdx.contains(&index) || rows.contains(&index) || Some(index) == timestamp {
-            // An owned line that the rendered lines above replace, or the
-            // timestamp, which the renewal removes.
+        if dropped.contains(&index) {
+            // An owned line the rendered record does not have.
+        } else if let Some(line) = replaced.get(&index) {
+            push_line(&mut out, line, ending);
         } else {
             push_line(&mut out, content, ending);
-            if index == inputs && rows.is_empty() {
-                push_all(&mut out, &rendered_rows, first_row_ending);
-            }
+        }
+        if let Some(extra) = added.get(&index) {
+            push_all(&mut out, extra, ending);
         }
     }
     out

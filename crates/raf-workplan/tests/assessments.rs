@@ -16,7 +16,7 @@ use raf_source::{MemoryTree, RelPath, Tree, Workspace};
 use raf_workplan::assessment::{
     AssessError, AssessmentRequest, AssessmentState, Currency, InputChange,
 };
-use raf_workplan::record::RecordOptions;
+use raf_workplan::record::{RecordError, RecordOptions};
 use raf_workplan::{Finding, SyncOptions, Workplan};
 use support::changes::{DONE, capability, record};
 use support::disk::{Scratch, changed, on_disk, put, read, snapshot};
@@ -1307,7 +1307,7 @@ fn an_assessment_is_never_written_through_a_linked_directory_and_a_real_one_reco
         assert!(
             matches!(
                 &error,
-                AssessError::Record(raf_workplan::record::RecordError::Write { path, .. })
+                AssessError::Record(RecordError::Write { path, .. })
                     if path == link
             ),
             "{link}: {error:?}"
@@ -1336,7 +1336,7 @@ fn an_assessment_is_never_written_through_a_linked_directory_and_a_real_one_reco
     assert!(
         matches!(
             &error,
-            AssessError::Record(raf_workplan::record::RecordError::Write { path, .. })
+            AssessError::Record(RecordError::Write { path, .. })
                 if path == "work/assessments"
         ),
         "{error:?}"
@@ -1381,15 +1381,26 @@ fn renew_edited_record(
 
 #[test]
 fn a_renewal_keeps_the_comments_in_every_position_of_the_record() {
-    // The format admits comments inside the inputs block, between verdict and
-    // by, after by and in the body; a renewal of a current record owns none of
-    // them, so the renewed file is the edited file.
+    // The format admits comments inside the inputs block, between its rows,
+    // between verdict and by, after by and in the body; a renewal of a current
+    // record owns none of them, so the renewed file is the edited file.
     let (fixture, before, after) = renew_edited_record(
         |text| {
-            text.replacen("inputs:\n", "inputs:\n  # inside the inputs block\n", 1)
+            let text = text
+                .replacen("inputs:\n", "inputs:\n  # inside the inputs block\n", 1)
+                .replacen(
+                    "  - kind: symbol\n",
+                    "  # between rows\n  - kind: symbol\n",
+                    1,
+                )
                 .replacen("verdict: accepted\n", "verdict: accepted\n# before by\n", 1)
                 .replacen("by: agent\n", "by: agent\n# after by\n", 1)
-                + "\n<!-- body comment -->\n"
+                + "\n<!-- body comment -->\n";
+            assert!(
+                text.contains("  # between rows\n"),
+                "the record has a row boundary to put the comment at"
+            );
+            text
         },
         RecordOptions::new(),
     );
@@ -1456,9 +1467,9 @@ fn a_renewal_drops_the_timestamp_and_keeps_the_tags() {
 
 #[test]
 fn a_renewal_with_spdx_options_replaces_only_the_spdx_lines() {
-    // The request's SPDX lines replace the file's SPDX lines. A second
-    // copyright line is one of them and goes; a hand-written comment in the
-    // header is not owned and stays.
+    // The request's copyright and licence lines replace the first line of
+    // their kind. The second copyright line and the hand-written comment are
+    // not named by the request, so they stay where they are.
     let (fixture, _, after) = renew_edited_record(
         |text| {
             text.replacen(
@@ -1488,10 +1499,50 @@ fn a_renewal_with_spdx_options_replaces_only_the_spdx_lines() {
                 "FileCopyrightText: Request Owner <request@example.invalid>"
             ),
             concat!("# SPDX-", "License-Identifier: MIT"),
+            concat!(
+                "# SPDX-",
+                "FileCopyrightText: Second Owner <second@example.invalid>"
+            ),
             "# Kept by hand.",
         ]
     );
     assert_eq!(on_disk(fixture.root(), findings), []);
+}
+
+#[test]
+#[expect(
+    clippy::expect_used,
+    reason = "a failed prerequisite must fail this test at the point of use"
+)]
+fn a_renewal_refuses_a_record_that_the_reference_scan_rejects() {
+    // A renewal reads its text back through the checks a new record passes,
+    // the reference scan included. A tracker reference in a header line that
+    // the renewal keeps is refused, and the record is left as it was.
+    let fixture = Fixture::new("[demo::run]", "");
+    let request = AssessmentRequest::new(CONTRACT, AssessmentVerdict::Accepted, Actor::Agent);
+    on_disk(fixture.root(), |plan| {
+        plan.record_assessment(fixture.root(), &request)
+    })
+    .expect("the first record is written");
+    let edited = read(fixture.root(), ASSESSMENT).replacen(
+        "type: Assessment\n",
+        // The banned token is joined at compile time so this committed source
+        // carries no tracker reference; the scan sees the joined line at runtime.
+        concat!("# Follows ", "#", "12.\ntype: Assessment\n"),
+        1,
+    );
+    put(fixture.root(), ASSESSMENT, &edited);
+    let refused = on_disk(fixture.root(), |plan| {
+        plan.record_assessment(fixture.root(), &request)
+    });
+    assert!(
+        matches!(
+            refused,
+            Err(AssessError::Record(RecordError::Invalid { .. }))
+        ),
+        "{refused:?}"
+    );
+    assert_eq!(read(fixture.root(), ASSESSMENT), edited);
 }
 
 #[test]
