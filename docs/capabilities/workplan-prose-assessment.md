@@ -26,7 +26,8 @@ bindings:
     - raf_workplan::test_crate::assessments::a_record_named_otherwise_than_its_subject_is_a_finding_and_not_the_assessment_of_it
     - raf_workplan::test_crate::assessments::a_regenerated_block_leaves_the_assessment_of_its_section_current
     - raf_workplan::test_crate::assessments::a_rejected_assessment_is_current_and_owes_an_acceptance_whoever_gave_it
-    - raf_workplan::test_crate::assessments::a_renewal_keeps_the_licence_lines_of_the_record_it_replaces
+    - raf_workplan::test_crate::assessments::a_renewal_keeps_an_extended_header_byte_for_byte
+    - raf_workplan::test_crate::assessments::a_renewal_keeps_a_copyright_only_header_byte_for_byte
     - raf_workplan::test_crate::assessments::a_suffix_two_bindings_end_in_names_both
     - raf_workplan::test_crate::assessments::a_symbol_the_section_names_is_an_input_and_a_bound_symbol_it_does_not_name_is_not
     - raf_workplan::test_crate::assessments::an_edit_of_the_section_makes_it_stale_naming_the_section_and_an_edit_of_another_does_not
@@ -111,7 +112,7 @@ A bound crate root can be an assessment input. Its record can be published and
 reloaded, and editing the root source invalidates the recorded digest.
 
 ### Canonical assessment records
-<!-- raf:tested-by raf_workplan::test_crate::assessments::an_unchanged_section_is_current_and_a_second_record_is_byte_identical_and_replaces_the_first,raf_workplan::test_crate::assessments::a_record_named_otherwise_than_its_subject_is_a_finding_and_not_the_assessment_of_it,raf_workplan::test_crate::assessments::an_evidence_record_a_claim_of_the_section_names_is_an_input,raf_workplan::test_crate::assessments::each_refusal_writes_nothing_and_its_neighbour_records,raf_workplan::test_crate::assessments::a_huge_section_and_ten_thousand_named_symbols_are_recorded_and_judged,raf_workplan::test_crate::assessments::a_renewal_keeps_the_licence_lines_of_the_record_it_replaces -->
+<!-- raf:tested-by raf_workplan::test_crate::assessments::an_unchanged_section_is_current_and_a_second_record_is_byte_identical_and_replaces_the_first,raf_workplan::test_crate::assessments::a_record_named_otherwise_than_its_subject_is_a_finding_and_not_the_assessment_of_it,raf_workplan::test_crate::assessments::an_evidence_record_a_claim_of_the_section_names_is_an_input,raf_workplan::test_crate::assessments::each_refusal_writes_nothing_and_its_neighbour_records,raf_workplan::test_crate::assessments::a_huge_section_and_ten_thousand_named_symbols_are_recorded_and_judged,raf_workplan::test_crate::assessments::a_renewal_keeps_an_extended_header_byte_for_byte,raf_workplan::test_crate::assessments::a_renewal_keeps_a_copyright_only_header_byte_for_byte -->
 
 An assessment is the record
 `work/assessments/<capability slug>-<section>.md`, with the id
@@ -138,7 +139,10 @@ binding strongly, the bound symbols that are inputs are the bindings it names
 strongly or weakly; when it names none strongly, they are every `code` binding of
 the capability. A weak name therefore only ever adds an input and never narrows
 the set. Recording a verdict for a section that has an assessment replaces that
-record, and nothing of the earlier one is kept. A bound symbol that is an input
+record. Of the earlier record, the text before its inputs block (the opening
+fence, its comment lines, `type`, `id` and `subject`) is kept byte for byte; the
+inputs block, the verdict and the assessor are written from the request and the
+current section. A bound symbol that is an input
 and does not resolve, or a claim on a record that does not load, is refused,
 since the record would keep no digest of it, and so is a record over the
 document bound. Recording writes that one file and never edits a document.
@@ -201,8 +205,8 @@ The runnable API example `raf_workplan::assessment::record_slug` derives the sta
 - `cargo raf-workplan assess cap:workplan-reconcile#explanation --verdict accepted --by agent`
   records the assessment, replacing the one the section had, if any; given
   together, `--copyright <text>` and `--licence <id>` open the record with its
-  two SPDX lines. A renewal given neither keeps the two SPDX lines of the record it
-  replaces.
+  two SPDX lines. A renewal given neither keeps the text of the record it replaces
+  before its inputs block, byte for byte, so its licence lines stay.
 - `cargo raf-workplan assess --list` shows each assessment, whether it is current,
   and the inputs that moved.
 
@@ -409,7 +413,8 @@ files. The existing command-line cases continue to publish through the disk stor
 | `raf_workplan::test_crate::assessments::a_record_named_otherwise_than_its_subject_is_a_finding_and_not_the_assessment_of_it` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::assessments::a_regenerated_block_leaves_the_assessment_of_its_section_current` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::test_crate::assessments::a_rejected_assessment_is_current_and_owes_an_acceptance_whoever_gave_it` | test | [Contract](#contract) |
-| `raf_workplan::test_crate::assessments::a_renewal_keeps_the_licence_lines_of_the_record_it_replaces` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::assessments::a_renewal_keeps_a_copyright_only_header_byte_for_byte` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::assessments::a_renewal_keeps_an_extended_header_byte_for_byte` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::assessments::a_suffix_two_bindings_end_in_names_both` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::assessments::a_symbol_the_section_names_is_an_input_and_a_bound_symbol_it_does_not_name_is_not` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::assessments::an_assessment_is_never_written_through_a_linked_directory_and_a_real_one_records` | test | [Constraints](#constraints) |

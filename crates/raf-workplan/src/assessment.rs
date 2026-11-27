@@ -67,7 +67,7 @@ use std::path::Path;
 
 use raf_okf::{
     Actor, AssessmentRecord, AssessmentVerdict, Body, Capability, CapabilitySection, DocType,
-    EvidenceVerdict, Input, InputKind, Measure, SectionRef, is_kebab,
+    Document, EvidenceVerdict, Input, InputKind, Measure, Profile, SectionRef, is_kebab,
 };
 use raf_source::{EntryKind, RelPath};
 
@@ -1132,8 +1132,10 @@ impl Workplan<'_> {
     /// [`Workplan::assessment_record`].
     ///
     /// When a record of the section is there, the new one replaces it,
-    /// through a temporary file and a rename, and nothing of the old one is
-    /// kept; otherwise the file is created exclusively. `work` and
+    /// through a temporary file and a rename. Of the old one, the text before
+    /// its inputs block (the fence, the comment lines, `type`, `id` and
+    /// `subject`) is kept byte for byte; otherwise the file is created
+    /// exclusively. `work` and
     /// `work/assessments` must each be a directory, and a symbolic link there,
     /// inside the root or out of it, or a file is refused. Every check is made
     /// before anything is written, and the record is the one file written: no
@@ -1171,11 +1173,14 @@ impl Workplan<'_> {
             Some(_) => return Err(RecordError::Exists { path }.into()),
             None => false,
         };
-        // A renewal replaces only what it owns; the SPDX lines of the record
-        // it replaces are kept unless the request gives its own.
+        // A renewal keeps the record it replaces up to its inputs block, byte
+        // for byte, unless the request gives its own SPDX options.
         let path = if replaced {
-            let options = Self::kept_spdx(store, &path, &request.options)?;
-            record::replace_in(store, &record, &options)?
+            if request.options.copyright.is_some() || request.options.licence.is_some() {
+                record::replace_in(store, &record, &request.options)?
+            } else {
+                Self::renew_keeping_before_inputs(store, &record)?
+            }
         } else {
             record::create_in(store, &record, &request.options)?
         };
@@ -1189,35 +1194,70 @@ impl Workplan<'_> {
         })
     }
 
-    /// The options a renewal writes with: `options`, or the SPDX lines of the
-    /// record at `path` that it replaces when `options` gives none.
+    /// Renew the record at the path of `record`: the file's text before its
+    /// `inputs:` block is kept byte for byte, and the rest is written from
+    /// `record`. The file is checked as [`record::replace_in`] checks it.
     ///
     /// # Errors
     ///
-    /// [`RecordError::Write`] when the record at `path` cannot be read as text.
-    fn kept_spdx(
+    /// The errors of [`record::replace_in`].
+    fn renew_keeping_before_inputs(
         store: &mut dyn record::RecordStore,
-        path: &RelPath,
-        options: &RecordOptions,
-    ) -> Result<RecordOptions, RecordError> {
-        if options.copyright.is_some() || options.licence.is_some() {
-            return Ok(options.clone());
+        record: &Record,
+    ) -> Result<RelPath, RecordError> {
+        let path = record.path()?;
+        if store.inspect(&path)? != Some(EntryKind::File) {
+            return Err(RecordError::Missing { path });
         }
         let existing = store
             .tree()?
-            .read(path, raf_okf::MAX_TEXT_BYTES as u64)
+            .read(&path, raf_okf::MAX_TEXT_BYTES as u64)
             .map_err(|source| RecordError::Write {
                 path: path.to_string(),
                 source: std::io::Error::other(source),
             })?;
-        // The header lines sit between the opening fence and the closing fence.
-        let frontmatter = existing.split("\n---").next().unwrap_or(&existing);
-        Ok(match crate::spdx::read(frontmatter) {
-            Some((copyright, licence)) => {
-                RecordOptions::new().copyright(copyright).licence(licence)
+        let document = Document::parse(&existing).map_err(|source| RecordError::Write {
+            path: path.to_string(),
+            source: std::io::Error::other(source),
+        })?;
+        if let Err(violations) = Profile.validate(&document, path.as_str()) {
+            return Err(RecordError::Invalid {
+                path,
+                findings: violations.iter().map(Finding::from_violation).collect(),
+            });
+        }
+        let rendered = record.text(&RecordOptions::new())?;
+        let Some(text) = Self::spliced_before(&existing, &rendered, "inputs:") else {
+            unreachable!("INVARIANT: a loaded and a rendered assessment both have an inputs block")
+        };
+        store.replace(&path, &text)?;
+        Ok(path)
+    }
+
+    /// `existing` up to its first line that starts with `key`, then `rendered`
+    /// from its line that starts with `key`. `None` when either text has no
+    /// such line.
+    fn spliced_before(existing: &str, rendered: &str, key: &str) -> Option<String> {
+        let mut text = String::new();
+        let mut found = false;
+        for line in existing.split_inclusive('\n') {
+            if line.starts_with(key) {
+                found = true;
+                break;
             }
-            None => options.clone(),
-        })
+            text.push_str(line);
+        }
+        if !found {
+            return None;
+        }
+        let mut written = false;
+        for line in rendered.split_inclusive('\n') {
+            written = written || line.starts_with(key);
+            if written {
+                text.push_str(line);
+            }
+        }
+        written.then_some(text)
     }
 
     /// Whether the assessment `record` is current: its inputs compared with

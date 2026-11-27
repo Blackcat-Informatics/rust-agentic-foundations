@@ -1344,15 +1344,14 @@ fn an_assessment_is_never_written_through_a_linked_directory_and_a_real_one_reco
     assert_eq!(snapshot(root), before);
 }
 
-#[test]
+/// Record an assessment with both licence lines, edit its text by `from` and
+/// `to`, renew it with no SPDX options, and check that the renewed record keeps
+/// every byte of the edited text before its inputs block.
 #[expect(
     clippy::expect_used,
     reason = "a failed prerequisite must fail this test at the point of use"
 )]
-fn a_renewal_keeps_the_licence_lines_of_the_record_it_replaces() {
-    // A renewal that gives no SPDX options replaces the verdict, digests and
-    // timestamp only: both licence lines of the record it replaces stay, and
-    // the renewed record still loads clean.
+fn renewal_keeps_the_text_before_the_inputs_block(from: &str, to: &str) {
     let fixture = Fixture::new("[demo::run]", "");
     let options = RecordOptions::new()
         .copyright("Example Owner <owner@example.invalid>")
@@ -1363,21 +1362,41 @@ fn a_renewal_keeps_the_licence_lines_of_the_record_it_replaces() {
         plan.record_assessment(fixture.root(), &request)
     })
     .expect("the first record is written with its licence lines");
+    fixture.edit(ASSESSMENT, from, to);
+    let before = read(fixture.root(), ASSESSMENT);
     let renewed = fixture
         .assess(CONTRACT, AssessmentVerdict::Accepted, Actor::Agent)
         .expect("the record is renewed");
     assert!(renewed.replaced);
-    let text = read(fixture.root(), ASSESSMENT);
-    assert!(
-        text.contains(concat!(
-            "\n# SPDX-",
-            "FileCopyrightText: Example Owner <owner@example.invalid>\n"
-        )),
-        "{text}"
-    );
-    assert!(
-        text.contains(concat!("\n# SPDX-", "License-Identifier: MIT\n")),
-        "{text}"
-    );
+    let after = read(fixture.root(), ASSESSMENT);
+    let inputs_at = before
+        .find("\ninputs:\n")
+        .expect("the record has an inputs block")
+        + 1;
+    let (kept, _) = before.split_at(inputs_at);
+    assert!(after.starts_with(kept), "{after}");
     assert_eq!(on_disk(fixture.root(), findings), []);
+}
+
+#[test]
+fn a_renewal_keeps_an_extended_header_byte_for_byte() {
+    // A second copyright line and a hand-written comment
+    // are header bytes the renewal does not own.
+    renewal_keeps_the_text_before_the_inputs_block(
+        "\ntype: Assessment\n",
+        concat!(
+            "\n# SPDX-",
+            "FileCopyrightText: Second Owner <second@example.invalid>\n",
+            "# Kept by hand.\ntype: Assessment\n"
+        ),
+    );
+}
+
+#[test]
+fn a_renewal_keeps_a_copyright_only_header_byte_for_byte() {
+    // A header with its copyright line and no licence line is kept as written.
+    renewal_keeps_the_text_before_the_inputs_block(
+        concat!("# SPDX-", "License-Identifier: MIT\n"),
+        "",
+    );
 }
