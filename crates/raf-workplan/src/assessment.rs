@@ -1458,6 +1458,17 @@ fn renewed_text(existing: &str, document: &Document, rendered: &str, keys: &[&st
     let mut added: BTreeMap<usize, Vec<&str>> = BTreeMap::new();
     replaced.insert(verdict, verdict_line);
     replaced.insert(by, by_line);
+    // A SPDX line the file lacks follows the last SPDX line it already has, so
+    // a licence line added to a file with a copyright line lands after it. With
+    // none, it follows the opening fence.
+    let spdx_anchor = (1..header_end)
+        .rev()
+        .find(|&index| {
+            [spdx::COPYRIGHT_KEY, spdx::LICENCE_KEY]
+                .iter()
+                .any(|key| spdx::comment_value(contents[index], key).is_some())
+        })
+        .unwrap_or(0);
     for key in keys {
         let Some(line) = rendered
             .iter()
@@ -1470,7 +1481,7 @@ fn renewed_text(existing: &str, document: &Document, rendered: &str, keys: &[&st
             Some(index) => {
                 replaced.insert(index, line);
             }
-            None => added.entry(0).or_default().push(line),
+            None => added.entry(spdx_anchor).or_default().push(line),
         }
     }
     for (position, &index) in rows.iter().enumerate() {

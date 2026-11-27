@@ -1572,6 +1572,29 @@ fn a_renewal_replaces_a_licence_line_with_extra_spaces_and_adds_no_second_line()
 }
 
 #[test]
+#[expect(
+    clippy::expect_used,
+    reason = "a missing SPDX line fails the test at the point of use"
+)]
+fn a_licence_line_a_renewal_adds_follows_the_copyright_line() {
+    // A header that has its copyright line and lacks the licence line gets the
+    // licence line after the copyright line, so the two lines keep their order.
+    let (_fixture, _before, after) = renew_edited_record(
+        |text| text.replacen(concat!("# SPDX-", "License-Identifier: MIT\n"), "", 1),
+        RecordOptions::new()
+            .copyright("Example Owner <owner@example.invalid>")
+            .licence("MIT"),
+    );
+    let copyright = after
+        .find(concat!("# SPDX-", "FileCopyrightText:"))
+        .expect("the copyright line is kept");
+    let licence = after
+        .find(concat!("# SPDX-", "License-Identifier: MIT"))
+        .expect("the licence line is added");
+    assert!(copyright < licence, "{after}");
+}
+
+#[test]
 fn a_renewal_without_spdx_options_keeps_a_copyright_only_header() {
     // A header with its copyright line and no licence line is kept as written.
     let (fixture, before, after) = renew_edited_record(

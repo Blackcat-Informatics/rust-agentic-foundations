@@ -154,7 +154,8 @@ renew; a row beyond the old rows is added after the last of them, and an old row
 the request no longer needs is removed. Given the copyright and the licence options
 together, each replaces the first line of its kind in the header, and every other
 header line is kept. A header line is recognised with any run of spaces around its
-comment marker, key and value. A trailing comment on a line the renewal owns is
+comment marker, key and value, and a copyright or licence line the header lacks is
+added after its last SPDX line. A trailing comment on a line the renewal owns is
 not kept, because the rendered line replaces it, and a comment line between inputs
 rows keeps its position among the rows, so when the row count changes it can sit
 beside a different row. The renewed text is read back through the checks a new record
