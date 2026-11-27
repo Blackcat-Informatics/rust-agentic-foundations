@@ -198,7 +198,7 @@ each release's notes. Read the released manifests for the version requirements.
 Explain parser and wire-reader pins alongside the first release that changes
 them.
 
-RAF 0.8.1 carries the following exact requirements into the consumer's lock
+RAF 0.9.0 carries the following exact requirements into the consumer's lock
 graph when the respective RAF packages are selected.
 
 | Dependency | Requirement | Where it enters the graph |
