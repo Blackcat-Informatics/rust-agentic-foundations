@@ -26,6 +26,16 @@ bindings:
     - raf_workplan::test_crate::assessments::a_record_named_otherwise_than_its_subject_is_a_finding_and_not_the_assessment_of_it
     - raf_workplan::test_crate::assessments::a_regenerated_block_leaves_the_assessment_of_its_section_current
     - raf_workplan::test_crate::assessments::a_rejected_assessment_is_current_and_owes_an_acceptance_whoever_gave_it
+    - raf_workplan::test_crate::assessments::a_renewal_drops_the_timestamp_and_keeps_the_tags
+    - raf_workplan::test_crate::assessments::a_renewal_of_a_crlf_record_keeps_every_line_ending
+    - raf_workplan::test_crate::assessments::a_renewal_of_a_record_with_verdict_before_inputs_keeps_one_verdict
+    - raf_workplan::test_crate::assessments::a_renewal_keeps_the_comments_in_every_position_of_the_record
+    - raf_workplan::test_crate::assessments::a_renewal_refuses_a_record_that_the_reference_scan_rejects
+    - raf_workplan::test_crate::assessments::a_renewal_with_spdx_options_replaces_only_the_spdx_lines
+    - raf_workplan::test_crate::assessments::a_renewal_without_spdx_options_keeps_a_copyright_only_header
+    - raf_workplan::test_crate::assessments::a_renewal_without_spdx_options_keeps_both_licence_lines_of_a_header
+    - raf_workplan::test_crate::assessments::a_renewal_replaces_a_licence_line_with_extra_spaces_and_adds_no_second_line
+    - raf_workplan::test_crate::assessments::a_licence_line_a_renewal_adds_follows_the_copyright_line
     - raf_workplan::test_crate::assessments::a_suffix_two_bindings_end_in_names_both
     - raf_workplan::test_crate::assessments::a_symbol_the_section_names_is_an_input_and_a_bound_symbol_it_does_not_name_is_not
     - raf_workplan::test_crate::assessments::an_edit_of_the_section_makes_it_stale_naming_the_section_and_an_edit_of_another_does_not
@@ -110,7 +120,7 @@ A bound crate root can be an assessment input. Its record can be published and
 reloaded, and editing the root source invalidates the recorded digest.
 
 ### Canonical assessment records
-<!-- raf:tested-by raf_workplan::test_crate::assessments::an_unchanged_section_is_current_and_a_second_record_is_byte_identical_and_replaces_the_first,raf_workplan::test_crate::assessments::a_record_named_otherwise_than_its_subject_is_a_finding_and_not_the_assessment_of_it,raf_workplan::test_crate::assessments::an_evidence_record_a_claim_of_the_section_names_is_an_input,raf_workplan::test_crate::assessments::each_refusal_writes_nothing_and_its_neighbour_records,raf_workplan::test_crate::assessments::a_huge_section_and_ten_thousand_named_symbols_are_recorded_and_judged -->
+<!-- raf:tested-by raf_workplan::test_crate::assessments::an_unchanged_section_is_current_and_a_second_record_is_byte_identical_and_replaces_the_first,raf_workplan::test_crate::assessments::a_record_named_otherwise_than_its_subject_is_a_finding_and_not_the_assessment_of_it,raf_workplan::test_crate::assessments::an_evidence_record_a_claim_of_the_section_names_is_an_input,raf_workplan::test_crate::assessments::each_refusal_writes_nothing_and_its_neighbour_records,raf_workplan::test_crate::assessments::a_huge_section_and_ten_thousand_named_symbols_are_recorded_and_judged,raf_workplan::test_crate::assessments::a_renewal_drops_the_timestamp_and_keeps_the_tags,raf_workplan::test_crate::assessments::a_renewal_of_a_crlf_record_keeps_every_line_ending,raf_workplan::test_crate::assessments::a_renewal_of_a_record_with_verdict_before_inputs_keeps_one_verdict,raf_workplan::test_crate::assessments::a_renewal_keeps_the_comments_in_every_position_of_the_record,raf_workplan::test_crate::assessments::a_renewal_refuses_a_record_that_the_reference_scan_rejects,raf_workplan::test_crate::assessments::a_renewal_with_spdx_options_replaces_only_the_spdx_lines,raf_workplan::test_crate::assessments::a_renewal_without_spdx_options_keeps_a_copyright_only_header -->
 
 An assessment is the record
 `work/assessments/<capability slug>-<section>.md`, with the id
@@ -137,10 +147,27 @@ binding strongly, the bound symbols that are inputs are the bindings it names
 strongly or weakly; when it names none strongly, they are every `code` binding of
 the capability. A weak name therefore only ever adds an input and never narrows
 the set. Recording a verdict for a section that has an assessment replaces that
-record, and nothing of the earlier one is kept. A bound symbol that is an input
+record. Of the earlier record, every line the renewal does not own is kept with its line
+ending: the header and its comment lines, `type`, `id`, `subject`, the tags, the
+comments inside the inputs block, in their places between the rows, and the body.
+The renewal owns the inputs rows, the verdict and the assessor, which are written
+from the request and the current section, and the timestamp, which it removes
+because the writer sets none. The inputs rows take the place of the rows they
+renew; a row beyond the old rows is added after the last of them, and an old row
+the request no longer needs is removed. Given the copyright and the licence options
+together, each replaces the first line of its kind in the header, and every other
+header line is kept. A header line is recognised with any run of spaces around its
+comment marker, key and value, and a copyright or licence line the header lacks is
+added after its last SPDX line. A trailing comment on a line the renewal owns is
+not kept, because the rendered line replaces it, and a comment line between inputs
+rows keeps its position among the rows, so when the row count changes it can sit
+beside a different row. The renewed text is read back through the checks a new record
+passes, including the reference scan, before it is written, and a text that
+fails them is refused with nothing written. A bound symbol that is an input
 and does not resolve, or a claim on a record that does not load, is refused,
 since the record would keep no digest of it, and so is a record over the
 document bound. Recording writes that one file and never edits a document.
+<!-- raf:tested-by raf_workplan::test_crate::assessments::a_renewal_replaces_a_licence_line_with_extra_spaces_and_adds_no_second_line,raf_workplan::test_crate::assessments::a_licence_line_a_renewal_adds_follows_the_copyright_line -->
 
 ### Assessor context
 <!-- raf:tested-by raf_workplan::test_crate::assessments::the_context_is_the_same_for_a_human_and_an_agent_and_holds_what_the_assessor_reads -->
@@ -200,7 +227,10 @@ The runnable API example `raf_workplan::assessment::record_slug` derives the sta
 - `cargo raf-workplan assess cap:workplan-reconcile#explanation --verdict accepted --by agent`
   records the assessment, replacing the one the section had, if any; given
   together, `--copyright <text>` and `--licence <id>` open the record with its
-  two SPDX lines.
+  two SPDX lines. A renewal given neither keeps every line of the record it replaces
+  that it does not own, so its licence lines and comments stay. The copyright and
+  licence options, given together, replace the first line of their kinds in the
+  header and leave the other header lines.
 - `cargo raf-workplan assess --list` shows each assessment, whether it is current,
   and the inputs that moved.
 
@@ -346,6 +376,9 @@ files. The existing command-line cases continue to publish through the disk stor
   assessment, naming the record, and a record that no longer loads is an input
   that does not resolve.
 - A regenerated generated block leaves the neighbouring assessment current.
+- A renewal keeps the comments in every position, the line endings and the key order
+  of the record it replaces, removes its timestamp, and replaces only the header
+  lines the request names. A renewal that changes no value leaves the file identical.
 - The digest is identical across two runs on the same tree: a second record of
   the same verdict is the same bytes, and it replaces the first.
 - The context is byte-identical for a human and an agent, and the two records
@@ -403,10 +436,20 @@ files. The existing command-line cases continue to publish through the disk stor
 | `raf_workplan::test_crate::assessments::a_common_word_that_is_the_last_segment_of_a_binding_does_not_narrow_the_inputs` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::assessments::a_crate_root_assessment_is_published_reloaded_and_invalidated_by_its_source` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::assessments::a_huge_section_and_ten_thousand_named_symbols_are_recorded_and_judged` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::assessments::a_licence_line_a_renewal_adds_follows_the_copyright_line` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::assessments::a_method_named_by_its_type_and_name_is_an_input_and_its_sibling_is_not` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::assessments::a_record_named_otherwise_than_its_subject_is_a_finding_and_not_the_assessment_of_it` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::assessments::a_regenerated_block_leaves_the_assessment_of_its_section_current` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::test_crate::assessments::a_rejected_assessment_is_current_and_owes_an_acceptance_whoever_gave_it` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::assessments::a_renewal_drops_the_timestamp_and_keeps_the_tags` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::assessments::a_renewal_keeps_the_comments_in_every_position_of_the_record` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::assessments::a_renewal_of_a_crlf_record_keeps_every_line_ending` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::assessments::a_renewal_of_a_record_with_verdict_before_inputs_keeps_one_verdict` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::assessments::a_renewal_refuses_a_record_that_the_reference_scan_rejects` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::assessments::a_renewal_replaces_a_licence_line_with_extra_spaces_and_adds_no_second_line` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::assessments::a_renewal_with_spdx_options_replaces_only_the_spdx_lines` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::assessments::a_renewal_without_spdx_options_keeps_a_copyright_only_header` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::assessments::a_renewal_without_spdx_options_keeps_both_licence_lines_of_a_header` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::assessments::a_suffix_two_bindings_end_in_names_both` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::assessments::a_symbol_the_section_names_is_an_input_and_a_bound_symbol_it_does_not_name_is_not` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::assessments::an_assessment_is_never_written_through_a_linked_directory_and_a_real_one_records` | test | [Constraints](#constraints) |

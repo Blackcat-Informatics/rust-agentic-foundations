@@ -8,6 +8,22 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
 
 ## [Unreleased]
 
+### Fixed
+
+- `cargo raf-workplan assess` against an existing record keeps every line it does
+  not own, including the SPDX header, comments, tags and line endings. Version 0.9.0
+  dropped the SPDX lines.
+- A renewal given the copyright and licence options replaces only the first copyright
+  and licence lines and keeps any other header line.
+- A renewal is refused, with nothing written, when a line it keeps carries a finding
+  of the reference scan. Version 0.9.0 dropped such a line and the renewal succeeded.
+- A header line is recognised with any run of spaces around its comment marker, key
+  and value, in a renewal and in the debt record.
+
+### Changed
+
+- A renewal no longer keeps a `timestamp` line; the writer sets none.
+
 ## [0.9.0] - 2026-11-27
 
 ### Added

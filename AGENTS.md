@@ -321,8 +321,7 @@ RAF plans its own work in the workplan format, and
   it will produce.
 - **Assessments** in `work/assessments/` record that a section was read against its
   inputs. One goes stale when its section or a bound symbol changes. Renew it with
-  `cargo raf-workplan assess` only after reading the section against the change, and
-  restore the two licence comment lines that the renewal drops.
+  `cargo raf-workplan assess` only after reading the section against the change.
 - **Completion is a gate.** `cargo raf-workplan change complete` succeeds only when no
   obligation remains, every item has an outcome, no proposed block is left, the
   generated sections are in sync, and the bindings and affected assessments are

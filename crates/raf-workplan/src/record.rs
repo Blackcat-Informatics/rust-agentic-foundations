@@ -136,21 +136,39 @@ impl Record {
             Self::Review(record) => record.to_document(),
         }?;
         let text = spdx::with_spdx(document.render(), spdx);
-        let mut findings = Vec::new();
-        refs::scan(path.as_str(), &text, &mut findings);
-        match Document::parse(&text) {
-            Ok(read) => {
-                if let Err(violations) = Profile.validate(&read, path.as_str()) {
-                    findings.extend(violations.iter().map(Finding::from_violation));
-                }
+        read_back(&path, &text)?;
+        Ok(text)
+    }
+}
+
+/// Read `text` back as the record at `path`, as every record write does before
+/// it writes a byte: the text must parse, pass the profile, and carry no
+/// reference finding.
+///
+/// # Errors
+///
+/// [`RecordError::Invalid`] with every finding of the read back.
+pub(crate) fn read_back(path: &RelPath, text: &str) -> Result<Document, RecordError> {
+    let mut findings = Vec::new();
+    refs::scan(path.as_str(), text, &mut findings);
+    let document = match Document::parse(text) {
+        Ok(read) => {
+            if let Err(violations) = Profile.validate(&read, path.as_str()) {
+                findings.extend(violations.iter().map(Finding::from_violation));
             }
-            Err(error) => findings.push(Finding::from_parse_error(path.as_str(), &error)),
+            Some(read)
         }
-        if findings.is_empty() {
-            Ok(text)
-        } else {
-            Err(RecordError::Invalid { path, findings })
+        Err(error) => {
+            findings.push(Finding::from_parse_error(path.as_str(), &error));
+            None
         }
+    };
+    match document {
+        Some(document) if findings.is_empty() => Ok(document),
+        _ => Err(RecordError::Invalid {
+            path: path.clone(),
+            findings,
+        }),
     }
 }
 

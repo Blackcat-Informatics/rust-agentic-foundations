@@ -67,7 +67,7 @@ use std::path::Path;
 
 use raf_okf::{
     Actor, AssessmentRecord, AssessmentVerdict, Body, Capability, CapabilitySection, DocType,
-    EvidenceVerdict, Input, InputKind, Measure, SectionRef, is_kebab,
+    Document, EvidenceVerdict, Input, InputKind, Measure, Profile, SectionRef, is_kebab,
 };
 use raf_source::{EntryKind, RelPath};
 
@@ -76,6 +76,7 @@ use crate::graph::{BindingKind, SectionId, code_span_paths, prose_of};
 use crate::lifecycle::section_digest;
 use crate::lookup::write_findings;
 use crate::record::{self, Record, RecordError, RecordOptions};
+use crate::spdx;
 use crate::work::{Work, add};
 use crate::{Finding, Loaded, Workplan};
 
@@ -439,7 +440,9 @@ impl AssessmentRequest {
 pub struct Assessed {
     /// The repository-relative path of the record.
     pub path: RelPath,
-    /// The record as written.
+    /// The record the request renders. A renewal keeps the lines of the file it
+    /// replaces that it does not own, so the file can also hold tags and comments
+    /// that this record does not.
     pub record: AssessmentRecord,
     /// Whether it replaced the record of the section that was there.
     pub replaced: bool,
@@ -1132,8 +1135,10 @@ impl Workplan<'_> {
     /// [`Workplan::assessment_record`].
     ///
     /// When a record of the section is there, the new one replaces it,
-    /// through a temporary file and a rename, and nothing of the old one is
-    /// kept; otherwise the file is created exclusively. `work` and
+    /// through a temporary file and a rename. A renewal keeps every line of the
+    /// old one that it does not own: it replaces the inputs rows, the verdict,
+    /// the assessor, and the copyright and licence lines that `options` give together, and
+    /// removes the timestamp. Otherwise the file is created exclusively. `work` and
     /// `work/assessments` must each be a directory, and a symbolic link there,
     /// inside the root or out of it, or a file is refused. Every check is made
     /// before anything is written, and the record is the one file written: no
@@ -1171,8 +1176,10 @@ impl Workplan<'_> {
             Some(_) => return Err(RecordError::Exists { path }.into()),
             None => false,
         };
+        // A renewal replaces only the lines it owns and keeps the rest of the
+        // record it replaces, line by line.
         let path = if replaced {
-            record::replace_in(store, &record, &request.options)?
+            Self::renew_in_place(store, &record, &request.options)?
         } else {
             record::create_in(store, &record, &request.options)?
         };
@@ -1184,6 +1191,59 @@ impl Workplan<'_> {
             record,
             replaced,
         })
+    }
+
+    /// Renew the record at the path of `record` in place. The lines the
+    /// renewal owns are replaced: the inputs rows, `verdict` and `by`, and any
+    /// `timestamp`, which is removed because the writer sets none. When
+    /// `options` give both a copyright and a licence line, each replaces the
+    /// first line of its kind in the header, and every other header line is
+    /// kept. Every other line is kept with its own line ending. The renewed
+    /// text is read back through the same checks as a new record before it is
+    /// written.
+    ///
+    /// # Errors
+    ///
+    /// The errors of [`record::replace_in`] for the file, and
+    /// [`RecordError::Invalid`] when the renewed text does not read back as a
+    /// record with no finding.
+    fn renew_in_place(
+        store: &mut dyn record::RecordStore,
+        record: &Record,
+        options: &RecordOptions,
+    ) -> Result<RelPath, RecordError> {
+        let path = record.path()?;
+        if store.inspect(&path)? != Some(EntryKind::File) {
+            return Err(RecordError::Missing { path });
+        }
+        let existing = store
+            .tree()?
+            .read(&path, raf_okf::MAX_TEXT_BYTES as u64)
+            .map_err(|source| RecordError::Write {
+                path: path.to_string(),
+                source: std::io::Error::other(source),
+            })?;
+        let document = Document::parse(&existing).map_err(|source| RecordError::Write {
+            path: path.to_string(),
+            source: std::io::Error::other(source),
+        })?;
+        Self::validate_text(&document, &path)?;
+        let rendered = record.text(options)?;
+        let text = renewed_text(&existing, &document, &rendered, &spdx_keys(options));
+        record::read_back(&path, &text)?;
+        store.replace(&path, &text)?;
+        Ok(path)
+    }
+
+    /// The profile findings of a parsed record, refused as one error.
+    fn validate_text(document: &Document, path: &RelPath) -> Result<(), RecordError> {
+        match Profile.validate(document, path.as_str()) {
+            Ok(_) => Ok(()),
+            Err(violations) => Err(RecordError::Invalid {
+                path: path.clone(),
+                findings: violations.iter().map(Finding::from_violation).collect(),
+            }),
+        }
     }
 
     /// Whether the assessment `record` is current: its inputs compared with
@@ -1328,5 +1388,177 @@ fn currency_from_rows(
     } else {
         moved.sort_by(|a, b| (a.kind, &a.name).cmp(&(b.kind, &b.name)));
         Currency::Stale(moved)
+    }
+}
+
+/// The SPDX keys of the header lines a renewal replaces: the copyright and
+/// the licence line, for the options that give them.
+fn spdx_keys(options: &RecordOptions) -> Vec<&'static str> {
+    let mut keys = Vec::new();
+    if options.copyright.is_some() {
+        keys.push(spdx::COPYRIGHT_KEY);
+    }
+    if options.licence.is_some() {
+        keys.push(spdx::LICENCE_KEY);
+    }
+    keys
+}
+
+/// The text of the file `existing` renewed from its `rendered` record. Each
+/// owned line is replaced where it stands and every other line is kept with
+/// its ending, so a renewal that changes no value leaves the file identical:
+/// `verdict` and `by` take the rendered lines; the input rows take the
+/// rendered rows in order, a row beyond the old ones is added after the last
+/// old row, and an old row with no rendered row is dropped; `timestamp` is
+/// dropped; and, for each SPDX key, the first header line with that key takes
+/// the rendered line. A key the file lacks is added after the opening fence.
+///
+/// `existing` must already be a validated record: its `inputs`, `verdict` and
+/// `by` entries are present, so their lines are found from the parse.
+fn renewed_text(existing: &str, document: &Document, rendered: &str, keys: &[&str]) -> String {
+    let lines: Vec<(&str, &str)> = existing.split_inclusive('\n').map(split_ending).collect();
+    let contents: Vec<&str> = lines.iter().map(|(content, _)| *content).collect();
+    let line_of = |key: &str| {
+        document
+            .frontmatter()
+            .map()
+            .get(key)
+            .map(|entry| entry.line().saturating_sub(1))
+    };
+    let (Some(inputs), Some(verdict), Some(by)) =
+        (line_of("inputs"), line_of("verdict"), line_of("by"))
+    else {
+        unreachable!("INVARIANT: a validated assessment has inputs, verdict and by")
+    };
+    let timestamp = line_of("timestamp");
+    let rows = block_rows(&contents, inputs);
+    let header_end = (1..contents.len())
+        .find(|&index| is_top_level(contents[index]))
+        .unwrap_or(contents.len());
+
+    let rendered: Vec<&str> = rendered.lines().collect();
+    let rendered_top = |key: &str| rendered.iter().copied().find(|line| line.starts_with(key));
+    let (Some(verdict_line), Some(by_line)) = (rendered_top("verdict:"), rendered_top("by:"))
+    else {
+        unreachable!("INVARIANT: a rendered assessment has verdict and by")
+    };
+    let rendered_rows: Vec<&str> =
+        match rendered.iter().position(|line| line.starts_with("inputs:")) {
+            Some(start) => block_rows(&rendered, start)
+                .into_iter()
+                .map(|index| rendered[index])
+                .collect(),
+            None => Vec::new(),
+        };
+
+    // Owned lines by their index in the existing text: the line that replaces
+    // them, the lines dropped, and the lines added after an index.
+    let mut replaced: BTreeMap<usize, &str> = BTreeMap::new();
+    let mut dropped: BTreeSet<usize> = timestamp.into_iter().collect();
+    let mut added: BTreeMap<usize, Vec<&str>> = BTreeMap::new();
+    replaced.insert(verdict, verdict_line);
+    replaced.insert(by, by_line);
+    // A SPDX line the file lacks follows the last SPDX line it already has, so
+    // a licence line added to a file with a copyright line lands after it. With
+    // none, it follows the opening fence.
+    let spdx_anchor = (1..header_end)
+        .rev()
+        .find(|&index| {
+            [spdx::COPYRIGHT_KEY, spdx::LICENCE_KEY]
+                .iter()
+                .any(|key| spdx::comment_value(contents[index], key).is_some())
+        })
+        .unwrap_or(0);
+    for key in keys {
+        let Some(line) = rendered
+            .iter()
+            .copied()
+            .find(|line| spdx::comment_value(line, key).is_some())
+        else {
+            unreachable!("INVARIANT: a rendered record has the SPDX line of each option")
+        };
+        match (1..header_end).find(|&index| spdx::comment_value(contents[index], key).is_some()) {
+            Some(index) => {
+                replaced.insert(index, line);
+            }
+            None => added.entry(spdx_anchor).or_default().push(line),
+        }
+    }
+    for (position, &index) in rows.iter().enumerate() {
+        match rendered_rows.get(position) {
+            Some(row) => {
+                replaced.insert(index, row);
+            }
+            None => {
+                dropped.insert(index);
+            }
+        }
+    }
+    if let Some(extra) = rendered_rows
+        .get(rows.len()..)
+        .filter(|extra| !extra.is_empty())
+    {
+        let after = rows.last().copied().unwrap_or(inputs);
+        added.entry(after).or_default().extend_from_slice(extra);
+    }
+
+    let mut out = String::with_capacity(existing.len() + rendered.len());
+    for (index, (content, ending)) in lines.iter().enumerate() {
+        if dropped.contains(&index) {
+            // An owned line the rendered record does not have.
+        } else if let Some(line) = replaced.get(&index) {
+            push_line(&mut out, line, ending);
+        } else {
+            push_line(&mut out, content, ending);
+        }
+        if let Some(extra) = added.get(&index) {
+            push_all(&mut out, extra, ending);
+        }
+    }
+    out
+}
+
+/// The content and line ending of one line: the ending is `\r\n`, `\n`, or
+/// empty for the final line of a text without one.
+fn split_ending(line: &str) -> (&str, &str) {
+    let length = if line.ends_with("\r\n") {
+        2
+    } else {
+        usize::from(line.ends_with('\n'))
+    };
+    line.split_at(line.len() - length)
+}
+
+/// The indices of the entry rows of the block that begins at `start`: the
+/// indented lines that are not comments, up to the next top-level line.
+fn block_rows(contents: &[&str], start: usize) -> Vec<usize> {
+    contents
+        .iter()
+        .enumerate()
+        .skip(start + 1)
+        .take_while(|(_, content)| !is_top_level(content))
+        .filter(|(_, content)| {
+            let trimmed = content.trim_start();
+            !trimmed.is_empty() && !trimmed.starts_with('#')
+        })
+        .map(|(index, _)| index)
+        .collect()
+}
+
+/// A line that starts a key or a fence, not indented and not a comment or blank.
+fn is_top_level(content: &str) -> bool {
+    !content.is_empty() && !content.starts_with([' ', '\t', '#'])
+}
+
+/// Append one line with the given ending.
+fn push_line(out: &mut String, content: &str, ending: &str) {
+    out.push_str(content);
+    out.push_str(ending);
+}
+
+/// Append each line with the given ending.
+fn push_all(out: &mut String, lines: &[&str], ending: &str) {
+    for line in lines {
+        push_line(out, line, ending);
     }
 }
