@@ -1137,8 +1137,8 @@ impl Workplan<'_> {
     /// When a record of the section is there, the new one replaces it,
     /// through a temporary file and a rename. A renewal keeps every line of the
     /// old one that it does not own: it replaces the inputs rows, the verdict,
-    /// the assessor, and the copyright or licence line that `options` give, and removes the
-    /// timestamp. Otherwise the file is created exclusively. `work` and
+    /// the assessor, and the copyright and licence lines that `options` give together, and
+    /// removes the timestamp. Otherwise the file is created exclusively. `work` and
     /// `work/assessments` must each be a directory, and a symbolic link there,
     /// inside the root or out of it, or a file is refused. Every check is made
     /// before anything is written, and the record is the one file written: no
@@ -1196,7 +1196,7 @@ impl Workplan<'_> {
     /// Renew the record at the path of `record` in place. The lines the
     /// renewal owns are replaced: the inputs rows, `verdict` and `by`, and any
     /// `timestamp`, which is removed because the writer sets none. When
-    /// `options` give a copyright or a licence line, that line replaces the
+    /// `options` give both a copyright and a licence line, each replaces the
     /// first line of its kind in the header, and every other header line is
     /// kept. Every other line is kept with its own line ending. The renewed
     /// text is read back through the same checks as a new record before it is

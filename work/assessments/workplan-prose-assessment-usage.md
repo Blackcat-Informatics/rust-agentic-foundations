@@ -19,7 +19,7 @@ inputs:
     digest: 4caeaed4de776e9011875e46e8298d6b2482a504ece8af8ba57119f6224c2962
   - kind: symbol
     name: raf_workplan::Workplan::record_assessment
-    digest: 650761b2bfe7cbf7312f09c36db00631fa679f17dc13fcaaf953bd07ce5e2ddc
+    digest: a17175aa9b4cead54daf5d0b91a6ebe54678eb947180abb9031a66f422a2dae7
   - kind: symbol
     name: raf_workplan::Workplan::record_assessment_in
     digest: ebde2af1d68a275119254469624ce9b194c49cdbb4d78dcbdd4190cf91269795

@@ -17,6 +17,8 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
   and licence lines and keeps any other header line.
 - A renewal is refused, with nothing written, when a line it keeps carries a finding
   of the reference scan. Version 0.9.0 dropped such a line and the renewal succeeded.
+- A header line is recognised with any run of spaces around its comment marker, key
+  and value, in a renewal and in the debt record.
 
 ### Changed
 
