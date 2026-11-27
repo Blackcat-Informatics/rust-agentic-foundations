@@ -439,7 +439,9 @@ impl AssessmentRequest {
 pub struct Assessed {
     /// The repository-relative path of the record.
     pub path: RelPath,
-    /// The record as written.
+    /// The record the request renders. A renewal keeps the lines of the file it
+    /// replaces that it does not own, so the file can also hold tags and comments
+    /// that this record does not.
     pub record: AssessmentRecord,
     /// Whether it replaced the record of the section that was there.
     pub replaced: bool,
@@ -1132,10 +1134,10 @@ impl Workplan<'_> {
     /// [`Workplan::assessment_record`].
     ///
     /// When a record of the section is there, the new one replaces it,
-    /// through a temporary file and a rename. Of the old one, the text before
-    /// its inputs block (the fence, the comment lines, `type`, `id` and
-    /// `subject`) is kept byte for byte; otherwise the file is created
-    /// exclusively. `work` and
+    /// through a temporary file and a rename. A renewal keeps every line of the
+    /// old one that it does not own: it replaces the inputs rows, the verdict,
+    /// the assessor and the SPDX lines when `options` give them, and removes the
+    /// timestamp. Otherwise the file is created exclusively. `work` and
     /// `work/assessments` must each be a directory, and a symbolic link there,
     /// inside the root or out of it, or a file is refused. Every check is made
     /// before anything is written, and the record is the one file written: no
@@ -1173,14 +1175,10 @@ impl Workplan<'_> {
             Some(_) => return Err(RecordError::Exists { path }.into()),
             None => false,
         };
-        // A renewal keeps the record it replaces up to its inputs block, byte
-        // for byte, unless the request gives its own SPDX options.
+        // A renewal replaces only the lines it owns and keeps the rest of the
+        // record it replaces, line by line.
         let path = if replaced {
-            if request.options.copyright.is_some() || request.options.licence.is_some() {
-                record::replace_in(store, &record, &request.options)?
-            } else {
-                Self::renew_keeping_before_inputs(store, &record)?
-            }
+            Self::renew_in_place(store, &record, &request.options)?
         } else {
             record::create_in(store, &record, &request.options)?
         };
@@ -1194,16 +1192,21 @@ impl Workplan<'_> {
         })
     }
 
-    /// Renew the record at the path of `record`: the file's text before its
-    /// `inputs:` block is kept byte for byte, and the rest is written from
-    /// `record`. The file is checked as [`record::replace_in`] checks it.
+    /// Renew the record at the path of `record` in place. The lines the
+    /// renewal owns are replaced: the inputs rows, `verdict` and `by`, and any
+    /// `timestamp`, which is removed because the writer sets none. When
+    /// `options` give SPDX lines, they replace the file's SPDX lines. Every
+    /// other line is kept with its own line ending. The renewed text is parsed
+    /// and validated before it is written.
     ///
     /// # Errors
     ///
-    /// The errors of [`record::replace_in`].
-    fn renew_keeping_before_inputs(
+    /// The errors of [`record::replace_in`] for the file, and
+    /// [`RecordError::Write`] when the renewed text does not parse.
+    fn renew_in_place(
         store: &mut dyn record::RecordStore,
         record: &Record,
+        options: &RecordOptions,
     ) -> Result<RelPath, RecordError> {
         let path = record.path()?;
         if store.inspect(&path)? != Some(EntryKind::File) {
@@ -1220,44 +1223,28 @@ impl Workplan<'_> {
             path: path.to_string(),
             source: std::io::Error::other(source),
         })?;
-        if let Err(violations) = Profile.validate(&document, path.as_str()) {
-            return Err(RecordError::Invalid {
-                path,
-                findings: violations.iter().map(Finding::from_violation).collect(),
-            });
-        }
-        let rendered = record.text(&RecordOptions::new())?;
-        let Some(text) = Self::spliced_before(&existing, &rendered, "inputs:") else {
-            unreachable!("INVARIANT: a loaded and a rendered assessment both have an inputs block")
-        };
+        Self::validate_text(&document, &path)?;
+        let rendered = record.text(options)?;
+        let replace_spdx = options.copyright.is_some() || options.licence.is_some();
+        let text = renewed_text(&existing, &document, &rendered, replace_spdx);
+        let document = Document::parse(&text).map_err(|source| RecordError::Write {
+            path: path.to_string(),
+            source: std::io::Error::other(source),
+        })?;
+        Self::validate_text(&document, &path)?;
         store.replace(&path, &text)?;
         Ok(path)
     }
 
-    /// `existing` up to its first line that starts with `key`, then `rendered`
-    /// from its line that starts with `key`. `None` when either text has no
-    /// such line.
-    fn spliced_before(existing: &str, rendered: &str, key: &str) -> Option<String> {
-        let mut text = String::new();
-        let mut found = false;
-        for line in existing.split_inclusive('\n') {
-            if line.starts_with(key) {
-                found = true;
-                break;
-            }
-            text.push_str(line);
+    /// The profile findings of a parsed record, refused as one error.
+    fn validate_text(document: &Document, path: &RelPath) -> Result<(), RecordError> {
+        match Profile.validate(document, path.as_str()) {
+            Ok(_) => Ok(()),
+            Err(violations) => Err(RecordError::Invalid {
+                path: path.clone(),
+                findings: violations.iter().map(Finding::from_violation).collect(),
+            }),
         }
-        if !found {
-            return None;
-        }
-        let mut written = false;
-        for line in rendered.split_inclusive('\n') {
-            written = written || line.starts_with(key);
-            if written {
-                text.push_str(line);
-            }
-        }
-        written.then_some(text)
     }
 
     /// Whether the assessment `record` is current: its inputs compared with
@@ -1402,5 +1389,137 @@ fn currency_from_rows(
     } else {
         moved.sort_by(|a, b| (a.kind, &a.name).cmp(&(b.kind, &b.name)));
         Currency::Stale(moved)
+    }
+}
+
+const SPDX_COMMENT: &str = "# SPDX-";
+
+/// The text of the file `existing` renewed from its `rendered` record. The
+/// owned lines are replaced and every other line is kept with its ending:
+/// `verdict` and `by` take the rendered lines, the inputs rows take the
+/// rendered rows at the position of the first row, `timestamp` is dropped,
+/// and, when `replace_spdx` is set, the SPDX lines take the rendered ones.
+///
+/// `existing` must already be a validated record: its `inputs`, `verdict` and
+/// `by` entries are present, so their lines are found from the parse.
+fn renewed_text(existing: &str, document: &Document, rendered: &str, replace_spdx: bool) -> String {
+    let lines: Vec<(&str, &str)> = existing.split_inclusive('\n').map(split_ending).collect();
+    let contents: Vec<&str> = lines.iter().map(|(content, _)| *content).collect();
+    let line_of = |key: &str| {
+        document
+            .frontmatter()
+            .map()
+            .get(key)
+            .map(|entry| entry.line().saturating_sub(1))
+    };
+    let (Some(inputs), Some(verdict), Some(by)) =
+        (line_of("inputs"), line_of("verdict"), line_of("by"))
+    else {
+        unreachable!("INVARIANT: a validated assessment has inputs, verdict and by")
+    };
+    let timestamp = line_of("timestamp");
+    let rows = block_rows(&contents, inputs);
+    let first_row_ending = rows
+        .first()
+        .map_or(lines[inputs].1, |&index| lines[index].1);
+    let header_end = (1..contents.len())
+        .find(|&index| is_top_level(contents[index]))
+        .unwrap_or(contents.len());
+    let spdx: Vec<usize> = if replace_spdx {
+        (1..header_end)
+            .filter(|&index| contents[index].starts_with(SPDX_COMMENT))
+            .collect()
+    } else {
+        Vec::new()
+    };
+
+    let rendered: Vec<&str> = rendered.lines().collect();
+    let rendered_top = |key: &str| rendered.iter().copied().find(|line| line.starts_with(key));
+    let (Some(verdict_line), Some(by_line)) = (rendered_top("verdict:"), rendered_top("by:"))
+    else {
+        unreachable!("INVARIANT: a rendered assessment has verdict and by")
+    };
+    let rendered_rows: Vec<&str> =
+        match rendered.iter().position(|line| line.starts_with("inputs:")) {
+            Some(start) => block_rows(&rendered, start)
+                .into_iter()
+                .map(|index| rendered[index])
+                .collect(),
+            None => Vec::new(),
+        };
+    let rendered_spdx: Vec<&str> = rendered
+        .iter()
+        .copied()
+        .filter(|line| line.starts_with(SPDX_COMMENT))
+        .collect();
+
+    let mut out = String::with_capacity(existing.len() + rendered.len());
+    for (index, (content, ending)) in lines.iter().enumerate() {
+        if index == 1 && replace_spdx && spdx.is_empty() {
+            push_all(&mut out, &rendered_spdx, lines[0].1);
+        }
+        if index == verdict {
+            push_line(&mut out, verdict_line, ending);
+        } else if index == by {
+            push_line(&mut out, by_line, ending);
+        } else if spdx.first() == Some(&index) {
+            push_all(&mut out, &rendered_spdx, ending);
+        } else if rows.first() == Some(&index) {
+            push_all(&mut out, &rendered_rows, first_row_ending);
+        } else if spdx.contains(&index) || rows.contains(&index) || Some(index) == timestamp {
+            // An owned line that the rendered lines above replace, or the
+            // timestamp, which the renewal removes.
+        } else {
+            push_line(&mut out, content, ending);
+            if index == inputs && rows.is_empty() {
+                push_all(&mut out, &rendered_rows, first_row_ending);
+            }
+        }
+    }
+    out
+}
+
+/// The content and line ending of one line: the ending is `\r\n`, `\n`, or
+/// empty for the final line of a text without one.
+fn split_ending(line: &str) -> (&str, &str) {
+    let length = if line.ends_with("\r\n") {
+        2
+    } else {
+        usize::from(line.ends_with('\n'))
+    };
+    line.split_at(line.len() - length)
+}
+
+/// The indices of the entry rows of the block that begins at `start`: the
+/// indented lines that are not comments, up to the next top-level line.
+fn block_rows(contents: &[&str], start: usize) -> Vec<usize> {
+    contents
+        .iter()
+        .enumerate()
+        .skip(start + 1)
+        .take_while(|(_, content)| !is_top_level(content))
+        .filter(|(_, content)| {
+            let trimmed = content.trim_start();
+            !trimmed.is_empty() && !trimmed.starts_with('#')
+        })
+        .map(|(index, _)| index)
+        .collect()
+}
+
+/// A line that starts a key or a fence, not indented and not a comment or blank.
+fn is_top_level(content: &str) -> bool {
+    !content.is_empty() && !content.starts_with([' ', '\t', '#'])
+}
+
+/// Append one line with the given ending.
+fn push_line(out: &mut String, content: &str, ending: &str) {
+    out.push_str(content);
+    out.push_str(ending);
+}
+
+/// Append each line with the given ending.
+fn push_all(out: &mut String, lines: &[&str], ending: &str) {
+    for line in lines {
+        push_line(out, line, ending);
     }
 }

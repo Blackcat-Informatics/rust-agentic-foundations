@@ -296,7 +296,7 @@ fn an_unchanged_section_is_current_and_a_second_record_is_byte_identical_and_rep
     assert!(fixture.owed().is_empty(), "{:?}", fixture.owed());
 
     // The same inputs give the same digests, so a second record is the same
-    // bytes; it replaces the first and nothing of the first is kept.
+    // bytes; it replaces the first, and the two files are the same bytes.
     let again = fixture
         .assess(CONTRACT, AssessmentVerdict::Accepted, Actor::Agent)
         .expect("recorded again");
@@ -1344,59 +1344,163 @@ fn an_assessment_is_never_written_through_a_linked_directory_and_a_real_one_reco
     assert_eq!(snapshot(root), before);
 }
 
-/// Record an assessment with both licence lines, edit its text by `from` and
-/// `to`, renew it with no SPDX options, and check that the renewed record keeps
-/// every byte of the edited text before its inputs block.
+/// Record an assessment of `CONTRACT` with both SPDX lines, edit its text with
+/// `edit`, then renew it with `options`. Returns the fixture, the text the
+/// renewal found and the text it wrote.
 #[expect(
     clippy::expect_used,
     reason = "a failed prerequisite must fail this test at the point of use"
 )]
-fn renewal_keeps_the_text_before_the_inputs_block(from: &str, to: &str) {
+fn renew_edited_record(
+    edit: impl FnOnce(String) -> String,
+    options: RecordOptions,
+) -> (Fixture, String, String) {
     let fixture = Fixture::new("[demo::run]", "");
-    let options = RecordOptions::new()
+    let first = RecordOptions::new()
         .copyright("Example Owner <owner@example.invalid>")
         .licence("MIT");
-    let request = AssessmentRequest::new(CONTRACT, AssessmentVerdict::Accepted, Actor::Agent)
-        .options(options);
+    let request =
+        AssessmentRequest::new(CONTRACT, AssessmentVerdict::Accepted, Actor::Agent).options(first);
     on_disk(fixture.root(), |plan| {
         plan.record_assessment(fixture.root(), &request)
     })
     .expect("the first record is written with its licence lines");
-    fixture.edit(ASSESSMENT, from, to);
+    let edited = edit(read(fixture.root(), ASSESSMENT));
+    put(fixture.root(), ASSESSMENT, &edited);
     let before = read(fixture.root(), ASSESSMENT);
-    let renewed = fixture
-        .assess(CONTRACT, AssessmentVerdict::Accepted, Actor::Agent)
-        .expect("the record is renewed");
+    let renewal = AssessmentRequest::new(CONTRACT, AssessmentVerdict::Accepted, Actor::Agent)
+        .options(options);
+    let renewed = on_disk(fixture.root(), |plan| {
+        plan.record_assessment(fixture.root(), &renewal)
+    })
+    .expect("the record is renewed");
     assert!(renewed.replaced);
     let after = read(fixture.root(), ASSESSMENT);
-    let inputs_at = before
-        .find("\ninputs:\n")
-        .expect("the record has an inputs block")
-        + 1;
-    let (kept, _) = before.split_at(inputs_at);
-    assert!(after.starts_with(kept), "{after}");
+    (fixture, before, after)
+}
+
+#[test]
+fn a_renewal_keeps_the_comments_in_every_position_of_the_record() {
+    // The format admits comments inside the inputs block, between verdict and
+    // by, after by and in the body; a renewal of a current record owns none of
+    // them, so the renewed file is the edited file.
+    let (fixture, before, after) = renew_edited_record(
+        |text| {
+            text.replacen("inputs:\n", "inputs:\n  # inside the inputs block\n", 1)
+                .replacen("verdict: accepted\n", "verdict: accepted\n# before by\n", 1)
+                .replacen("by: agent\n", "by: agent\n# after by\n", 1)
+                + "\n<!-- body comment -->\n"
+        },
+        RecordOptions::new(),
+    );
+    assert_eq!(after, before);
     assert_eq!(on_disk(fixture.root(), findings), []);
 }
 
 #[test]
-fn a_renewal_keeps_an_extended_header_byte_for_byte() {
-    // A second copyright line and a hand-written comment
-    // are header bytes the renewal does not own.
-    renewal_keeps_the_text_before_the_inputs_block(
-        "\ntype: Assessment\n",
-        concat!(
-            "\n# SPDX-",
-            "FileCopyrightText: Second Owner <second@example.invalid>\n",
-            "# Kept by hand.\ntype: Assessment\n"
-        ),
-    );
+fn a_renewal_of_a_crlf_record_keeps_every_line_ending() {
+    // A CRLF record is valid; the renewal writes its owned lines with the
+    // ending each line already has, so the renewed file is the edited file
+    // and no bare line feed appears in it.
+    let (fixture, before, after) =
+        renew_edited_record(|text| text.replace('\n', "\r\n"), RecordOptions::new());
+    assert_eq!(after, before);
+    assert!(!after.replace("\r\n", "").contains('\n'), "{after:?}");
+    assert_eq!(on_disk(fixture.root(), findings), []);
 }
 
 #[test]
-fn a_renewal_keeps_a_copyright_only_header_byte_for_byte() {
-    // A header with its copyright line and no licence line is kept as written.
-    renewal_keeps_the_text_before_the_inputs_block(
-        concat!("# SPDX-", "License-Identifier: MIT\n"),
-        "",
+fn a_renewal_of_a_record_with_verdict_before_inputs_keeps_one_verdict() {
+    // The format admits the keys in any order. The renewal replaces the
+    // verdict line where it stands, so the record keeps one verdict key.
+    let (fixture, before, after) = renew_edited_record(
+        |text| {
+            text.replacen("verdict: accepted\n", "", 1).replacen(
+                "inputs:\n",
+                "verdict: accepted\ninputs:\n",
+                1,
+            )
+        },
+        RecordOptions::new(),
     );
+    assert_eq!(after, before);
+    assert_eq!(after.matches("\nverdict:").count(), 1, "{after}");
+    assert_eq!(on_disk(fixture.root(), findings), []);
+}
+
+#[test]
+fn a_renewal_drops_the_timestamp_and_keeps_the_tags() {
+    // The writer sets no timestamp, so the renewal owns the timestamp line and
+    // removes it. The tags are not owned and are kept.
+    let (fixture, before, after) = renew_edited_record(
+        |text| {
+            text.replacen(
+                "inputs:\n",
+                "tags: [kept]\ntimestamp: 2026-01-01T00:00:00Z\ninputs:\n",
+                1,
+            )
+        },
+        RecordOptions::new(),
+    );
+    assert!(
+        before.contains("timestamp: 2026-01-01T00:00:00Z\n"),
+        "{before}"
+    );
+    assert_eq!(
+        after,
+        before.replacen("timestamp: 2026-01-01T00:00:00Z\n", "", 1)
+    );
+    assert!(after.contains("tags: [kept]\n"), "{after}");
+    assert_eq!(on_disk(fixture.root(), findings), []);
+}
+
+#[test]
+fn a_renewal_with_spdx_options_replaces_only_the_spdx_lines() {
+    // The request's SPDX lines replace the file's SPDX lines. A second
+    // copyright line is one of them and goes; a hand-written comment in the
+    // header is not owned and stays.
+    let (fixture, _, after) = renew_edited_record(
+        |text| {
+            text.replacen(
+                "type: Assessment\n",
+                concat!(
+                    "# SPDX-",
+                    "FileCopyrightText: Second Owner <second@example.invalid>\n",
+                    "# Kept by hand.\ntype: Assessment\n"
+                ),
+                1,
+            )
+        },
+        RecordOptions::new()
+            .copyright("Request Owner <request@example.invalid>")
+            .licence("MIT"),
+    );
+    let header: Vec<&str> = after
+        .lines()
+        .take_while(|line| !line.starts_with("type:"))
+        .collect();
+    assert_eq!(
+        header,
+        [
+            "---",
+            concat!(
+                "# SPDX-",
+                "FileCopyrightText: Request Owner <request@example.invalid>"
+            ),
+            concat!("# SPDX-", "License-Identifier: MIT"),
+            "# Kept by hand.",
+        ]
+    );
+    assert_eq!(on_disk(fixture.root(), findings), []);
+}
+
+#[test]
+fn a_renewal_without_spdx_options_keeps_a_copyright_only_header() {
+    // A header with its copyright line and no licence line is kept as written.
+    let (fixture, before, after) = renew_edited_record(
+        |text| text.replacen(concat!("# SPDX-", "License-Identifier: MIT\n"), "", 1),
+        RecordOptions::new(),
+    );
+    assert_eq!(after, before);
+    assert_eq!(on_disk(fixture.root(), findings), []);
 }
