@@ -33,6 +33,7 @@ bindings:
     - raf_workplan::test_crate::assessments::a_renewal_refuses_a_record_that_the_reference_scan_rejects
     - raf_workplan::test_crate::assessments::a_renewal_with_spdx_options_replaces_only_the_spdx_lines
     - raf_workplan::test_crate::assessments::a_renewal_without_spdx_options_keeps_a_copyright_only_header
+    - raf_workplan::test_crate::assessments::a_renewal_without_spdx_options_keeps_both_licence_lines_of_a_header
     - raf_workplan::test_crate::assessments::a_renewal_replaces_a_licence_line_with_extra_spaces_and_adds_no_second_line
     - raf_workplan::test_crate::assessments::a_licence_line_a_renewal_adds_follows_the_copyright_line
     - raf_workplan::test_crate::assessments::a_suffix_two_bindings_end_in_names_both
@@ -448,6 +449,7 @@ files. The existing command-line cases continue to publish through the disk stor
 | `raf_workplan::test_crate::assessments::a_renewal_replaces_a_licence_line_with_extra_spaces_and_adds_no_second_line` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::assessments::a_renewal_with_spdx_options_replaces_only_the_spdx_lines` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::assessments::a_renewal_without_spdx_options_keeps_a_copyright_only_header` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::assessments::a_renewal_without_spdx_options_keeps_both_licence_lines_of_a_header` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::assessments::a_suffix_two_bindings_end_in_names_both` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::assessments::a_symbol_the_section_names_is_an_input_and_a_bound_symbol_it_does_not_name_is_not` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::assessments::an_assessment_is_never_written_through_a_linked_directory_and_a_real_one_records` | test | [Constraints](#constraints) |

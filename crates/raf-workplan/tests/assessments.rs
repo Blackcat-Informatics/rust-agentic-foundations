@@ -1595,6 +1595,34 @@ fn a_licence_line_a_renewal_adds_follows_the_copyright_line() {
 }
 
 #[test]
+fn a_renewal_without_spdx_options_keeps_both_licence_lines_of_a_header() {
+    // A header that carries two licence lines is kept as written when the request
+    // gives no SPDX option: a renewal owns neither line, so both stay byte for byte.
+    let (_fixture, before, after) = renew_edited_record(
+        |text| {
+            text.replacen(
+                concat!("# SPDX-", "License-Identifier: MIT\n"),
+                concat!(
+                    "# SPDX-",
+                    "License-Identifier: MIT\n# SPDX-",
+                    "License-Identifier: CC-BY-4.0\n"
+                ),
+                1,
+            )
+        },
+        RecordOptions::new(),
+    );
+    assert_eq!(after, before);
+    assert_eq!(
+        after
+            .matches(concat!("SPDX-", "License-Identifier:"))
+            .count(),
+        2,
+        "{after}"
+    );
+}
+
+#[test]
 fn a_renewal_without_spdx_options_keeps_a_copyright_only_header() {
     // A header with its copyright line and no licence line is kept as written.
     let (fixture, before, after) = renew_edited_record(
