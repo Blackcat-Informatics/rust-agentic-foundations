@@ -6,7 +6,7 @@
 use crate::cli::{
     AdmissionArgs, Args, Command, HistoryArgs, MigrationAdmissionArgs, MigrationArgs,
     PersistenceArgs, QueryTarget, RdfFormat, ReaderAdmissionArgs, ReaderEvidenceArgs,
-    ReferenceArgs, RegistryArgs, SchemaArgs,
+    ReferenceArgs, RegistryArgs, ResealArgs, SchemaArgs,
 };
 use raf_census::capnp_history::persistence::{admission, migration};
 use raf_census::capnp_history::{
@@ -90,7 +90,7 @@ fn run_gate(
             dump_ledger(&gate.root()?, *format, out.as_deref(), output)?;
             Ok(0)
         }
-        Command::Reseal { out } => Ok(reseal(&gate.root()?, out.as_deref(), output).map(|()| 0)?),
+        Command::Reseal(args) => reseal(&gate.root()?, args, output, diagnostics),
         Command::Baseline { format, out } => {
             baseline(
                 &gate.root()?,
@@ -720,8 +720,15 @@ fn dump_ledger(
 }
 
 /// Re-seal the workspace ledger. Its rows are verified by the read-back of the
-/// sealed text; the input file is read and never modified.
-fn reseal(root: &Path, out: Option<&Path>, output: &mut dyn Write) -> Result<(), Error> {
+/// sealed text. The sealed text goes to stdout, to a new `--out` file, or with
+/// `--in-place` over the workspace ledger by one rename. The ledger that was read
+/// is named on diagnostics.
+fn reseal(
+    root: &Path,
+    args: &ResealArgs,
+    output: &mut dyn Write,
+    diagnostics: &mut dyn Write,
+) -> Result<u8, crate::error::Error> {
     let tree = DiskTree::new(root).map_err(|source| Error::Tree {
         file: root.display().to_string(),
         source,
@@ -740,7 +747,40 @@ fn reseal(root: &Path, out: Option<&Path>, output: &mut dyn Write) -> Result<(),
         file: LEDGER_FILE.into(),
         source: Box::new(source),
     })?;
-    write_report(root, &sealed, out, output)
+    let source = root.join(LEDGER_FILE);
+    writeln!(diagnostics, "reseal: read {}", source.display()).map_err(|source| Error::Io {
+        file: "<stderr>".into(),
+        source,
+    })?;
+    if args.in_place {
+        replace_ledger(&source, &sealed)?;
+    } else {
+        write_report(root, &sealed, args.out.as_deref(), output)?;
+    }
+    Ok(0)
+}
+
+/// Replace the ledger file with the sealed text. The text is written and synced
+/// to a sibling file, then renamed over the ledger in one step. A failed write or
+/// rename leaves the sibling file, and the error names it.
+fn replace_ledger(ledger: &Path, sealed: &str) -> Result<(), Error> {
+    let temp = ledger.with_extension("ttl.reseal-tmp");
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temp)
+        .map_err(|source| Error::Io {
+            file: temp.display().to_string(),
+            source,
+        })?;
+    let replaced = file
+        .write_all(sealed.as_bytes())
+        .and_then(|()| file.sync_all())
+        .and_then(|()| std::fs::rename(&temp, ledger));
+    replaced.map_err(|source| Error::Io {
+        file: temp.display().to_string(),
+        source,
+    })
 }
 
 fn baseline(

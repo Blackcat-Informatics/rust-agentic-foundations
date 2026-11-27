@@ -8,6 +8,10 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
 
 ## [Unreleased]
 
+### Added
+
+- `cargo raf-census reseal` re-seals a form 6 ledger after its rows were edited, to stdout, `--out` or `--in-place`.
+
 ### Fixed
 
 - `cargo raf-workplan assess` against an existing record keeps every line it does
@@ -41,6 +45,10 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
 - `raf-census` prescan charges its delimiter stacks, in both layouts, to the census memory grant, and refunds the temporary grant before source preparation returns. A run at the edge of its limit can be refused. The positioned delimiter refusal and the resource refusal are unchanged.
 - `raf-source` classifies an item under `#[cfg_attr(A, cfg(B))]` as test-only only when the guard provably excludes it from non-test builds. 0.8.1 classified it as test-only whenever `A` and `B` together implied test. For example, `#[cfg_attr(test, cfg(test))] use core::marker::PhantomData;` is test-only in 0.8.1 and a shipping item in 0.9.0, because the `test` predicate does not apply in a non-test build. Such items are shipping items for the shipping-only census rules and Workplan test roles, so unchanged source can yield new census findings, copies or debt.
 - `raf-source` `exported_items` can return the new `ExportError::AmbiguousStandardType`.
+
+### Added
+
+- `cargo raf-census reseal` re-seals a form 6 ledger after its rows were edited, to stdout, `--out` or `--in-place`.
 
 ### Fixed
 

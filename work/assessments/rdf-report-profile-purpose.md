@@ -103,7 +103,7 @@ inputs:
     digest: 915e7115a6bcf101468021295d4d33ef728d5800b7417e33b63f7f4b80c47e0b
   - kind: symbol
     name: raf_rdf::read
-    digest: 2be21b39f7fe9b52ed1eff78b4804777c4ea58703de46e61be13ed72e5dd31f8
+    digest: f20576c941765305d1c94de6116643aef6185ba0315864139c42d50e537cfa4d
   - kind: symbol
     name: raf_rdf::term
     digest: 24c7e042853bc1e9336d6226dc5a232917d59722b3694609a96932aa6edb7aab

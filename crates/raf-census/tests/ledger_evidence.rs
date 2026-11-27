@@ -450,7 +450,8 @@ fn a_removed_row_is_sealed_out_of_the_ledger() {
 )]
 fn a_row_that_does_not_verify_refuses_the_reseal_and_names_the_predicate() {
     let sealed = text(ledger(&["vectors/add.json"], &[]));
-    let invalid = format!("{sealed}<> <{}bogusField> \"x\" .\n", vocab::REPORT);
+    let invalid = format!("{sealed}<#job> <{}bogusField> \"x\" .\n", vocab::REPORT);
     let error = Ledger::reseal_turtle(&invalid).unwrap_err().to_string();
     assert!(error.contains("bogusField"), "{error}");
+    assert!(error.contains("LedgerJob #job"), "{error}");
 }

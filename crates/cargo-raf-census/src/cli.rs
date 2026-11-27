@@ -59,11 +59,7 @@ pub(crate) enum Command {
         out: Option<PathBuf>,
     },
     /// Re-seal the workspace ledger after its rows were edited: write its canonical text with a snapshot BASE that matches its content, refusing any row that does not verify.
-    Reseal {
-        /// Write the sealed ledger here instead of stdout, relative to the caller.
-        #[arg(long)]
-        out: Option<PathBuf>,
-    },
+    Reseal(ResealArgs),
     /// Discover structural duplication with the default Census options.
     Baseline {
         /// Native RDF 1.2 report carrier.
@@ -366,6 +362,17 @@ pub(crate) struct QueryTarget {
             .range(1..=raf_census::MAX_INDEX_BYTES as u64)
     )]
     pub(crate) max_index_bytes: usize,
+}
+
+/// Where the sealed ledger goes. Without either flag it is written to stdout.
+#[derive(ClapArgs)]
+pub(crate) struct ResealArgs {
+    /// Write the sealed ledger to this new `.ttl` file, relative to the caller; an existing file is refused.
+    #[arg(long, conflicts_with = "in_place")]
+    pub(crate) out: Option<PathBuf>,
+    /// Replace the workspace ledger with the sealed text by one rename, after it reads back valid.
+    #[arg(long)]
+    pub(crate) in_place: bool,
 }
 
 #[derive(ClapArgs)]

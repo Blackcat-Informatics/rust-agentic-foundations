@@ -81,7 +81,7 @@ pub(super) fn provider(
         return Err(E::Repeated(format!("provider {id}")).into());
     }
     let node = node_at(graph, id, "PreferredProvider")?;
-    fields(&node, "PreferredProvider")?;
+    fields(&node, id, "PreferredProvider")?;
     Ok(Some(PreferredProvider {
         package: required_text(&node, "package")?,
         entry_points: nonempty(&node, "entryPoint")?,
@@ -110,7 +110,7 @@ pub(super) fn patterns(
             return Err(E::Repeated(format!("pattern {node_id}")).into());
         }
         let node = node_at(graph, &node_id, "Pattern")?;
-        fields(&node, "Pattern")?;
+        fields(&node, &node_id, "Pattern")?;
         let id = required_text(&node, "patternId")?;
         crate::RuleId::new(&id).map_err(|error| E::Value(error.to_string()))?;
         if !ids.insert(id.clone())

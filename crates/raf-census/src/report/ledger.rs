@@ -392,7 +392,7 @@ impl Ledger {
         let root = graph
             .get("")
             .ok_or_else(|| E::Missing("ledger root".into()))?;
-        fields(&root, "Ledger")?;
+        fields(&root, "", "Ledger")?;
         let mut options = CensusOptions::default();
         if let Some(value) = optional_count(&root, "minTokens")? {
             options = options.min_tokens(value)?;
@@ -439,7 +439,7 @@ impl Ledger {
         for id in targets(&root, "distinct")? {
             reached.insert(id.clone());
             let node = node_at(&graph, &id, "Distinct")?;
-            fields(&node, "Distinct")?;
+            fields(&node, &id, "Distinct")?;
             let kind = match required_text(&node, "kind")?.as_str() {
                 "body" => GroupKind::Body,
                 "shim" => GroupKind::Shim,
@@ -489,7 +489,7 @@ fn read_distinct_members(
             return Err(E::Repeated(format!("distinct multiplicity {id}")).into());
         }
         let row = node_at(graph, &id, "MemberMultiplicity")?;
-        fields(&row, "MemberMultiplicity")?;
+        fields(&row, &id, "MemberMultiplicity")?;
         let symbol = required_text(&row, "symbol")?;
         let count = shape::count(&row, "copies")?;
         let member = counts
@@ -508,7 +508,7 @@ fn read_distinct_members(
 
 fn read_job(graph: &Graph, id: &str, reached: &mut BTreeSet<String>) -> Result<LedgerJob, Error> {
     let node = node_at(graph, id, "LedgerJob")?;
-    fields(&node, "LedgerJob")?;
+    fields(&node, id, "LedgerJob")?;
     let job_id = required_text(&node, "jobId")?;
     let names = read_names(&node, &job_id)?;
     let preferred_provider = declarations::provider(graph, &node, reached)?;
@@ -535,7 +535,7 @@ fn read_job(graph: &Graph, id: &str, reached: &mut BTreeSet<String>) -> Result<L
             return Err(E::Repeated(format!("ledger variant {variant}")).into());
         }
         let row = node_at(graph, &variant, "Variant")?;
-        fields(&row, "Variant")?;
+        fields(&row, &variant, "Variant")?;
         variants.push(LedgerVariant {
             symbol: required_text(&row, "symbol")?,
             file: required_text(&row, "file")?,
@@ -657,12 +657,12 @@ fn owned<'a>(
         return Err(E::Repeated(format!("ledger node {id}")));
     }
     let node = node_at(graph, id, class)?;
-    fields(&node, class)?;
+    fields(&node, id, class)?;
     Ok(node)
 }
 
 /// Refuse a property of `node` outside the closed shape of its Ledger `class`.
-fn fields(node: &Node<'_>, class: &str) -> Result<(), E> {
+fn fields(node: &Node<'_>, id: &str, class: &str) -> Result<(), E> {
     let Some((_, allowed)) = super::vocab::LEDGER_FIELDS
         .iter()
         .find(|(name, _)| *name == class)
@@ -675,7 +675,8 @@ fn fields(node: &Node<'_>, class: &str) -> Result<(), E> {
         if property != raf_rdf::vocab::TYPE
             && !allowed.iter().any(|key| property == shape::property(key))
         {
-            return Err(E::UnknownPredicate(format!("ledger {property}")));
+            let row = if id.is_empty() { "root" } else { id };
+            return Err(E::UnknownPredicate(format!("{property} on {class} {row}")));
         }
     }
     Ok(())
