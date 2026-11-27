@@ -1546,6 +1546,32 @@ fn a_renewal_refuses_a_record_that_the_reference_scan_rejects() {
 }
 
 #[test]
+fn a_renewal_replaces_a_licence_line_with_extra_spaces_and_adds_no_second_line() {
+    // A licence line written with extra spaces is the header line the option
+    // names, so the renewal replaces it and the file keeps exactly one licence line.
+    let (_fixture, _before, after) = renew_edited_record(
+        |text| {
+            text.replacen(
+                concat!("# SPDX-", "License-Identifier: MIT\n"),
+                concat!("#  SPDX-", "License-Identifier:   MIT\n"),
+                1,
+            )
+        },
+        RecordOptions::new()
+            .copyright("Example Owner <owner@example.invalid>")
+            .licence("MIT"),
+    );
+    assert_eq!(
+        after
+            .matches(concat!("SPDX-", "License-Identifier:"))
+            .count(),
+        1,
+        "{after}"
+    );
+    assert!(after.contains(concat!("\n# SPDX-", "License-Identifier: MIT\n")));
+}
+
+#[test]
 fn a_renewal_without_spdx_options_keeps_a_copyright_only_header() {
     // A header with its copyright line and no licence line is kept as written.
     let (fixture, before, after) = renew_edited_record(

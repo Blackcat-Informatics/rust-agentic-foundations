@@ -151,9 +151,13 @@ The renewal owns the inputs rows, the verdict and the assessor, which are writte
 from the request and the current section, and the timestamp, which it removes
 because the writer sets none. The inputs rows take the place of the rows they
 renew; a row beyond the old rows is added after the last of them, and an old row
-the request no longer needs is removed. Given a copyright or a licence option,
-that line replaces the first line of its kind in the header, and every other
-header line is kept. The renewed text is read back through the checks a new record
+the request no longer needs is removed. Given the copyright and the licence options
+together, each replaces the first line of its kind in the header, and every other
+header line is kept. A header line is recognised with any run of spaces around its
+comment marker, key and value. A trailing comment on a line the renewal owns is
+not kept, because the rendered line replaces it, and a comment line between inputs
+rows keeps its position among the rows, so when the row count changes it can sit
+beside a different row. The renewed text is read back through the checks a new record
 passes, including the reference scan, before it is written, and a text that
 fails them is refused with nothing written. A bound symbol that is an input
 and does not resolve, or a claim on a record that does not load, is refused,
@@ -219,9 +223,9 @@ The runnable API example `raf_workplan::assessment::record_slug` derives the sta
   records the assessment, replacing the one the section had, if any; given
   together, `--copyright <text>` and `--licence <id>` open the record with its
   two SPDX lines. A renewal given neither keeps every line of the record it replaces
-  that it does not own, so its licence lines and comments stay; a copyright or
-  licence option replaces the first line of its kind in the header and leaves the
-  other header lines.
+  that it does not own, so its licence lines and comments stay. The copyright and
+  licence options, given together, replace the first line of their kinds in the
+  header and leave the other header lines.
 - `cargo raf-workplan assess --list` shows each assessment, whether it is current,
   and the inputs that moved.
 

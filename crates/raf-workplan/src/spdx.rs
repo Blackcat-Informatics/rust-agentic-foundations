@@ -4,14 +4,14 @@
 //! The two SPDX comment lines a written record opens with, in a repository
 //! that checks the licence of every file.
 
-/// The tag of the copyright line of an SPDX header. It is written in two pieces
-/// so that this file does not carry the tag itself, which a licence checker
-/// reads in any file.
-const COPYRIGHT_TAG: &str = concat!("SPDX-", "FileCopyrightText: ");
+/// The key of the copyright line of an SPDX header, without the comment marker
+/// or the value. It is written in two pieces so that this file does not carry
+/// the key itself, which a licence checker reads in any file.
+pub(crate) const COPYRIGHT_KEY: &str = concat!("SPDX-", "FileCopyrightText:");
 
-/// The tag of the licence line of an SPDX header, in two pieces for the same
+/// The key of the licence line of an SPDX header, in two pieces for the same
 /// reason.
-const LICENCE_TAG: &str = concat!("SPDX-", "License-Identifier: ");
+pub(crate) const LICENCE_KEY: &str = concat!("SPDX-", "License-Identifier:");
 
 /// Why the SPDX lines cannot be written.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -75,16 +75,28 @@ pub(crate) fn with_spdx(rendered: String, spdx: Option<(&str, &str)>) -> String 
     };
     let fence = rendered.find('\n').map_or(rendered.len(), |end| end + 1);
     let (head, tail) = rendered.split_at(fence);
-    format!("{head}# {COPYRIGHT_TAG}{copyright}\n# {LICENCE_TAG}{licence}\n{tail}")
+    format!("{head}# {COPYRIGHT_KEY} {copyright}\n# {LICENCE_KEY} {licence}\n{tail}")
+}
+
+/// The value of the SPDX comment line `line` whose key is `key`, or `None` when
+/// the line carries another key. The comment marker and the spaces around the
+/// key and the value may be any run of whitespace, so that a hand-edited line
+/// is recognised as the header line it is.
+pub(crate) fn comment_value<'a>(line: &'a str, key: &str) -> Option<&'a str> {
+    line.trim_start()
+        .strip_prefix('#')?
+        .trim_start()
+        .strip_prefix(key)
+        .map(str::trim)
 }
 
 /// The copyright text and the licence identifier of the SPDX comment lines
 /// that open `head`, the text of a record up to its body, when it has both.
 pub(crate) fn read(head: &str) -> Option<(String, String)> {
-    let comment = |tag: &str| {
+    let value = |key: &str| {
         head.lines()
-            .find_map(|line| line.strip_prefix("# ")?.strip_prefix(tag))
-            .map(|value| value.trim().to_string())
+            .find_map(|line| comment_value(line, key))
+            .map(str::to_string)
     };
-    Some((comment(COPYRIGHT_TAG)?, comment(LICENCE_TAG)?))
+    Some((value(COPYRIGHT_KEY)?, value(LICENCE_KEY)?))
 }

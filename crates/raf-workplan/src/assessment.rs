@@ -76,6 +76,7 @@ use crate::graph::{BindingKind, SectionId, code_span_paths, prose_of};
 use crate::lifecycle::section_digest;
 use crate::lookup::write_findings;
 use crate::record::{self, Record, RecordError, RecordOptions};
+use crate::spdx;
 use crate::work::{Work, add};
 use crate::{Finding, Loaded, Workplan};
 
@@ -1395,10 +1396,10 @@ fn currency_from_rows(
 fn spdx_keys(options: &RecordOptions) -> Vec<&'static str> {
     let mut keys = Vec::new();
     if options.copyright.is_some() {
-        keys.push(concat!("# SPDX-", "FileCopyrightText:"));
+        keys.push(spdx::COPYRIGHT_KEY);
     }
     if options.licence.is_some() {
-        keys.push(concat!("# SPDX-", "License-Identifier:"));
+        keys.push(spdx::LICENCE_KEY);
     }
     keys
 }
@@ -1458,10 +1459,14 @@ fn renewed_text(existing: &str, document: &Document, rendered: &str, keys: &[&st
     replaced.insert(verdict, verdict_line);
     replaced.insert(by, by_line);
     for key in keys {
-        let Some(line) = rendered.iter().copied().find(|line| line.starts_with(key)) else {
+        let Some(line) = rendered
+            .iter()
+            .copied()
+            .find(|line| spdx::comment_value(line, key).is_some())
+        else {
             unreachable!("INVARIANT: a rendered record has the SPDX line of each option")
         };
-        match (1..header_end).find(|&index| contents[index].starts_with(key)) {
+        match (1..header_end).find(|&index| spdx::comment_value(contents[index], key).is_some()) {
             Some(index) => {
                 replaced.insert(index, line);
             }

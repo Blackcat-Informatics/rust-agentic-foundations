@@ -7,7 +7,7 @@ subject: cap:workplan-prose-assessment#usage
 inputs:
   - kind: section
     name: cap:workplan-prose-assessment#usage
-    digest: 9b110cdad1c0bfbaf3c6fab247811d1208169c2308a9f9581e22e937c0768b78
+    digest: 73ab434dd7febaa4456694359220c4b3f6cc7bf062f5f8c13aa9ce07151d48c3
   - kind: symbol
     name: raf_workplan::Workplan::assess_context
     digest: 48c085f83be3f08e24c6de886469e950441dec54620b011a06845d33cc6e713c
