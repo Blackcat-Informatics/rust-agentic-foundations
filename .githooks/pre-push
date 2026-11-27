@@ -42,6 +42,11 @@ while read -r local_ref local_sha _ _; do
     if [[ $local_sha =~ ^0+$ ]]; then
         continue
     fi
+    # Notes and audit refs point at commits whose trees hold metadata, not
+    # source, so the source gates do not apply to them.
+    case $local_ref in
+        refs/notes/* | refs/ghprsq/*) continue ;;
+    esac
     scratch=$(mktemp -d "$scratch_root/static-push.XXXXXXXX")
     trap 'rm -rf -- "$scratch"' EXIT
     snapshot="$scratch/snapshot"
