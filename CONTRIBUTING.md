@@ -84,7 +84,8 @@ in another workspace. [Census how-to](CENSUS-HOWTO.md) · [Workplan how-to](WORK
   coverage and assessments) and all-target Clippy with warnings denied, with the
   flags of the hosted lint job. It checks the pushed tree, not the worktree, and
   refuses the push on any finding. A cold Clippy cache takes about two minutes;
-  a warm one takes WARM_TIME. The commit hook stays under its 60-second budget
+  a warm one takes about 100 seconds.
+  The commit hook stays under its 60-second budget
   because these checks run here.
 - **Merge gate.** `make merge-gate` runs `make check` and `make test` in
   order on the exact signed candidate. Supply an absolute `CARGO_TARGET_DIR`
