@@ -80,7 +80,8 @@ in another workspace. [Census how-to](CENSUS-HOWTO.md) · [Workplan how-to](WORK
   Both commit hooks run this target. Repository policy, Workplan and Census
   tests run in the merge and CI gates.
 - **Push gate.** The `pre-push` hook exports the tip commit of each pushed branch
-  or tag with `git archive` and runs the static Workplan check (source bindings,
+  or tag, except pushes to notes, ghprsq audit refs and `refs/tags/ghprsq/artifacts/*`
+  evidence tags, with `git archive` and runs the static Workplan check (source bindings,
   coverage and assessments) and all-target Clippy with warnings denied, with the
   flags of the hosted lint job. It checks the pushed tree, not the worktree, and
   refuses the push on any finding. A cold Clippy cache takes about two minutes;

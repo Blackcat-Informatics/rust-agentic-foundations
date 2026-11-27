@@ -1,29 +1,37 @@
 # SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 # SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-# Sourced by .githooks/pre-push, and by its test, which feeds it synthetic
-# lines. It plans the source gates for one push and runs no check itself.
+# Sourced by .githooks/pre-push, and by its tests, which feed it synthetic lines.
+# It decides and runs no check.
 
 # pre_push_plan reads the lines git passes to a pre-push hook on standard input,
-# one per pushed ref: local ref, local object, remote ref, remote object. It
-# prints `<local ref> <local object> <remote ref>` for each line whose destination
-# is a branch or tag, and nothing for the rest.
+# one per pushed ref: local ref, local object, remote ref, and the remote object,
+# which is not used. It prints exactly one line for each input line:
 #
-# A line is skipped when it deletes a ref, or when its destination is metadata:
-# a notes ref, a ghprsq audit ref, or a ghprsq evidence tag under
+#     check <local ref> <local object> <remote ref>
+#     skip <local ref> <local object> <remote ref>
+#
+# A line is skipped when it deletes a ref, or when its destination is metadata: a
+# notes ref, a ghprsq audit ref, or a ghprsq evidence tag under
 # refs/tags/ghprsq/artifacts/. Such a commit holds notes or review evidence, not a
-# source tree; other tags are checked. The destination decides, so a
-# source commit pushed from a local notes name to a branch is still checked,
-# and every line of a push is planned on its own, in any order.
+# source tree; other tags are checked. The destination decides, so a source commit
+# pushed from a local notes name to a branch is still checked, and each line is
+# decided on its own, in any order. A line without a local ref, object or remote
+# ref is malformed: the planner reports it and returns non-zero.
 pre_push_plan() {
-    local local_ref local_sha remote_ref _
+    local local_ref local_sha remote_ref _ decision
     while read -r local_ref local_sha remote_ref _; do
+        if [[ -z $local_ref || -z $local_sha || -z $remote_ref ]]; then
+            echo "pre-push: a pushed line needs a local ref, object and remote ref: '$local_ref $local_sha $remote_ref'" >&2
+            return 1
+        fi
+        decision=check
         if [[ $local_sha =~ ^0+$ ]]; then
-            continue
+            decision=skip
         fi
         case $remote_ref in
-            refs/notes/* | refs/ghprsq/* | refs/tags/ghprsq/artifacts/*) continue ;;
+            refs/notes/* | refs/ghprsq/* | refs/tags/ghprsq/artifacts/*) decision=skip ;;
         esac
-        printf '%s %s %s\n' "$local_ref" "$local_sha" "$remote_ref"
+        printf '%s %s %s %s\n' "$decision" "$local_ref" "$local_sha" "$remote_ref"
     done
 }

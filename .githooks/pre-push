@@ -35,13 +35,35 @@ while IFS= read -r variable; do
     unset "$variable"
 done <<< "$git_context"
 
-# Git passes one line per pushed ref on standard input. The planner decides
-# which lines carry a branch or tag destination that the source gates check;
-# deletions and metadata destinations (notes, ghprsq audit refs and evidence
-# tags) are not checked, and every other line is checked whatever its local name.
+# Git passes one line per pushed ref on standard input. The planner prints one
+# decision per line, `check` or `skip`, and the source gates run only on the lines
+# marked `check`. A planner that fails, or that does not decide every line, refuses
+# the push before any ref moves.
+pushed=$(cat)
+if [[ -z $pushed ]]; then
+    exit 0
+fi
 # shellcheck source=pre-push-plan
 source "$top/.githooks/pre-push-plan"
-while read -r local_ref local_sha remote_ref; do
+pushed_count=$(printf '%s\n' "$pushed" | grep -c . || true)
+planned=$(printf '%s\n' "$pushed" | pre_push_plan) || {
+    echo 'pre-push: the source-gate planner failed; the push is refused' >&2
+    exit 1
+}
+planned_count=$(printf '%s\n' "$planned" | grep -c . || true)
+if [[ $planned_count -ne $pushed_count ]]; then
+    echo "pre-push: the planner decided $planned_count of $pushed_count pushed lines; the push is refused" >&2
+    exit 1
+fi
+while read -r decision local_ref local_sha remote_ref; do
+    case $decision in
+        skip) continue ;;
+        check) ;;
+        *)
+            echo "pre-push: unknown planner decision '$decision'; the push is refused" >&2
+            exit 1
+            ;;
+    esac
     scratch=$(mktemp -d "$scratch_root/static-push.XXXXXXXX")
     trap 'rm -rf -- "$scratch"' EXIT
     snapshot="$scratch/snapshot"
@@ -64,4 +86,4 @@ while read -r local_ref local_sha remote_ref; do
     )
     rm -rf -- "$scratch"
     trap - EXIT
-done < <(pre_push_plan)
+done <<< "$planned"
