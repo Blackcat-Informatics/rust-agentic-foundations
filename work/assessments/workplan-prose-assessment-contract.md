@@ -7,7 +7,7 @@ subject: cap:workplan-prose-assessment#contract
 inputs:
   - kind: section
     name: cap:workplan-prose-assessment#contract
-    digest: cf8dcb648485fd8a4f518497518273cd6feb32f7b4375ace249215666b65c5f3
+    digest: b01393a2510dbdca8b40d29e205f9463899031f17967e3f3cbf144fdd1d3a456
   - kind: symbol
     name: raf_workplan::Workplan::assess_context
     digest: 48c085f83be3f08e24c6de886469e950441dec54620b011a06845d33cc6e713c

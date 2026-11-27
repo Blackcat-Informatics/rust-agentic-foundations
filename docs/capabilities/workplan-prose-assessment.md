@@ -33,6 +33,8 @@ bindings:
     - raf_workplan::test_crate::assessments::a_renewal_refuses_a_record_that_the_reference_scan_rejects
     - raf_workplan::test_crate::assessments::a_renewal_with_spdx_options_replaces_only_the_spdx_lines
     - raf_workplan::test_crate::assessments::a_renewal_without_spdx_options_keeps_a_copyright_only_header
+    - raf_workplan::test_crate::assessments::a_renewal_replaces_a_licence_line_with_extra_spaces_and_adds_no_second_line
+    - raf_workplan::test_crate::assessments::a_licence_line_a_renewal_adds_follows_the_copyright_line
     - raf_workplan::test_crate::assessments::a_suffix_two_bindings_end_in_names_both
     - raf_workplan::test_crate::assessments::a_symbol_the_section_names_is_an_input_and_a_bound_symbol_it_does_not_name_is_not
     - raf_workplan::test_crate::assessments::an_edit_of_the_section_makes_it_stale_naming_the_section_and_an_edit_of_another_does_not
@@ -164,6 +166,7 @@ fails them is refused with nothing written. A bound symbol that is an input
 and does not resolve, or a claim on a record that does not load, is refused,
 since the record would keep no digest of it, and so is a record over the
 document bound. Recording writes that one file and never edits a document.
+<!-- raf:tested-by raf_workplan::test_crate::assessments::a_renewal_replaces_a_licence_line_with_extra_spaces_and_adds_no_second_line,raf_workplan::test_crate::assessments::a_licence_line_a_renewal_adds_follows_the_copyright_line -->
 
 ### Assessor context
 <!-- raf:tested-by raf_workplan::test_crate::assessments::the_context_is_the_same_for_a_human_and_an_agent_and_holds_what_the_assessor_reads -->
@@ -432,6 +435,7 @@ files. The existing command-line cases continue to publish through the disk stor
 | `raf_workplan::test_crate::assessments::a_common_word_that_is_the_last_segment_of_a_binding_does_not_narrow_the_inputs` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::assessments::a_crate_root_assessment_is_published_reloaded_and_invalidated_by_its_source` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::assessments::a_huge_section_and_ten_thousand_named_symbols_are_recorded_and_judged` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::assessments::a_licence_line_a_renewal_adds_follows_the_copyright_line` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::assessments::a_method_named_by_its_type_and_name_is_an_input_and_its_sibling_is_not` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::assessments::a_record_named_otherwise_than_its_subject_is_a_finding_and_not_the_assessment_of_it` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::assessments::a_regenerated_block_leaves_the_assessment_of_its_section_current` | test | [Contract](#contract), [Constraints](#constraints) |
@@ -441,6 +445,7 @@ files. The existing command-line cases continue to publish through the disk stor
 | `raf_workplan::test_crate::assessments::a_renewal_of_a_crlf_record_keeps_every_line_ending` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::assessments::a_renewal_of_a_record_with_verdict_before_inputs_keeps_one_verdict` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::assessments::a_renewal_refuses_a_record_that_the_reference_scan_rejects` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::assessments::a_renewal_replaces_a_licence_line_with_extra_spaces_and_adds_no_second_line` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::assessments::a_renewal_with_spdx_options_replaces_only_the_spdx_lines` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::assessments::a_renewal_without_spdx_options_keeps_a_copyright_only_header` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::assessments::a_suffix_two_bindings_end_in_names_both` | test | [Contract](#contract) |
