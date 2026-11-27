@@ -142,6 +142,11 @@ bindings:
     - raf_source_fuzz::bin_crate::census_normalize::exercise
     - raf_source_fuzz::bin_crate::census_report_read::exercise
   tests:
+    - raf_census::test_crate::ledger_evidence::resealing_an_unedited_ledger_returns_its_own_canonical_text
+    - raf_census::test_crate::ledger_evidence::a_corrected_row_is_stale_until_resealed_and_then_reads_back
+    - raf_census::test_crate::ledger_evidence::an_added_row_is_sealed_into_the_ledger
+    - raf_census::test_crate::ledger_evidence::a_removed_row_is_sealed_out_of_the_ledger
+    - raf_census::test_crate::ledger_evidence::a_row_that_does_not_verify_refuses_the_reseal_and_names_the_predicate
     - raf_census::census::tests::unexpanded_inventory_retains_only_selected_packages_and_stays_separate_from_units
     - raf_census::test_crate::migration_legacy::ambiguous_aliases_bad_layouts_and_wrong_report_inputs_refuse_without_partial_success
     - raf_census::error::tests::each_variant_renders_its_facts
@@ -567,6 +572,15 @@ through the error's source chain. A refused import produces no successful report
 Canonical Census reports use report form 6. Regenerate baseline and index reports
 from source when replacing an earlier report layout; their normal-form-1
 fingerprints remain stable. Ordinary readers refuse older report layouts.
+
+A ledger whose rows were added, corrected or removed is re-sealed with
+`cargo raf-census reseal`. It reads the workspace `helpers-ledger.ttl`, reads the
+edited rows back through the ledger reader, and writes the canonical Turtle text
+whose snapshot BASE names the digest of that content, to stdout or to `--out`.
+It refuses a row that does not verify and names the failing predicate. The input
+file is never modified.
+<!-- raf:tested-by raf_census::test_crate::ledger_evidence::resealing_an_unedited_ledger_returns_its_own_canonical_text,raf_census::test_crate::ledger_evidence::a_corrected_row_is_stale_until_resealed_and_then_reads_back,raf_census::test_crate::ledger_evidence::an_added_row_is_sealed_into_the_ledger,raf_census::test_crate::ledger_evidence::a_removed_row_is_sealed_out_of_the_ledger,raf_census::test_crate::ledger_evidence::a_row_that_does_not_verify_refuses_the_reseal_and_names_the_predicate -->
+
 
 Use `GateReport::query` on the live evaluation or `Index::query` on a decoded
 index with `Query::Job`, `Query::Count` or `Query::Fingerprint`. Both produce
@@ -1142,6 +1156,11 @@ and escapes controls beside a plain diagnostic neighbor.
 | `raf_census::test_crate::groups::renamed_locals_inside_macro_arguments_land_in_one_body_group` | test | [Constraints](#constraints) |
 | `raf_census::test_crate::groups::shared_constants_run_by_value_ascending` | test | [Contract](#contract) |
 | `raf_census::test_crate::groups::shim_groups_use_the_shim_key_and_skip_trait_impls_and_self_forwarders` | test | [Verification](#verification) |
+| `raf_census::test_crate::ledger_evidence::a_corrected_row_is_stale_until_resealed_and_then_reads_back` | test | [Usage](#usage) |
+| `raf_census::test_crate::ledger_evidence::a_removed_row_is_sealed_out_of_the_ledger` | test | [Usage](#usage) |
+| `raf_census::test_crate::ledger_evidence::a_row_that_does_not_verify_refuses_the_reseal_and_names_the_predicate` | test | [Usage](#usage) |
+| `raf_census::test_crate::ledger_evidence::an_added_row_is_sealed_into_the_ledger` | test | [Usage](#usage) |
+| `raf_census::test_crate::ledger_evidence::resealing_an_unedited_ledger_returns_its_own_canonical_text` | test | [Usage](#usage) |
 | `raf_census::test_crate::migration_legacy::ambiguous_aliases_bad_layouts_and_wrong_report_inputs_refuse_without_partial_success` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_census::test_crate::page::the_page_names_every_pass_level_and_the_encoding` | test | [Verification](#verification) |
 | `raf_census::test_crate::page::the_page_names_every_threshold_with_its_value` | test | [Verification](#verification) |

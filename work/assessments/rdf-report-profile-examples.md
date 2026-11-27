@@ -100,10 +100,10 @@ inputs:
     digest: 8a1c21bf5d2b16ed72893ae09283a01ddb0af1e798bb379084b5736d49e0b9ae
   - kind: symbol
     name: raf_rdf::graph
-    digest: 4da91f228681791a95bd39b8b3eba97658902f60dd8d5d39057323daa83832de
+    digest: 915e7115a6bcf101468021295d4d33ef728d5800b7417e33b63f7f4b80c47e0b
   - kind: symbol
     name: raf_rdf::read
-    digest: 1f588d6ccf77423bbd4e52d2be136606aae13ef8dcb8a835c315b603ea74953b
+    digest: 2be21b39f7fe9b52ed1eff78b4804777c4ea58703de46e61be13ed72e5dd31f8
   - kind: symbol
     name: raf_rdf::term
     digest: 24c7e042853bc1e9336d6226dc5a232917d59722b3694609a96932aa6edb7aab

@@ -380,3 +380,77 @@ fn a_bench_of_a_sealed_dependency_is_not_a_first_party_bench_beside_a_local_one(
         sealed.findings()
     );
 }
+
+// A sealed ledger edited by hand has a stale BASE, and re-sealing it renders the
+// canonical text of its current rows. Each row edit must read back as a valid ledger.
+
+#[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
+fn resealing_an_unedited_ledger_returns_its_own_canonical_text() {
+    let sealed = text(ledger(&["vectors/add.json"], &[]));
+    assert_eq!(Ledger::reseal_turtle(&sealed).unwrap(), sealed);
+}
+
+#[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
+fn a_corrected_row_is_stale_until_resealed_and_then_reads_back() {
+    let sealed = text(ledger(&["vectors/add.json"], &[]));
+    let corrected = sealed.replace("vectors/add.json", "vectors/sum.json");
+    assert!(Ledger::from_turtle(&corrected).is_err());
+    let resealed = Ledger::reseal_turtle(&corrected).unwrap();
+    assert!(resealed.contains("vectors/sum.json"));
+    assert!(!resealed.contains("vectors/add.json"));
+    Ledger::from_turtle(&resealed).unwrap();
+}
+
+#[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
+fn an_added_row_is_sealed_into_the_ledger() {
+    let sealed = text(ledger(&["vectors/add.json"], &[]));
+    let added = format!(
+        "{sealed}<#job> <{}vectorPath> \"vectors/mul.json\" .\n",
+        vocab::REPORT
+    );
+    let resealed = Ledger::reseal_turtle(&added).unwrap();
+    assert!(resealed.contains("vectors/mul.json"));
+    Ledger::from_turtle(&resealed).unwrap();
+}
+
+#[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
+fn a_removed_row_is_sealed_out_of_the_ledger() {
+    let sealed = text(ledger(&["vectors/add.json", "vectors/mul.json"], &[]));
+    let removed: String = sealed
+        .lines()
+        .filter(|line| !line.contains("vectors/mul.json"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let resealed = Ledger::reseal_turtle(&removed).unwrap();
+    assert!(!resealed.contains("vectors/mul.json"));
+    assert!(resealed.contains("vectors/add.json"));
+    Ledger::from_turtle(&resealed).unwrap();
+}
+
+#[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
+fn a_row_that_does_not_verify_refuses_the_reseal_and_names_the_predicate() {
+    let sealed = text(ledger(&["vectors/add.json"], &[]));
+    let invalid = format!("{sealed}<> <{}bogusField> \"x\" .\n", vocab::REPORT);
+    let error = Ledger::reseal_turtle(&invalid).unwrap_err().to_string();
+    assert!(error.contains("bogusField"), "{error}");
+}

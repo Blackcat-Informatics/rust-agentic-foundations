@@ -335,6 +335,16 @@ impl Graph {
         read::parse(text, format, write::Spelling::PurRdf4)
     }
 
+    /// Re-seal a report's text: check its closed profile without comparing its
+    /// snapshot BASE, then return the canonical current-spelling text whose BASE
+    /// names the digest of its content. Use it after a report's content is edited.
+    ///
+    /// # Errors
+    /// Refuses syntax and closed-profile violations.
+    pub fn reseal_text(text: &str, format: Format) -> Result<String, Error> {
+        read::reseal(text, format)
+    }
+
     /// The format-independent content-addressed snapshot IRI.
     ///
     /// # Errors

@@ -90,6 +90,7 @@ fn run_gate(
             dump_ledger(&gate.root()?, *format, out.as_deref(), output)?;
             Ok(0)
         }
+        Command::Reseal { out } => Ok(reseal(&gate.root()?, out.as_deref(), output).map(|()| 0)?),
         Command::Baseline { format, out } => {
             baseline(
                 &gate.root()?,
@@ -716,6 +717,30 @@ fn dump_ledger(
         .to_text(format)
         .map_err(ReportError::Ground)?;
     write_report(root, &text, out, output)
+}
+
+/// Re-seal the workspace ledger. Its rows are verified by the read-back of the
+/// sealed text; the input file is read and never modified.
+fn reseal(root: &Path, out: Option<&Path>, output: &mut dyn Write) -> Result<(), Error> {
+    let tree = DiskTree::new(root).map_err(|source| Error::Tree {
+        file: root.display().to_string(),
+        source,
+    })?;
+    let path = RelPath::new(LEDGER_FILE).map_err(|source| Error::Io {
+        file: LEDGER_FILE.into(),
+        source: std::io::Error::new(std::io::ErrorKind::InvalidInput, source),
+    })?;
+    let text = tree
+        .read(&path, MAX_LEDGER_BYTES as u64)
+        .map_err(|source| Error::Tree {
+            file: path.to_string(),
+            source,
+        })?;
+    let sealed = Ledger::reseal_turtle(&text).map_err(|source| Error::Input {
+        file: LEDGER_FILE.into(),
+        source: Box::new(source),
+    })?;
+    write_report(root, &sealed, out, output)
 }
 
 fn baseline(

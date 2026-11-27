@@ -58,6 +58,12 @@ pub(crate) enum Command {
         #[arg(long)]
         out: Option<PathBuf>,
     },
+    /// Re-seal the workspace ledger after its rows were edited: write its canonical text with a snapshot BASE that matches its content, refusing any row that does not verify.
+    Reseal {
+        /// Write the sealed ledger here instead of stdout, relative to the caller.
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
     /// Discover structural duplication with the default Census options.
     Baseline {
         /// Native RDF 1.2 report carrier.

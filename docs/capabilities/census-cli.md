@@ -463,7 +463,9 @@ A repository binary supplies a Gate configuration callback to `cargo_raf_census:
 Both carriers preserve the stock report bytes when an accepted extension is the only ledger difference. A refused registration exits before the query writes a report to stdout or a file.
 <!-- raf:tested-by cargo_raf_census::test_crate::delivery::registered_queries_share_cli_bytes_and_refuse_before_output -->
 
-`baseline` discovers structure through Census with default options without adopting debt. `dump-ledger` reads the selected native ledger. Reports use canonical RDF with explicit format selection and bounded complete index serialization. `--out` exclusively creates a new .ttl or .nt data file after serialization; existing files, source extensions and Git administration destinations refuse. Stdout mode writes no repository data.
+`baseline` discovers structure through Census with default options without adopting debt. `dump-ledger` reads the selected native ledger. `reseal` reads the workspace ledger
+after its rows were edited and writes the canonical text whose snapshot BASE names
+its content; it refuses a row that does not verify and names the failing predicate. Reports use canonical RDF with explicit format selection and bounded complete index serialization. `--out` exclusively creates a new .ttl or .nt data file after serialization; existing files, source extensions and Git administration destinations refuse. Stdout mode writes no repository data.
 <!-- raf:tested-by cargo_raf_census::test_crate::delivery::report_exports_refuse_source_existing_files_and_git_administration -->
 
 **Bounded reports.** `index` measures the complete carrier in canonical

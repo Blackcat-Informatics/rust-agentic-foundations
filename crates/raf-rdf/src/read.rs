@@ -39,7 +39,9 @@ fn root_base(dataset: &RdfDataset) -> Result<String, Error> {
         .ok_or_else(|| Error::Value("absolute snapshot root is absent".into()))
 }
 
-pub(crate) fn parse(text: &str, format: Format, spelling: write::Spelling) -> Result<Graph, Error> {
+/// Parse a report's closed profile. The snapshot BASE is not compared with the
+/// content; that check belongs to [`parse`] and [`reseal`].
+pub(crate) fn parse_unsealed(text: &str, format: Format) -> Result<Graph, Error> {
     let media = match format {
         Format::Turtle => "text/turtle",
         Format::NTriples => "application/n-triples",
@@ -79,13 +81,24 @@ pub(crate) fn parse(text: &str, format: Format, spelling: write::Spelling) -> Re
     }
     let graph = Graph {
         dataset: parsed.dataset,
-        owner: base.clone(),
+        owner: base,
     };
     graph.validate()?;
-    let (computed, canonical) = write::render_spelling(&graph, format, spelling)?;
-    if computed != base {
+    Ok(graph)
+}
+
+/// Check that a parsed report's BASE names the digest of its content and that its
+/// bytes are the canonical rendering of that content.
+fn verify_sealed(
+    graph: &Graph,
+    text: &str,
+    format: Format,
+    spelling: write::Spelling,
+) -> Result<(), Error> {
+    let (computed, canonical) = write::render_spelling(graph, format, spelling)?;
+    if computed != graph.owner {
         return Err(Error::Digest {
-            declared: base,
+            declared: graph.owner.clone(),
             computed,
         });
     }
@@ -99,7 +112,22 @@ pub(crate) fn parse(text: &str, format: Format, spelling: write::Spelling) -> Re
         };
         return Err(Error::NotCanonical { line });
     }
+    Ok(())
+}
+
+/// Parse a sealed report: the closed profile, then the snapshot and canonical checks.
+pub(crate) fn parse(text: &str, format: Format, spelling: write::Spelling) -> Result<Graph, Error> {
+    let graph = parse_unsealed(text, format)?;
+    verify_sealed(&graph, text, format, spelling)?;
     Ok(graph)
+}
+
+/// Render a report of any stored snapshot as its canonical current-spelling text,
+/// with the BASE set to the digest of its content. The input's BASE is not checked.
+pub(crate) fn reseal(text: &str, format: Format) -> Result<String, Error> {
+    let graph = parse_unsealed(text, format)?;
+    let (_, canonical) = write::render_spelling(&graph, format, write::Spelling::Current)?;
+    Ok(canonical)
 }
 
 #[cfg(test)]

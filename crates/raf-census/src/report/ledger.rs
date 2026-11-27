@@ -252,6 +252,28 @@ impl Ledger {
         Self::read(text, Format::Turtle)
     }
 
+    /// Re-seal an edited canonical Turtle ledger: render it with the BASE that
+    /// names the digest of its content, after checking that the result reads
+    /// back as a valid ledger. Rows are verified by that read-back, so a row that
+    /// does not verify refuses the whole ledger.
+    ///
+    /// # Errors
+    /// Refuses oversized input, native RDF errors, a different normal form,
+    /// unknown fields, invalid cardinalities, names or values, and any row that
+    /// does not verify.
+    pub fn reseal_turtle(text: &str) -> Result<String, Error> {
+        if text.len() > MAX_LEDGER_BYTES {
+            return Err(E::Value(format!(
+                "ledger is {} bytes; maximum is {MAX_LEDGER_BYTES}",
+                text.len()
+            ))
+            .into());
+        }
+        let sealed = Graph::reseal_text(text, Format::Turtle).map_err(E::Ground)?;
+        Self::from_turtle(&sealed)?;
+        Ok(sealed)
+    }
+
     /// Read the equivalent closed canonical N-Triples 1.2 ledger profile.
     ///
     /// # Errors
