@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+# Sourced by .githooks/pre-push, and by its test, which feeds it synthetic
+# lines. It plans the source gates for one push and runs no check itself.
+
+# pre_push_plan reads the lines git passes to a pre-push hook on standard input,
+# one per pushed ref: local ref, local object, remote ref, remote object. It
+# prints `<local ref> <local object> <remote ref>` for each line whose destination
+# is a branch or tag, and nothing for the rest.
+#
+# A line is skipped when it deletes a ref, or when its destination is metadata:
+# a notes ref, a ghprsq audit ref, or a ghprsq evidence tag under
+# refs/tags/ghprsq/artifacts/. Such a commit holds notes or review evidence, not a
+# source tree; other tags are checked. The destination decides, so a
+# source commit pushed from a local notes name to a branch is still checked,
+# and every line of a push is planned on its own, in any order.
+pre_push_plan() {
+    local local_ref local_sha remote_ref _
+    while read -r local_ref local_sha remote_ref _; do
+        if [[ $local_sha =~ ^0+$ ]]; then
+            continue
+        fi
+        case $remote_ref in
+            refs/notes/* | refs/ghprsq/* | refs/tags/ghprsq/artifacts/*) continue ;;
+        esac
+        printf '%s %s %s\n' "$local_ref" "$local_sha" "$remote_ref"
+    done
+}

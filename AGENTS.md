@@ -161,8 +161,11 @@ make docs-sync  # rewrite the generated documentation blocks; the repair for a s
   formatting, production Clippy, dependency bans and sources, licence headers,
   tracked text and Markdown links. Keep warm-cache commits under 60 seconds.
   The `pre-push` hook runs the static Workplan gate and all-target Clippy with
-  warnings denied on the tip of each pushed branch or tag; notes and audit refs
-  hold no source tree and are not checked.
+  warnings denied on the tip of each pushed branch or tag. Pushes to
+  `refs/notes/*`, `refs/ghprsq/*` and `refs/tags/ghprsq/artifacts/*` hold notes,
+  audit records and review evidence, not a source tree, so they are not checked;
+  every other tag is checked. The planner that decides this is
+  `.githooks/pre-push-plan`.
   The merge tool runs `make merge-gate` from the declaration on the base commit.
   That target runs `make check` and `make test` in order on the signed candidate.
   CI runs on every pull request, and every hosted check is green before a merge.

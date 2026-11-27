@@ -2,8 +2,8 @@
 # SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 # SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-# Checks the tip commit of each pushed ref, as that commit is, before any ref
-# moves: the static Workplan gate (source bindings, coverage and assessments) and
+# Checks the tip commit of each pushed branch or tag, as that commit is, before
+# any ref moves: the static Workplan gate (source bindings, coverage and assessments) and
 # all-target clippy with warnings denied, with the flags of the hosted clippy job.
 # The tip is exported with `git archive`, so the checked tree is the pushed tree
 # and not whatever the worktree holds, and the checker is built from that export.
@@ -35,19 +35,13 @@ while IFS= read -r variable; do
     unset "$variable"
 done <<< "$git_context"
 
-# Git passes one line per ref on standard input: local ref, local object,
-# remote ref, remote object. The remote fields are not needed.
-while read -r local_ref local_sha remote_ref _; do
-    # A deletion sends no commit.
-    if [[ $local_sha =~ ^0+$ ]]; then
-        continue
-    fi
-    # A push to a notes or audit ref publishes metadata, not a branch or tag,
-    # so the source gates do not apply to it. The destination decides: a source
-    # commit pushed to a branch or tag is checked whatever its local name.
-    case $remote_ref in
-        refs/notes/* | refs/ghprsq/*) continue ;;
-    esac
+# Git passes one line per pushed ref on standard input. The planner decides
+# which lines carry a branch or tag destination that the source gates check;
+# deletions and metadata destinations (notes, ghprsq audit refs and evidence
+# tags) are not checked, and every other line is checked whatever its local name.
+# shellcheck source=pre-push-plan
+source "$top/.githooks/pre-push-plan"
+while read -r local_ref local_sha remote_ref; do
     scratch=$(mktemp -d "$scratch_root/static-push.XXXXXXXX")
     trap 'rm -rf -- "$scratch"' EXIT
     snapshot="$scratch/snapshot"
@@ -70,4 +64,4 @@ while read -r local_ref local_sha remote_ref _; do
     )
     rm -rf -- "$scratch"
     trap - EXIT
-done
+done < <(pre_push_plan)
