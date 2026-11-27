@@ -12,6 +12,12 @@ bindings:
     - rust_agentic_foundations::gate_files
     - rust_agentic_foundations::gate_root
   tests:
+    - rust_agentic_foundations::test_crate::pre_push::metadata_and_deletion_destinations_are_skipped
+    - rust_agentic_foundations::test_crate::pre_push::branch_tag_and_look_alike_destinations_reach_the_gate
+    - rust_agentic_foundations::test_crate::pre_push::a_metadata_local_name_pushed_to_a_branch_is_checked
+    - rust_agentic_foundations::test_crate::pre_push::a_mixed_push_checks_only_the_branch_in_either_order
+    - rust_agentic_foundations::test_crate::pre_push::an_object_name_that_is_not_hexadecimal_is_refused_before_any_check
+    - rust_agentic_foundations::test_crate::pre_push::an_empty_push_checks_nothing
     - rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_analysis_libraries_have_no_process_authority
     - rust_agentic_foundations::test_crate::repo_gates::runtime::runtime_refuses_launches_aliases_and_hidden_macro_paths
     - rust_agentic_foundations::test_crate::repo_gates::runtime::no_shipped_crate_depends_on_the_fixture_crate_outside_its_dev_dependencies
@@ -245,6 +251,15 @@ Markdown. The full Workplan gate judges source bindings and assessment
 currency.
 <!-- raf:tested-by raf_docs_contract::test_crate::docs_contract::repository_static_documents,raf_docs_contract::example_crate::repository_static_documents -->
 
+**Push gate.** The pre-push hook checks the tip commit of each pushed branch
+or tag as an exported tree: the static Workplan check, then all-target Clippy
+with warnings denied. The remote ref decides what is checked. A push to a
+notes, `ghprsq` or `ghprsq` artifact-tag destination carries metadata and is
+skipped, as is a deletion; every other destination is checked whatever its
+local name, and look-alike names match only at their own separators. An object
+name that is not a full hexadecimal name is refused before any check.
+<!-- raf:tested-by rust_agentic_foundations::test_crate::pre_push::metadata_and_deletion_destinations_are_skipped,rust_agentic_foundations::test_crate::pre_push::branch_tag_and_look_alike_destinations_reach_the_gate,rust_agentic_foundations::test_crate::pre_push::a_metadata_local_name_pushed_to_a_branch_is_checked,rust_agentic_foundations::test_crate::pre_push::a_mixed_push_checks_only_the_branch_in_either_order,rust_agentic_foundations::test_crate::pre_push::an_object_name_that_is_not_hexadecimal_is_refused_before_any_check,rust_agentic_foundations::test_crate::pre_push::an_empty_push_checks_nothing -->
+
 **Licence and version integrity.** Pinned licence text must retain its digest,
 and the citation version must equal the workspace version. Altered text, missing
 fingerprint records and a version changed on only one side are refused.
@@ -446,6 +461,12 @@ no separate interpretation of the documents or source index.
 | `rust_agentic_foundations::example_crate::msrv_dependency_audit` | example target | [Contract](#contract) |
 | `rust_agentic_foundations::example_crate::prepare_census_archives` | example target | [Verification](#verification) |
 | `rust_agentic_foundations::example_crate::repository_gate` | example target | [Usage](#usage) |
+| `rust_agentic_foundations::test_crate::pre_push::a_metadata_local_name_pushed_to_a_branch_is_checked` | test | [Contract](#contract) |
+| `rust_agentic_foundations::test_crate::pre_push::a_mixed_push_checks_only_the_branch_in_either_order` | test | [Contract](#contract) |
+| `rust_agentic_foundations::test_crate::pre_push::an_empty_push_checks_nothing` | test | [Contract](#contract) |
+| `rust_agentic_foundations::test_crate::pre_push::an_object_name_that_is_not_hexadecimal_is_refused_before_any_check` | test | [Contract](#contract) |
+| `rust_agentic_foundations::test_crate::pre_push::branch_tag_and_look_alike_destinations_reach_the_gate` | test | [Contract](#contract) |
+| `rust_agentic_foundations::test_crate::pre_push::metadata_and_deletion_destinations_are_skipped` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_execution_budget` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `rust_agentic_foundations::test_crate::repo_gates::citation_accepts_matching_versions` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::repo_gates::citation_rejects_a_manifest_bump_without_a_matching_citation` | test | [Contract](#contract) |
