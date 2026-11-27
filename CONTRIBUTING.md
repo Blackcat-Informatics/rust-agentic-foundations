@@ -79,12 +79,13 @@ in another workspace. [Census how-to](CENSUS-HOWTO.md) · [Workplan how-to](WORK
   tracked text, and Markdown links.
   Both commit hooks run this target. Repository policy, Workplan and Census
   tests run in the merge and CI gates.
-- **Push gate.** The `pre-push` hook exports each pushed commit with
-  `git archive` and runs the static Workplan check (source bindings, coverage
-  and assessments) and all-target Clippy with warnings denied, the flags of the
-  hosted lint job. It checks the pushed tree, not the worktree, and refuses the
-  push on any finding. Expect about two minutes on a cold Clippy cache; the
-  commit hook stays under its 60-second budget because these checks run here.
+- **Push gate.** The `pre-push` hook exports the tip commit of each pushed ref
+  with `git archive` and runs the static Workplan check (source bindings,
+  coverage and assessments) and all-target Clippy with warnings denied, with the
+  flags of the hosted lint job. It checks the pushed tree, not the worktree, and
+  refuses the push on any finding. A cold Clippy cache takes about two minutes;
+  a warm one takes WARM_TIME. The commit hook stays under its 60-second budget
+  because these checks run here.
 - **Merge gate.** `make merge-gate` runs `make check` and `make test` in
   order on the exact signed candidate. Supply an absolute `CARGO_TARGET_DIR`
   outside the repository. The [gate declaration](.ghprsq.toml) takes effect

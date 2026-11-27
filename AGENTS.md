@@ -82,7 +82,7 @@ index.
 | `work/assessments/` | Recorded prose assessments of capability sections |
 | `work/debt/` | The strict debt record, written only by `cargo raf-workplan debt --write` |
 | `fuzz/` | The fuzz harness, a workspace of its own |
-| `.githooks/`, `.github/` | The commit and merge hooks, the CI workflow and the templates |
+| `.githooks/`, `.github/` | The commit, merge-commit and pre-push hooks, the CI workflow and the templates |
 
 ---
 
@@ -158,8 +158,10 @@ make docs-sync  # rewrite the generated documentation blocks; the repair for a s
 
 - **The required gates are the hooks, local merge qualification and CI.**
   Both commit hooks run `make precommit` on the effective staged tree. It checks
-  formatting, production Clippy, dependency bans and sources, tracked text and
-  Markdown links. Keep warm-cache commits under 60 seconds.
+  formatting, production Clippy, dependency bans and sources, licence headers,
+  tracked text and Markdown links. Keep warm-cache commits under 60 seconds.
+  The `pre-push` hook runs the static Workplan gate and all-target Clippy with
+  warnings denied on the tip of each pushed ref.
   The merge tool runs `make merge-gate` from the declaration on the base commit.
   That target runs `make check` and `make test` in order on the signed candidate.
   CI runs on every pull request, and every hosted check is green before a merge.

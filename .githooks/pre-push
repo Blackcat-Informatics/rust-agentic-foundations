@@ -2,11 +2,11 @@
 # SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 # SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-# Checks each commit a push sends, as that commit is, before any ref moves:
-# the static Workplan gate (source bindings, coverage and assessments) and
+# Checks the tip commit of each pushed ref, as that commit is, before any ref
+# moves: the static Workplan gate (source bindings, coverage and assessments) and
 # all-target clippy with warnings denied, with the flags of the hosted clippy job.
-# A commit is exported with `git archive`, so the checked tree is the pushed
-# tree and not whatever the worktree holds.
+# The tip is exported with `git archive`, so the checked tree is the pushed tree
+# and not whatever the worktree holds, and the checker is built from that export.
 
 set -euo pipefail
 
@@ -24,6 +24,9 @@ common=$(git rev-parse --path-format=absolute --git-common-dir)
 scratch_root="${common%/*}/.stage"
 mkdir -p "$scratch_root"
 target=$(realpath -m -- "${CARGO_TARGET_DIR:-$top/target}")
+# One build directory for every push keeps third-party units warm. Workspace
+# crates are built again per push, because each export has its own path.
+build_dir="$target/pre-push-build"
 
 # Clear the pushing worktree's Git context so the exported trees are read as
 # plain directories.
@@ -32,8 +35,9 @@ while IFS= read -r variable; do
     unset "$variable"
 done <<< "$git_context"
 
-# Git passes one line per ref: local ref, local object, remote ref, remote object.
-while read -r local_ref local_sha remote_ref remote_sha; do
+# Git passes one line per ref on standard input: local ref, local object,
+# remote ref, remote object. The remote fields are not needed.
+while read -r local_ref local_sha _ _; do
     # A deletion sends no commit.
     if [[ $local_sha =~ ^0+$ ]]; then
         continue
@@ -49,12 +53,14 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     git -C "$snapshot" init --quiet
     git -C "$snapshot" add --all --force
     echo "pre-push: checking $local_ref at $local_sha" >&2
-    CARGO_TARGET_DIR="$target" cargo run --quiet --locked -p cargo-raf-workplan \
-        -- raf-workplan check --root "$snapshot"
+    # The children read no standard input: the ref list is not theirs to consume.
+    CARGO_TARGET_DIR="$target" CARGO_BUILD_BUILD_DIR="$build_dir" \
+        cargo run --quiet --locked --manifest-path "$snapshot/Cargo.toml" \
+        -p cargo-raf-workplan -- raf-workplan check --root "$snapshot" < /dev/null
     (
         cd "$snapshot"
-        CARGO_TARGET_DIR="$target" cargo clippy --workspace --all-targets --locked \
-            -- -D warnings
+        CARGO_TARGET_DIR="$target" CARGO_BUILD_BUILD_DIR="$build_dir" \
+            cargo clippy --workspace --all-targets --locked -- -D warnings < /dev/null
     )
     rm -rf -- "$scratch"
     trap - EXIT
