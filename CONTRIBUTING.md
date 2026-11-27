@@ -56,7 +56,7 @@ reassessment after that release. Native Cargo target kinds and the
 stable MSRV and nightly toolchains remain covered.
 
 ```bash
-make hooks   # install the pre-commit and pre-merge-commit hooks (core.hooksPath = .githooks)
+make hooks   # install the commit, merge-commit and pre-push hooks (core.hooksPath = .githooks)
 make check   # static checks, all-target lints, compiler, policy and fuzz gates
 make test    # run the workspace behavioral suites with fresh Census evidence
 make help    # list every target
@@ -75,9 +75,16 @@ in another workspace. [Census how-to](CENSUS-HOWTO.md) · [Workplan how-to](WORK
 
 - **Staged static gate.** Run `make precommit` to check the effective staged
   tree. It requires the installed hooks and checks formatting,
-  shipping lints, dependency bans and sources, tracked text, and Markdown links.
+  shipping lints, dependency bans and sources, licence headers (`make reuse`),
+  tracked text, and Markdown links.
   Both commit hooks run this target. Repository policy, Workplan and Census
   tests run in the merge and CI gates.
+- **Push gate.** The `pre-push` hook exports each pushed commit with
+  `git archive` and runs the static Workplan check (source bindings, coverage
+  and assessments) and all-target Clippy with warnings denied, the flags of the
+  hosted lint job. It checks the pushed tree, not the worktree, and refuses the
+  push on any finding. Expect about two minutes on a cold Clippy cache; the
+  commit hook stays under its 60-second budget because these checks run here.
 - **Merge gate.** `make merge-gate` runs `make check` and `make test` in
   order on the exact signed candidate. Supply an absolute `CARGO_TARGET_DIR`
   outside the repository. The [gate declaration](.ghprsq.toml) takes effect
