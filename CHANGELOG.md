@@ -8,10 +8,29 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
 
 ## [Unreleased]
 
-- A census tokens pattern is matched only in the files its scope admits. Before,
-  every source file was normalized and scanned, so a path-scoped rule could exhaust
-  the shared matching grant from code it could never report. Reported findings are
-  unchanged; the same work now costs less grant.
+## [0.9.0] - 2026-11-27
+
+### Added
+
+- `raf-workplan` adds the read-only `cargo raf-workplan docs current-design` view and `Workplan::current_design()`, which render the current Architecture decisions.
+- `raf-workplan` verifies the retirement of superseded decisions, and refuses opaque macros in retirement source.
+- `raf-census` reports public visibility demand by target.
+- `raf-source` preserves proven standard `Type` re-exports, and resolves standard `Type` candidates on shipping routes.
+
+### Changed
+
+- `raf-okf` runs the member checks of capability identifier lists, `review_required` and a non-empty `changes` list through native SHACL shapes. The same lists are refused as before.
+- `raf-census` matches a tokens pattern only in the files its scope admits. Before, every source file was normalized and scanned, so a path-scoped rule could exhaust the shared matching grant from code it could never report. Reported findings are unchanged; the same work now costs less grant. Running out of the grant names the file and the admitting rule, and lists the unfinished admitted files.
+- `raf-census` attributes a top-level detector hit in an out-of-line module file to the one module that declares the file. 0.8.1 refused such a hit with `detector hit requires one physical source item`; 0.9.0 reports it. A file that two declaring locations own is still refused, and that refusal now names the file, the line and the remedy.
+- `raf-census` prescan charges its delimiter stacks, in both layouts, to the census memory grant, and refunds the temporary grant before source preparation returns. A run at the edge of its limit can be refused. The positioned delimiter refusal and the resource refusal are unchanged.
+- `raf-source` classifies an item under `#[cfg_attr(A, cfg(B))]` as test-only only when the guard provably excludes it from non-test builds. 0.8.1 classified it as test-only whenever `A` and `B` together implied test. For example, `#[cfg_attr(test, cfg(test))] use core::marker::PhantomData;` is test-only in 0.8.1 and a shipping item in 0.9.0, because the `test` predicate does not apply in a non-test build. Such items are shipping items for the shipping-only census rules and Workplan test roles, so unchanged source can yield new census findings, copies or debt.
+- `raf-source` `exported_items` can return the new `ExportError::AmbiguousStandardType`.
+
+### Fixed
+
+- `raf-workplan` reads the `items` list that mdBook 0.5 sends. Before, every mdBook build was refused. Explorer pages stay free of remote resources.
+
+## Earlier versions
 
 - RAF uses PurRDF 5. Census report form 6 adopts its literal spelling.
   `cargo raf-census migrate --report-form` converts forms 3 through 5 after

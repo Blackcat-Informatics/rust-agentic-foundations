@@ -10,7 +10,7 @@ Census groups Rust helpers with the same normalized body or forwarding pattern. 
 On native Linux with Rust 1.98.1 or newer, install Census from crates.io. Use the same exact RAF version for the command and the dev-dependency on developer machines and in CI.
 
 ```sh
-RAF_VERSION=0.8.1
+RAF_VERSION=0.9.0
 cargo install --locked --version "=$RAF_VERSION" cargo-raf-census
 ```
 
