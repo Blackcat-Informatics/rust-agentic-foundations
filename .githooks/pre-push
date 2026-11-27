@@ -37,14 +37,15 @@ done <<< "$git_context"
 
 # Git passes one line per ref on standard input: local ref, local object,
 # remote ref, remote object. The remote fields are not needed.
-while read -r local_ref local_sha _ _; do
+while read -r local_ref local_sha remote_ref _; do
     # A deletion sends no commit.
     if [[ $local_sha =~ ^0+$ ]]; then
         continue
     fi
-    # Notes and audit refs point at commits whose trees hold metadata, not
-    # source, so the source gates do not apply to them.
-    case $local_ref in
+    # A push to a notes or audit ref publishes metadata, not a branch or tag,
+    # so the source gates do not apply to it. The destination decides: a source
+    # commit pushed to a branch or tag is checked whatever its local name.
+    case $remote_ref in
         refs/notes/* | refs/ghprsq/*) continue ;;
     esac
     scratch=$(mktemp -d "$scratch_root/static-push.XXXXXXXX")
