@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+# Checks the tip commit of each pushed branch or tag, as that commit is, before
+# any ref moves: the static Workplan gate (source bindings, coverage and assessments) and
+# all-target clippy with warnings denied, with the flags of the hosted clippy job.
+# The tip is exported with `git archive`, so the checked tree is the pushed tree
+# and not whatever the worktree holds, and the checker is built from that export.
+
+set -euo pipefail
+
+top=$(git rev-parse --show-toplevel)
+cd "$top"
+hooks=$(git config --path --get core.hooksPath || true)
+if [[ -z $hooks || $(realpath -m -- "$hooks") != "$top/.githooks" ]]; then
+    echo 'pre-push: install the repository hooks with make hooks' >&2
+    exit 1
+fi
+
+# The exports are scratch data under the canonical checkout, outside its
+# managed linked worktrees.
+common=$(git rev-parse --path-format=absolute --git-common-dir)
+scratch_root="${common%/*}/.stage"
+mkdir -p "$scratch_root"
+target=$(realpath -m -- "${CARGO_TARGET_DIR:-$top/target}")
+# One build directory for every push keeps third-party units warm. Workspace
+# crates are built again per push, because each export has its own path.
+build_dir="$target/pre-push-build"
+
+# Clear the pushing worktree's Git context so the exported trees are read as
+# plain directories.
+git_context=$(git rev-parse --local-env-vars)
+while IFS= read -r variable; do
+    unset "$variable"
+done <<< "$git_context"
+
+# Git passes one line per pushed ref on standard input: local ref, local object,
+# remote ref, remote object. The remote object is not needed.
+while read -r local_ref local_sha remote_ref _; do
+    # A deletion sends no commit.
+    if [[ $local_sha =~ ^0+$ ]]; then
+        continue
+    fi
+    # A push to a notes, audit or evidence destination publishes metadata, not a
+    # branch or tag, so the source gates do not apply. The remote ref decides, so a
+    # source commit pushed from a local notes name to a branch is still checked.
+    case $remote_ref in
+        refs/notes/* | refs/ghprsq/* | refs/tags/ghprsq/artifacts/*) continue ;;
+    esac
+    # The object goes to git archive as an argument, so only an object name is
+    # accepted: a value that begins with a dash would be read as an option.
+    if [[ ! $local_sha =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]]; then
+        echo "pre-push: '$local_sha' is not an object name; the push is refused" >&2
+        exit 1
+    fi
+    scratch=$(mktemp -d "$scratch_root/static-push.XXXXXXXX")
+    trap 'rm -rf -- "$scratch"' EXIT
+    snapshot="$scratch/snapshot"
+    mkdir "$snapshot"
+    (cd "$top" && git archive --format=tar "$local_sha") | tar -x -C "$snapshot"
+    # The Workplan check judges links against the tracked paths of the nearest
+    # repository. Index the export in a repository of its own, so that it does
+    # not read the checkout that holds the scratch directory.
+    git -C "$snapshot" init --quiet
+    git -C "$snapshot" add --all --force
+    echo "pre-push: checking $local_ref at $local_sha" >&2
+    # The children read no standard input: the ref list is not theirs to consume.
+    CARGO_TARGET_DIR="$target" CARGO_BUILD_BUILD_DIR="$build_dir" \
+        cargo run --quiet --locked --manifest-path "$snapshot/Cargo.toml" \
+        -p cargo-raf-workplan -- raf-workplan check --root "$snapshot" < /dev/null
+    (
+        cd "$snapshot"
+        CARGO_TARGET_DIR="$target" CARGO_BUILD_BUILD_DIR="$build_dir" \
+            cargo clippy --workspace --all-targets --locked -- -D warnings < /dev/null
+    )
+    rm -rf -- "$scratch"
+    trap - EXIT
+done
