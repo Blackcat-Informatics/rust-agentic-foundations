@@ -8,7 +8,7 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
 
 ## [Unreleased]
 
-## [0.9.0] - 2026-11-26
+## [0.9.0] - 2026-11-27
 
 ### Added
 
