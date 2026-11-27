@@ -55,26 +55,30 @@ fn planner_output(lines: &[&str]) -> Output {
 }
 
 /// The planned decisions for `lines`, or the planner's stderr when it refuses.
-#[expect(
-    clippy::expect_used,
-    reason = "the planner's output is UTF-8 by construction"
-)]
 fn plan(lines: &[&str]) -> Result<Vec<String>, String> {
     let output = planner_output(lines);
     if !output.status.success() {
         return Err(String::from_utf8_lossy(&output.stderr).into_owned());
     }
-    Ok(String::from_utf8(output.stdout)
-        .expect("the planner prints UTF-8")
-        .lines()
-        .map(str::to_owned)
-        .collect())
+    let text = String::from_utf8(output.stdout).map_err(|error| error.to_string())?;
+    Ok(text.lines().map(str::to_owned).collect())
+}
+
+/// The planned decisions for `lines`. A planner that refuses fails the test.
+#[expect(
+    clippy::panic,
+    reason = "the test fails with the planner's stderr when the planner refuses"
+)]
+fn decided(lines: &[&str]) -> Vec<String> {
+    match plan(lines) {
+        Ok(planned) => planned,
+        Err(stderr) => panic!("the planner refused a line it should decide: {stderr}"),
+    }
 }
 
 #[expect(
     clippy::expect_used,
-    clippy::panic,
-    reason = "a git command that fails in a fixture fails the test with its stderr"
+    reason = "a git command that cannot start fails the fixture with the message"
 )]
 fn git(dir: &Path, args: &[&str]) -> String {
     let output = Command::new("git")
@@ -82,12 +86,11 @@ fn git(dir: &Path, args: &[&str]) -> String {
         .args(args)
         .output()
         .expect("git starts");
-    if !output.status.success() {
-        panic!(
-            "git {args:?} failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-    }
+    assert!(
+        output.status.success(),
+        "git {args:?} failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     String::from_utf8(output.stdout)
         .expect("git prints UTF-8")
         .trim()
@@ -148,13 +151,12 @@ fn stderr_of(output: &Output) -> String {
 fn a_branch_or_tag_destination_is_checked_whatever_its_local_name() {
     // A source commit pushed from a local notes-named ref to main is checked, and so
     // are a real tag, a plain branch and a local ghprsq-named ref.
-    let planned = plan(&[
+    let planned = decided(&[
         &format!("refs/notes/x {MAIN} refs/heads/main {ZERO}"),
         &format!("refs/heads/y {SHA} refs/tags/v0.9.0 {ZERO}"),
         &format!("refs/heads/z {SHA} refs/heads/feature {ZERO}"),
         &format!("refs/ghprsq/local {SHA} refs/heads/feature {ZERO}"),
-    ])
-    .expect("the planner decides every line");
+    ]);
     assert_eq!(
         planned,
         [
@@ -169,12 +171,11 @@ fn a_branch_or_tag_destination_is_checked_whatever_its_local_name() {
 #[test]
 fn a_metadata_destination_is_skipped() {
     // Notes, ghprsq audit refs and the ghprsq evidence tag namespace carry metadata.
-    let planned = plan(&[
+    let planned = decided(&[
         &format!("refs/notes/ghprsq {SHA} refs/notes/ghprsq {ZERO}"),
         &format!("refs/heads/z {SHA} refs/ghprsq/pr/455/head {ZERO}"),
         &format!("refs/heads/z {SHA} refs/tags/ghprsq/artifacts/{SHA} {ZERO}"),
-    ])
-    .expect("the planner decides every line");
+    ]);
     assert_eq!(
         planned,
         [
@@ -190,7 +191,7 @@ fn look_alike_destinations_are_checked() {
     // The namespaces match only at their own separators, at the start of the name:
     // neighbouring names, another tag under ghprsq, and a namespace nested inside
     // another name are all source destinations.
-    let planned = plan(&[
+    let planned = decided(&[
         &format!("refs/heads/a {SHA} refs/tags/ghprsq/artifactsx {ZERO}"),
         &format!("refs/heads/a {SHA} refs/tags/ghprsq/other {ZERO}"),
         &format!("refs/heads/a {SHA} refs/tags/ghprsq/artifacts {ZERO}"),
@@ -198,8 +199,7 @@ fn look_alike_destinations_are_checked() {
         &format!("refs/heads/a {SHA} refs/ghprsqx/foo {ZERO}"),
         &format!("refs/heads/a {SHA} refs/heads/refs/notes/x {ZERO}"),
         &format!("refs/heads/a {SHA} refs/tags/x/refs/ghprsq/y {ZERO}"),
-    ])
-    .expect("the planner decides every line");
+    ]);
     assert!(
         planned.iter().all(|line| line.starts_with("check ")),
         "every look-alike line is checked: {planned:?}"
@@ -210,8 +210,7 @@ fn look_alike_destinations_are_checked() {
 #[test]
 fn a_deletion_is_skipped() {
     // A deletion sends the zero object and no commit to check.
-    let planned = plan(&[&format!("(delete) {ZERO} refs/heads/old {ZERO}")])
-        .expect("the planner decides every line");
+    let planned = decided(&[&format!("(delete) {ZERO} refs/heads/old {ZERO}")]);
     assert_eq!(planned, [format!("skip (delete) {ZERO} refs/heads/old")]);
 }
 
@@ -219,8 +218,7 @@ fn a_deletion_is_skipped() {
 fn a_four_field_line_is_planned_by_its_first_three_fields() {
     // Git sends the remote object as the fourth field; the planner reads the first
     // three and ignores the rest.
-    let planned = plan(&[&format!("refs/heads/x {SHA} refs/heads/main {MAIN}")])
-        .expect("the planner decides every line");
+    let planned = decided(&[&format!("refs/heads/x {SHA} refs/heads/main {MAIN}")]);
     assert_eq!(
         planned,
         [format!("check refs/heads/x {SHA} refs/heads/main")]
@@ -234,14 +232,14 @@ fn a_mixed_push_decides_each_line_alone_in_either_order() {
     let notes = format!("refs/notes/ghprsq {SHA} refs/notes/ghprsq {ZERO}");
     let branch = format!("refs/heads/main {MAIN} refs/heads/main {ZERO}");
     assert_eq!(
-        plan(&[&notes, &branch]).expect("the planner decides every line"),
+        decided(&[&notes, &branch]),
         [
             format!("skip refs/notes/ghprsq {SHA} refs/notes/ghprsq"),
             format!("check refs/heads/main {MAIN} refs/heads/main"),
         ]
     );
     assert_eq!(
-        plan(&[&branch, &notes]).expect("the planner decides every line"),
+        decided(&[&branch, &notes]),
         [
             format!("check refs/heads/main {MAIN} refs/heads/main"),
             format!("skip refs/notes/ghprsq {SHA} refs/notes/ghprsq"),
