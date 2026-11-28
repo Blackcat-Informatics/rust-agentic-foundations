@@ -16,7 +16,7 @@ inputs:
     digest: e188d61984f694566409b6c9253c96cacc3cf2ff29245972deece5cde0bb6030
   - kind: symbol
     name: cargo_raf_census::command
-    digest: 8378a7358e495eeed76c9542064d5754e16034582bc3b75573e4c252c5a72ef1
+    digest: dc382349e78e0cdc9c5ac4ec3ac7827e66c47a708726d8ae1ab657f649892e44
   - kind: symbol
     name: cargo_raf_census::error
     digest: fa7aa7a709101811082caa31353d45fe8668d69c81f88590bd2b887dff2c23ee

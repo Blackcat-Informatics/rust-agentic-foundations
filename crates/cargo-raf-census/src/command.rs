@@ -729,6 +729,15 @@ fn reseal(
     output: &mut dyn Write,
     diagnostics: &mut dyn Write,
 ) -> Result<u8, crate::error::Error> {
+    if let Some(out) = args.out.as_deref()
+        && out.extension().and_then(std::ffi::OsStr::to_str) != Some("ttl")
+    {
+        return Err(Error::Options(format!(
+            "{}: reseal writes Turtle, so its destination needs a .ttl extension",
+            out.display()
+        ))
+        .into());
+    }
     let source = root.join(LEDGER_FILE);
     writeln!(diagnostics, "reseal: read {}", source.display()).map_err(|source| Error::Io {
         file: "<stderr>".into(),
@@ -753,7 +762,7 @@ fn reseal(
         source: Box::new(source),
     })?;
     if args.in_place {
-        replace_ledger(&source, &sealed)?;
+        replace_ledger(&source, &text, &sealed)?;
     } else {
         write_report(root, &sealed, args.out.as_deref(), output)?;
     }
@@ -767,7 +776,7 @@ fn reseal(
 /// ledger that is a symbolic link is refused, so the link is never replaced by a
 /// file. A failed step leaves the original ledger intact, and an error names the
 /// sibling file it left behind.
-fn replace_ledger(ledger: &Path, sealed: &str) -> Result<(), Error> {
+fn replace_ledger(ledger: &Path, read: &str, sealed: &str) -> Result<(), Error> {
     let io_error = |file: &Path, source: std::io::Error| Error::Io {
         file: file.display().to_string(),
         source,
@@ -816,6 +825,21 @@ fn replace_ledger(ledger: &Path, sealed: &str) -> Result<(), Error> {
         .and_then(|()| file.write_all(sealed.as_bytes()))
         .and_then(|()| file.sync_all());
     staged.map_err(|source| io_error(&temp, source))?;
+    // A ledger that differs from the text this reseal read was changed by another
+    // writer, so it is left as it is. This comparison is not a lock: an edit made
+    // between it and the rename is still replaced.
+    let current = std::fs::read_to_string(ledger).map_err(|source| io_error(ledger, source))?;
+    if current != read {
+        std::fs::remove_file(&temp).map_err(|source| io_error(&temp, source))?;
+        return Err(io_error(
+            ledger,
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "the ledger changed after reseal read it, so nothing was replaced; \
+                 run reseal --in-place again on the current ledger",
+            ),
+        ));
+    }
     std::fs::rename(&temp, ledger).map_err(|source| io_error(&temp, source))?;
     // The rename has already replaced the ledger. A failed directory sync leaves
     // only the durability of that replacement unconfirmed, and the error says so.
@@ -1064,6 +1088,42 @@ mod tests {
             String::from_utf8(out)
                 .unwrap()
                 .ends_with(" cases, 0 failed\n")
+        );
+    }
+
+    #[test]
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a failed fixture operation is a test failure at the point of use"
+    )]
+    fn replace_ledger_refuses_a_ledger_changed_after_reseal_read_it_and_removes_its_staged_file() {
+        // INVARIANT: a ledger whose text differs from the text reseal read is never replaced,
+        // and the staged sibling file this call created is removed.
+        // CARGO_TARGET_TMPDIR is set only for integration tests. A library unit test's
+        // binary lives under the target directory, which holds its scratch tree.
+        let target = std::env::current_exe()
+            .unwrap()
+            .ancestors()
+            .nth(3)
+            .unwrap()
+            .to_path_buf();
+        let dir = purrdf_testkit::TempDir::new_in(&target).unwrap();
+        let ledger = dir.path().join(raf_census::LEDGER_FILE);
+        std::fs::write(&ledger, "edited by another writer\n").unwrap();
+        let error =
+            super::replace_ledger(&ledger, "the text reseal read\n", "sealed\n").unwrap_err();
+        assert!(
+            error.to_string().contains("changed after reseal read it"),
+            "{error}"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&ledger).unwrap(),
+            "edited by another writer\n"
+        );
+        assert!(
+            !dir.path()
+                .join(format!("{}.reseal-tmp", raf_census::LEDGER_FILE))
+                .exists()
         );
     }
 }

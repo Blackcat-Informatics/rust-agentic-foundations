@@ -149,3 +149,25 @@ fn in_place_refuses_a_symbolic_link_and_leaves_its_target_unchanged() {
     );
     assert_eq!(fs::read(&target).unwrap(), target_bytes);
 }
+
+#[test]
+fn out_refuses_an_n_triples_destination_and_writes_a_turtle_one() {
+    // INVARIANT: reseal writes Turtle only, so an N-Triples destination is refused before
+    // any file is written; a Turtle destination beside it succeeds.
+    let scratch = workspace();
+    let root = scratch.path();
+    let refused = run(root, &["reseal", "--out", "sealed.nt"]);
+    assert_eq!(refused.status.code(), Some(1), "{refused:?}");
+    let stderr = String::from_utf8_lossy(&refused.stderr);
+    assert!(
+        stderr.contains(".ttl"),
+        "the refusal names the extension: {stderr}"
+    );
+    assert!(
+        !root.join("sealed.nt").exists(),
+        "a refused destination is not written"
+    );
+    let accepted = run(root, &["reseal", "--out", "sealed.ttl"]);
+    assert!(accepted.status.success(), "{accepted:?}");
+    assert!(root.join("sealed.ttl").exists());
+}
