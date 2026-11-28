@@ -20,10 +20,9 @@ pub(super) fn evaluate(
     census: Census,
     selected: rules::Selected<'_>,
     extensions: &[Box<dyn LedgerExtension>],
-    mut limits: MatchLimits,
+    (mut limits, grant): (MatchLimits, MatchLimits),
     references: &super::reference::References<'_>,
 ) -> Result<GateReport, Error> {
-    let grant = limits;
     let owners = owners::index(&census);
     let code = workspace.code_resolver()?;
     let providers = super::providers::check(ledger, workspace, &census, &code, &mut limits)?;

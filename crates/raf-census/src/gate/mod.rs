@@ -647,7 +647,7 @@ impl Gate {
                 required: &self.required_rules,
             },
             &self.extensions,
-            limits,
+            (limits, self.matching_limits),
             &references,
         )
         .map(|report| report.with_findings(paths))
@@ -764,7 +764,7 @@ impl Gate {
                 required: &self.required_rules,
             },
             &self.extensions,
-            limits,
+            (limits, self.matching_limits),
             &references,
         )
         .map(|report| report.with_findings(paths))

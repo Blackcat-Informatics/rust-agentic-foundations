@@ -334,7 +334,10 @@ mod tests {
                     required: &[],
                 },
                 &[],
-                purrdf_jsonschema::ecma::MatchLimits::default(),
+                (
+                    purrdf_jsonschema::ecma::MatchLimits::default(),
+                    purrdf_jsonschema::ecma::MatchLimits::default(),
+                ),
                 &super::super::reference::References::empty(&workspace),
             )
             .unwrap();
