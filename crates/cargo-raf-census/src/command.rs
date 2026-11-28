@@ -774,8 +774,10 @@ fn reseal(
 /// The text goes to a sibling file with the ledger's permissions, which is synced
 /// and then renamed over the ledger; the directory is synced after the rename. A
 /// ledger that is a symbolic link is refused, so the link is never replaced by a
-/// file. A failed step leaves the original ledger intact, and an error names the
-/// sibling file it left behind.
+/// file. A failure before the rename leaves the original ledger intact. An error
+/// from writing or syncing the sibling names the sibling file it left behind; a
+/// ledger that cannot be re-read or has changed since the read removes its sibling
+/// file and is refused.
 fn replace_ledger(ledger: &Path, read: &str, sealed: &str) -> Result<(), Error> {
     let io_error = |file: &Path, source: std::io::Error| Error::Io {
         file: file.display().to_string(),
@@ -828,7 +830,13 @@ fn replace_ledger(ledger: &Path, read: &str, sealed: &str) -> Result<(), Error> 
     // A ledger that differs from the text this reseal read was changed by another
     // writer, so it is left as it is. This comparison is not a lock: an edit made
     // between it and the rename is still replaced.
-    let current = std::fs::read_to_string(ledger).map_err(|source| io_error(ledger, source))?;
+    let current = match std::fs::read_to_string(ledger) {
+        Ok(current) => current,
+        Err(source) => {
+            std::fs::remove_file(&temp).map_err(|remove| io_error(&temp, remove))?;
+            return Err(io_error(ledger, source));
+        }
+    };
     if current != read {
         std::fs::remove_file(&temp).map_err(|source| io_error(&temp, source))?;
         return Err(io_error(
