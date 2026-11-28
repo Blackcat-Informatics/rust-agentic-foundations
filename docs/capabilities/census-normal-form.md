@@ -1180,6 +1180,7 @@ and escapes controls beside a plain diagnostic neighbor.
 | `raf_census::test_crate::groups::shared_constants_run_by_value_ascending` | test | [Contract](#contract) |
 | `raf_census::test_crate::groups::shim_groups_use_the_shim_key_and_skip_trait_impls_and_self_forwarders` | test | [Verification](#verification) |
 | `raf_census::test_crate::ledger_evidence::a_corrected_row_is_stale_until_resealed_and_then_reads_back` | test | [Usage](#usage) |
+| `raf_census::test_crate::ledger_evidence::a_job_with_a_repeated_enforced_flag_refuses_the_reseal_and_names_its_row` | test | [Usage](#usage) |
 | `raf_census::test_crate::ledger_evidence::a_removed_row_is_sealed_out_of_the_ledger` | test | [Usage](#usage) |
 | `raf_census::test_crate::ledger_evidence::a_row_that_does_not_verify_refuses_the_reseal_and_names_the_predicate` | test | [Usage](#usage) |
 | `raf_census::test_crate::ledger_evidence::an_added_row_is_sealed_into_the_ledger` | test | [Usage](#usage) |
