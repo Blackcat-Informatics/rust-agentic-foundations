@@ -23,6 +23,7 @@ pub(super) fn evaluate(
     mut limits: MatchLimits,
     references: &super::reference::References<'_>,
 ) -> Result<GateReport, Error> {
+    let grant = limits;
     let owners = owners::index(&census);
     let code = workspace.code_resolver()?;
     let providers = super::providers::check(ledger, workspace, &census, &code, &mut limits)?;
@@ -41,7 +42,7 @@ pub(super) fn evaluate(
         &code,
         &owners,
         &mut collected,
-        &mut limits,
+        (&mut limits, grant),
     )?;
     let hits = &collected.hits;
     let mut sink = ratchet::Sink::new(ledger, &collected.offsets);
@@ -273,7 +274,7 @@ fn collect_patterns(
     code: &raf_source::CodeResolver<'_>,
     owners: &owners::Owners<'_>,
     collected: &mut rules::Collected,
-    limits: &mut MatchLimits,
+    (limits, grant): (&mut MatchLimits, MatchLimits),
 ) -> Result<(), Error> {
     register_pattern_ids(ledger, |id| {
         collected
@@ -288,7 +289,7 @@ fn collect_patterns(
         code,
         owners,
         references,
-        limits,
+        (&mut *limits, grant),
     )? {
         if !in_scope(
             found.pattern,

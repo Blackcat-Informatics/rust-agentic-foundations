@@ -6938,9 +6938,9 @@ fn a_declaration_reached_through_two_target_paths_is_one_physical_owner() {
 )]
 fn a_tokens_pattern_reports_every_hit_as_its_admitted_tree_grows() {
     use std::fmt::Write as _;
-    // Normalization and matching each draw per admitted file, so a tree of many
-    // admitted files keeps every hit under a grant far below the whole tree's cost.
-    // The hits name their own files and lines.
+    // Normalization and matching each draw per admitted file. A 10000-step grant
+    // covers every admitted file although normalizing all 2000 together needs more
+    // (a single shared pool refuses at src/m1125.rs). The hits name their own files and lines.
     let ledger = lexical_pattern_graph("tokens", "check!($_)")
         .finish()
         .unwrap()
@@ -6966,10 +6966,10 @@ fn a_tokens_pattern_reports_every_hit_as_its_admitted_tree_grows() {
     modules.push_str("pub fn home(){}\npub use home as alias;\n");
     entries.push(("src/lib.rs".to_owned(), modules));
     let tree: MemoryTree = entries.into_iter().collect();
-    // 2000 admitted files match every hit under a 50000-step grant.
+    // 2000 admitted files match every hit under a 10000-step grant.
     let report = fixture_gate(".")
         .matching_limits(purrdf_jsonschema::ecma::MatchLimits {
-            steps: 50_000,
+            steps: 10_000,
             states: 1_000_000,
         })
         .check_tree(&tree)

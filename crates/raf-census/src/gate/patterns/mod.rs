@@ -30,7 +30,7 @@ pub(super) fn collect<'p, 'w>(
     code: &raf_source::CodeResolver<'_>,
     owners: &super::owners::Owners<'_>,
     references: &[String],
-    limits: &mut MatchLimits,
+    (limits, grant): (&mut MatchLimits, MatchLimits),
 ) -> Result<Vec<Found<'p, 'w>>, Error> {
     if patterns.is_empty() {
         return Ok(Vec::new());
@@ -39,7 +39,13 @@ pub(super) fn collect<'p, 'w>(
     // A caller's proc-macro spans never enter it or get invalidated by it.
     crate::units::on_thread(|| {
         run(
-            patterns, workspace, census, code, owners, references, limits,
+            patterns,
+            workspace,
+            census,
+            code,
+            owners,
+            references,
+            (limits, grant),
         )
     })?
 }
@@ -51,7 +57,7 @@ fn run<'p, 'w>(
     code: &raf_source::CodeResolver<'_>,
     owners: &super::owners::Owners<'_>,
     references: &[String],
-    limits: &mut MatchLimits,
+    (limits, grant): (&mut MatchLimits, MatchLimits),
 ) -> Result<Vec<Found<'p, 'w>>, Error> {
     let mut compiled = Vec::new();
     let mut regular = Vec::new();
@@ -72,7 +78,14 @@ fn run<'p, 'w>(
     }
     let mut found = paths::collect(&path_patterns, workspace, census, code, references, limits)?;
     if !compiled.is_empty() {
-        match_tokens(&compiled, workspace, census, owners, &mut found, limits)?;
+        match_tokens(
+            &compiled,
+            workspace,
+            census,
+            owners,
+            &mut found,
+            (&*limits, grant),
+        )?;
     }
     if regular.is_empty() {
         return Ok(found);
@@ -114,13 +127,13 @@ fn match_tokens<'p, 'w>(
     census: &Census,
     owners: &super::owners::Owners<'_>,
     found: &mut Vec<Found<'p, 'w>>,
-    limits: &MatchLimits,
+    (limits, grant): (&MatchLimits, MatchLimits),
 ) -> Result<(), Error> {
     let files: Vec<&SourceFile> = workspace.files().collect();
     let patterns: Vec<&LedgerPattern> = compiled.iter().map(|(pattern, _)| *pattern).collect();
     let mut allowances: Vec<Allowance> = compiled
         .iter()
-        .map(|_| Allowance::new(limits.states))
+        .map(|_| Allowance::new(grant.states))
         .collect();
     for (index, file) in files.iter().copied().enumerate() {
         let Some(context) = census.source_context(&file.path) else {
@@ -141,8 +154,8 @@ fn match_tokens<'p, 'w>(
             continue;
         }
         let mut normalization = MatchLimits {
-            steps: limits.steps,
-            states: limits.states,
+            steps: grant.steps,
+            states: grant.states,
         };
         let normalized =
             source::normalized(workspace, file, owners, &mut normalization).map_err(|error| {
