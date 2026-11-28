@@ -146,8 +146,7 @@ bindings:
     - raf_census::test_crate::ledger_evidence::a_corrected_row_is_stale_until_resealed_and_then_reads_back
     - raf_census::test_crate::ledger_evidence::an_added_row_is_sealed_into_the_ledger
     - raf_census::test_crate::ledger_evidence::a_removed_row_is_sealed_out_of_the_ledger
-    - raf_census::test_crate::ledger_evidence::a_row_that_does_not_verify_refuses_the_reseal_and_names_the_predicate
-    - raf_census::test_crate::ledger_evidence::a_job_with_a_repeated_enforced_flag_refuses_the_reseal_and_names_its_row
+    - raf_census::test_crate::ledger_evidence::a_refused_row_refuses_the_reseal_and_names_its_predicate_and_row
     - cargo_raf_census::test_crate::delivery::reseal::in_place_replaces_an_edited_ledger_with_one_the_ledger_reader_accepts
     - cargo_raf_census::test_crate::delivery::reseal::in_place_refuses_an_emptied_required_field_and_leaves_the_ledger_byte_identical
     - cargo_raf_census::test_crate::delivery::reseal::in_place_refuses_a_leftover_temporary_file_and_names_its_remedy
@@ -603,7 +602,7 @@ changed in between is left unchanged and the command refuses. The comparison is 
 lock: an edit made between it and the rename is still replaced. A leftover sibling file refuses the
 command until a person removes it. A ledger that is a symbolic link is refused, so the
 link is never replaced by a file.
-<!-- raf:tested-by raf_census::test_crate::ledger_evidence::resealing_an_unedited_ledger_returns_its_own_canonical_text,raf_census::test_crate::ledger_evidence::a_corrected_row_is_stale_until_resealed_and_then_reads_back,raf_census::test_crate::ledger_evidence::an_added_row_is_sealed_into_the_ledger,raf_census::test_crate::ledger_evidence::a_removed_row_is_sealed_out_of_the_ledger,raf_census::test_crate::ledger_evidence::a_row_that_does_not_verify_refuses_the_reseal_and_names_the_predicate,raf_census::test_crate::ledger_evidence::a_job_with_a_repeated_enforced_flag_refuses_the_reseal_and_names_its_row,cargo_raf_census::test_crate::delivery::reseal::in_place_replaces_an_edited_ledger_with_one_the_ledger_reader_accepts,cargo_raf_census::test_crate::delivery::reseal::in_place_refuses_an_emptied_required_field_and_leaves_the_ledger_byte_identical,cargo_raf_census::test_crate::delivery::reseal::in_place_refuses_a_leftover_temporary_file_and_names_its_remedy,cargo_raf_census::test_crate::delivery::reseal::in_place_keeps_the_ledger_permissions,cargo_raf_census::test_crate::delivery::reseal::in_place_refuses_a_symbolic_link_and_leaves_its_target_unchanged -->
+<!-- raf:tested-by raf_census::test_crate::ledger_evidence::resealing_an_unedited_ledger_returns_its_own_canonical_text,raf_census::test_crate::ledger_evidence::a_corrected_row_is_stale_until_resealed_and_then_reads_back,raf_census::test_crate::ledger_evidence::an_added_row_is_sealed_into_the_ledger,raf_census::test_crate::ledger_evidence::a_removed_row_is_sealed_out_of_the_ledger,raf_census::test_crate::ledger_evidence::a_refused_row_refuses_the_reseal_and_names_its_predicate_and_row,cargo_raf_census::test_crate::delivery::reseal::in_place_replaces_an_edited_ledger_with_one_the_ledger_reader_accepts,cargo_raf_census::test_crate::delivery::reseal::in_place_refuses_an_emptied_required_field_and_leaves_the_ledger_byte_identical,cargo_raf_census::test_crate::delivery::reseal::in_place_refuses_a_leftover_temporary_file_and_names_its_remedy,cargo_raf_census::test_crate::delivery::reseal::in_place_keeps_the_ledger_permissions,cargo_raf_census::test_crate::delivery::reseal::in_place_refuses_a_symbolic_link_and_leaves_its_target_unchanged -->
 
 
 Use `GateReport::query` on the live evaluation or `Index::query` on a decoded
@@ -1188,9 +1187,8 @@ and escapes controls beside a plain diagnostic neighbor.
 | `raf_census::test_crate::groups::shared_constants_run_by_value_ascending` | test | [Contract](#contract) |
 | `raf_census::test_crate::groups::shim_groups_use_the_shim_key_and_skip_trait_impls_and_self_forwarders` | test | [Verification](#verification) |
 | `raf_census::test_crate::ledger_evidence::a_corrected_row_is_stale_until_resealed_and_then_reads_back` | test | [Usage](#usage) |
-| `raf_census::test_crate::ledger_evidence::a_job_with_a_repeated_enforced_flag_refuses_the_reseal_and_names_its_row` | test | [Usage](#usage) |
+| `raf_census::test_crate::ledger_evidence::a_refused_row_refuses_the_reseal_and_names_its_predicate_and_row` | test | [Usage](#usage) |
 | `raf_census::test_crate::ledger_evidence::a_removed_row_is_sealed_out_of_the_ledger` | test | [Usage](#usage) |
-| `raf_census::test_crate::ledger_evidence::a_row_that_does_not_verify_refuses_the_reseal_and_names_the_predicate` | test | [Usage](#usage) |
 | `raf_census::test_crate::ledger_evidence::an_added_row_is_sealed_into_the_ledger` | test | [Usage](#usage) |
 | `raf_census::test_crate::ledger_evidence::resealing_an_unedited_ledger_returns_its_own_canonical_text` | test | [Usage](#usage) |
 | `raf_census::test_crate::migration_legacy::ambiguous_aliases_bad_layouts_and_wrong_report_inputs_refuse_without_partial_success` | test | [Contract](#contract), [Examples](#examples) |

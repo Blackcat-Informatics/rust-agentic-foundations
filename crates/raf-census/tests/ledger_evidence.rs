@@ -448,25 +448,25 @@ fn a_removed_row_is_sealed_out_of_the_ledger() {
     clippy::unwrap_used,
     reason = "a failed fixture operation is a test failure at the point of use"
 )]
-fn a_row_that_does_not_verify_refuses_the_reseal_and_names_the_predicate() {
+fn a_refused_row_refuses_the_reseal_and_names_its_predicate_and_row() {
+    // INVARIANT: a refused row is named by its subject, so a row that does not verify,
+    // or a job that repeats a flag, cannot be reported without the row that holds it.
     let sealed = text(ledger(&["vectors/add.json"], &[]));
-    let invalid = format!("{sealed}<#job> <{}bogusField> \"x\" .\n", vocab::REPORT);
-    let error = Ledger::reseal_turtle(&invalid).unwrap_err().to_string();
-    assert!(error.contains("bogusField"), "{error}");
-    assert!(error.contains("LedgerJob #job"), "{error}");
-}
-
-#[test]
-#[expect(
-    clippy::unwrap_used,
-    reason = "a failed fixture operation is a test failure at the point of use"
-)]
-fn a_job_with_a_repeated_enforced_flag_refuses_the_reseal_and_names_its_row() {
-    // INVARIANT: a refused row is named by its subject, so a repeated flag on a job
-    // cannot be reported without the row that holds it.
-    let sealed = text(ledger(&["vectors/add.json"], &[]));
-    let repeated = format!("{sealed}<#job> <{}enforced> false .\n", vocab::REPORT);
-    let error = Ledger::reseal_turtle(&repeated).unwrap_err().to_string();
-    assert!(error.contains("enforced"), "{error}");
-    assert!(error.contains("on row #job"), "{error}");
+    let refused = [
+        (
+            format!("{sealed}<#job> <{}bogusField> \"x\" .\n", vocab::REPORT),
+            "bogusField",
+            "LedgerJob #job",
+        ),
+        (
+            format!("{sealed}<#job> <{}enforced> false .\n", vocab::REPORT),
+            "enforced",
+            "on row #job",
+        ),
+    ];
+    for (input, predicate, row) in refused {
+        let error = Ledger::reseal_turtle(&input).unwrap_err().to_string();
+        assert!(error.contains(predicate), "{error}");
+        assert!(error.contains(row), "{error}");
+    }
 }
