@@ -21,6 +21,12 @@ declarations describe input syntax and configuration; they do not establish
 execution support or qualification for another target. Existing platform
 adapters may remain in source without additional support claims.
 
+The `cross-check` gate compiles `raf-source` for `x86_64-apple-darwin`. That
+compilation is a build check only and establishes no execution or qualification
+claim. The speculative module walk runs only on Linux, where a parallel parser
+exists. Every other target walks the same modules, in the same order and with
+the same results, without it.
+
 Published workspace members configure docs.rs with
 `default-target = "x86_64-unknown-linux-gnu"` and `targets = []`. The empty list
 restricts that host to the default target; omitting the metadata would build

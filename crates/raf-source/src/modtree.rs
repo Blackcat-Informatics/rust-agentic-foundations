@@ -42,11 +42,9 @@ use crate::facts::{ExtractError, FileFacts, ModBody, ModFact, TestRole};
 use crate::intern::Interner;
 use crate::item::{ItemId, SharedStr};
 use crate::meter::{Meter, over_budget};
-use crate::parse::{
-    Candidate, Extracted, ExtractionError, Parser, extract_head, parse_counted_mut, storage,
-};
 #[cfg(target_os = "linux")]
-use crate::parse::{ConfigurationKey, ExtractionGrant};
+use crate::parse::{Candidate, ConfigurationKey, ExtractionGrant};
+use crate::parse::{Extracted, ExtractionError, Parser, extract_head, parse_counted_mut, storage};
 use crate::path::RelPath;
 use crate::tree::{EntryKind, FileId, Opened, Tree};
 use crate::workspace::SourceFile;
@@ -593,10 +591,12 @@ impl<'a> Walker<'a> {
     }
 
     /// Advance a target frontier once; committed physical files are not reread.
+    #[cfg(target_os = "linux")]
     pub(crate) fn speculate(&self, path: &RelPath) -> bool {
         self.speculate_candidate(Candidate::Existing(path))
     }
 
+    #[cfg(target_os = "linux")]
     fn speculate_candidate(&self, candidate: Candidate<'_>) -> bool {
         self.parser.is_none_or(|parser| {
             parser.speculate(self.tree, candidate, self.meter.options(), &|id| {
@@ -605,11 +605,32 @@ impl<'a> Walker<'a> {
         })
     }
 
+    #[cfg(target_os = "linux")]
     fn speculative_capacity(&self) -> bool {
         self.parser.is_some_and(Parser::has_capacity)
     }
 
+    /// Speculation exists only where a parallel parser exists. Elsewhere the
+    /// parser is always `None`, so no candidate is ever inspected: this leaves
+    /// the cursor exactly where the Linux walk without a parser leaves it.
+    #[cfg(not(target_os = "linux"))]
+    fn prefetch_body(
+        &self,
+        at: &BodyAt<'a>,
+        file: &RelPath,
+        _ctx: &DirCtx<'a>,
+        next: usize,
+        mut frontier: (usize, usize),
+    ) -> Result<(usize, usize), LoadError> {
+        if frontier.0 <= next {
+            frontier = (next + 1, 0);
+        }
+        at.body(file)?;
+        Ok(frontier)
+    }
+
     /// Each frame keeps its own monotonically advancing candidate cursor.
+    #[cfg(target_os = "linux")]
     fn prefetch_body(
         &self,
         at: &BodyAt<'a>,
@@ -683,6 +704,21 @@ impl<'a> Walker<'a> {
         Ok(frontier)
     }
 
+    /// Without a parallel parser nothing is speculated, as in `prefetch_body`.
+    #[cfg(not(target_os = "linux"))]
+    fn prefetch_alternatives(
+        &self,
+        declared: &Declared<'a>,
+        frontier: usize,
+    ) -> Result<usize, LoadError> {
+        let module = declared.module()?;
+        if module.inline.is_some() {
+            return Ok(module.paths.conditional.len());
+        }
+        Ok(frontier)
+    }
+
+    #[cfg(target_os = "linux")]
     fn prefetch_alternatives(
         &self,
         declared: &Declared<'a>,

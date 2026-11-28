@@ -238,6 +238,24 @@ jobs:
       - name: Test raf-source in release mode
         run: cargo test -p raf-source --release --locked
 
+  cross-check:
+    needs: packages
+    if: needs.packages.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-12
+        with:
+          toolchain: nightly # keep in sync with rust-toolchain.toml
+          targets: x86_64-apple-darwin
+      - name: Compile raf-source for an Apple target
+        run: make cross-check
+
   fuzz_checks:
     needs: packages
     if: needs.packages.outputs.code == 'true'

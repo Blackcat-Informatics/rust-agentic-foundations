@@ -1929,6 +1929,7 @@ fn walk_sources(
     let mut frontier = 1;
     for (index, (target, origin)) in targets.iter().zip(origins).enumerate() {
         frontier = frontier.max(index + 1);
+        #[cfg(target_os = "linux")]
         if let Some(parser) = parser {
             while parser.has_capacity() && frontier < targets.len() {
                 if !walker.speculate(&targets[frontier].root) {
