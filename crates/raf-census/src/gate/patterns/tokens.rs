@@ -49,6 +49,18 @@ pub(super) fn find(
     Ok(found)
 }
 
+/// The work a token sequence can cost a matcher: each node weighs one step and its
+/// text, and a group weighs its own node plus its children.
+pub(super) fn weight(nodes: &[Node]) -> u64 {
+    nodes.iter().fold(0, |total, node| {
+        let own = match node {
+            Node::Leaf(leaf) => 1 + u64::try_from(leaf.text.len()).unwrap_or(u64::MAX),
+            Node::Group(group) => 1 + weight(&group.children),
+        };
+        total.saturating_add(own)
+    })
+}
+
 fn matches(
     id: &str,
     pattern: &[Node],

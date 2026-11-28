@@ -49,6 +49,7 @@ bindings:
     - raf_census::test_crate::census_gate::lexical_patterns_match_decoded_strings_in_macros_and_attributes_but_not_bytes
     - raf_census::test_crate::census_gate::lexical_patterns_do_not_mistake_a_file_root_for_its_first_written_unit
     - raf_census::test_crate::census_gate::lexical_patterns_share_an_explicit_native_budget_and_release_only_their_own_spans
+    - raf_census::test_crate::census_gate::a_tokens_pattern_reports_every_hit_as_its_admitted_tree_grows
     - raf_census::test_crate::census_gate::lexical_pattern_module_homes_own_source_subjects_without_sanctioning_the_file_root
     - raf_census::test_crate::census_gate::lexical_pattern_module_homes_include_macros_exported_from_their_actual_source_scope
     - raf_census::test_crate::census_gate::lexical_pattern_variants_require_the_actual_item_when_a_whole_file_span_ties_its_root
@@ -115,7 +116,7 @@ is declared) and under no exclude prefix, and the target that owns the item at t
 kind: it is in targetKind (or none is declared) and not in excludeTargetKind. raf:shippingOnly
 admits only non-test code of a library or binary, so a #[cfg(test)] module, an integration test, a
 bench, an example and a build script are silent. A module-level macro invocation is judged by its own test role and target, so a #[cfg(test)] invocation at a crate root is silent under raf:shippingOnly. A path or call hit in a file that several targets reach is judged by the targets whose own resolution of the written path matched the declared definition, so a scope on the library does not admit a hit that only an integration test resolves. A hit outside every item is judged by its file. An
-unscoped pattern reports exactly as before. A tokens pattern is not matched in a file that its path and target context exclude. A file that no tokens pattern admits is not normalized and spends no matching grant; a file that another tokens pattern admits is normalized, and the reported hits are unchanged. When the matching grant runs out in a file, the refusal names the rules that admitted it, the file where matching stopped, and every admitted file that matching left unfinished. Unknown kind names, a kind both included and excluded,
+unscoped pattern reports exactly as before. A tokens pattern is not matched in a file that its path and target context exclude. A file that no tokens pattern admits is not normalized and spends no matching grant; a file that another tokens pattern admits is normalized, and the reported hits are unchanged. Normalization of admitted files draws on the matching grant once per file, as the shared `tokens` scope. Each tokens pattern then has its own allowance, which grows by 2 × the weight of each admitted normalized file × the weight of the pattern, where a token weighs one plus its text length and a group weighs one plus its children. A pattern's matching never spends another pattern's allowance, and adding files grows the allowance with them. When normalization runs out, the refusal names the rules that admitted the file; when a pattern's allowance runs out, the refusal names that pattern and its allowance. Either refusal names the file where matching stopped and every admitted file that matching left unfinished, and says to narrow the scope or the file roots. Unknown kind names, a kind both included and excluded,
 a scope that admits no target kind, an include prefix inside an exclude prefix, a path that is
 absolute, above the root or the root itself, and raf:shippingOnly stated as false refuse at ledger
 load with the property to change. A referenced pattern whose every occurrence
@@ -261,8 +262,10 @@ and paired direct-call and wrapper-call checks.
 Attach a pattern to the job whose home implements the approved operation, then
 call Gate::workspace(directory).check() or assert_clean(). check_tree uses
 the same production evaluation over a caller-owned Tree. matching_limits
-sets the shared native matching step/state allowance; source loading retains
-its original separate allowance.
+sets the shared native step/state grant for witnesses, names, non-token ledger
+patterns and the normalization of tokens patterns. Each tokens pattern matches
+within its own allowance, which the Contract section states; source loading
+retains its original separate allowance.
 <!-- raf:tested-by raf_census::test_crate::census_gate::path_pattern_kinds_execute_with_positive_and_negative_syntax_neighbours,raf_census::test_crate::census_gate::lexical_patterns_share_an_explicit_native_budget_and_release_only_their_own_spans -->
 
 ## Examples
@@ -453,6 +456,7 @@ method's line.
 | `raf_census::gate::patterns::paths::cache::tests::index_growth_retains_the_original_grant_and_old_storage_on_refusal` | test | [Constraints](#constraints) |
 | `raf_census::gate::patterns::paths::cache::tests::native_storage_failures_keep_their_typed_cause` | test | [Constraints](#constraints) |
 | `raf_census::gate::patterns::paths::tests::ownership_scans_spend_the_grant_once_per_byte_and_bound_retention` | test | [Constraints](#constraints) |
+| `raf_census::test_crate::census_gate::a_tokens_pattern_reports_every_hit_as_its_admitted_tree_grows` | test | [Verification](#verification) |
 | `raf_census::test_crate::census_gate::anonymous_qualified_receivers_refuse_beside_supported_named_receivers` | test | [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::block_import_patterns_use_the_import_binding_instead_of_a_shadowed_module_function` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::call_patterns_follow_written_imports_and_respect_parameters_locals_and_closures` | test | [Contract](#contract) |

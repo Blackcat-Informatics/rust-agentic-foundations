@@ -6930,3 +6930,60 @@ fn a_declaration_reached_through_two_target_paths_is_one_physical_owner() {
         .collect();
     assert_eq!(findings.len(), 1, "{:?}", report.findings());
 }
+
+#[test]
+#[expect(
+    clippy::panic,
+    clippy::unwrap_used,
+    reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
+)]
+fn a_tokens_pattern_reports_every_hit_as_its_admitted_tree_grows() {
+    // Each admitted file adds its own share of the pattern's allowance, so a tree
+    // of many admitted files keeps every hit under the same grant that a single
+    // file needs. The hits name their own files and lines.
+    let ledger = lexical_pattern_graph("tokens", "check!($_)")
+        .finish()
+        .unwrap()
+        .to_text(Format::Turtle)
+        .unwrap();
+    let files = 2000;
+    let mut entries = vec![
+        (
+            "Cargo.toml".to_owned(),
+            "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n".to_owned(),
+        ),
+        ("helpers-ledger.ttl".to_owned(), ledger),
+    ];
+    let mut modules = String::new();
+    for index in 0..files {
+        modules.push_str(&format!("pub mod m{index};\n"));
+        entries.push((
+            format!("src/m{index}.rs"),
+            format!("pub fn f{index}(){{check!({index});}}\n"),
+        ));
+    }
+    // The ledger's referenced `alias` path must name an item, as in the scope test.
+    modules.push_str("pub fn home(){}\npub use home as alias;\n");
+    entries.push(("src/lib.rs".to_owned(), modules));
+    let tree: MemoryTree = entries.into_iter().collect();
+    // 2000 admitted files exhaust a 50000-step shared grant on the shared-budget design.
+    let report = fixture_gate(".")
+        .matching_limits(purrdf_jsonschema::ecma::MatchLimits {
+            steps: 50_000,
+            states: 1_000_000,
+        })
+        .check_tree(&tree)
+        .unwrap();
+    let mut symbols: Vec<String> = report.jobs()[0]
+        .matches
+        .iter()
+        .map(|found| found.symbol.clone())
+        .collect();
+    symbols.sort();
+    let expected: Vec<String> = (0..files)
+        .map(|index| format!("demo::m{index}::f{index}"))
+        .collect();
+    let mut expected = expected;
+    expected.sort();
+    assert_eq!(symbols, expected);
+}

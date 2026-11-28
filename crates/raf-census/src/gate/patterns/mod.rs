@@ -72,47 +72,7 @@ fn run<'p, 'w>(
     }
     let mut found = paths::collect(&path_patterns, workspace, census, code, references, limits)?;
     if !compiled.is_empty() {
-        let files: Vec<&SourceFile> = workspace.files().collect();
-        let patterns: Vec<&LedgerPattern> = compiled.iter().map(|(pattern, _)| *pattern).collect();
-        for (index, file) in files.iter().copied().enumerate() {
-            let Some(context) = census.source_context(&file.path) else {
-                continue;
-            };
-            // A pattern whose scope excludes this file can never report a hit in
-            // it (the same file context decides every hit), so its matching is
-            // not run. A file no pattern admits is never normalized.
-            let admitted: Vec<_> = compiled
-                .iter()
-                .filter(|(pattern, _)| {
-                    pattern.scope.is_unscoped() || pattern.scope.admits_file(context, &file.path)
-                })
-                .collect();
-            if admitted.is_empty() {
-                continue;
-            }
-            let normalized =
-                source::normalized(workspace, file, owners, limits).map_err(|error| {
-                    let rules = admitted
-                        .iter()
-                        .map(|(pattern, _)| pattern.id.as_str())
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    stopped_at(error, &file.path, Some(&rules), || {
-                        unfinished(&files[index..], census, &patterns)
-                    })
-                })?;
-            for (pattern, form) in admitted {
-                let hits =
-                    tokens::find(&pattern.id, form, &normalized, limits).map_err(|error| {
-                        stopped_at(error, &file.path, None, || {
-                            unfinished(&files[index..], census, &patterns)
-                        })
-                    })?;
-                for (byte, line) in hits {
-                    retain(&mut found, pattern, &file.path, byte, line, None, limits)?;
-                }
-            }
-        }
+        match_tokens(&compiled, workspace, census, owners, &mut found, limits)?;
     }
     if regular.is_empty() {
         return Ok(found);
@@ -142,6 +102,102 @@ fn run<'p, 'w>(
         }
     }
     Ok(found)
+}
+
+/// Matches each compiled tokens pattern in the files its scope admits. Normalization
+/// is the shared `tokens` scope: it draws on its own copy of the matching grant,
+/// once per file. Each pattern has its own allowance, which grows by the work the
+/// admitted file can cost that pattern, so one rule never spends another's steps.
+fn match_tokens<'p, 'w>(
+    compiled: &[(&'p LedgerPattern, Form)],
+    workspace: &'w Workspace,
+    census: &Census,
+    owners: &super::owners::Owners<'_>,
+    found: &mut Vec<Found<'p, 'w>>,
+    limits: &MatchLimits,
+) -> Result<(), Error> {
+    let files: Vec<&SourceFile> = workspace.files().collect();
+    let patterns: Vec<&LedgerPattern> = compiled.iter().map(|(pattern, _)| *pattern).collect();
+    let mut normalization = MatchLimits {
+        steps: limits.steps,
+        states: limits.states,
+    };
+    let mut allowances: Vec<Allowance> = compiled
+        .iter()
+        .map(|_| Allowance::new(limits.states))
+        .collect();
+    for (index, file) in files.iter().copied().enumerate() {
+        let Some(context) = census.source_context(&file.path) else {
+            continue;
+        };
+        // A pattern whose scope excludes this file can never report a hit in
+        // it (the same file context decides every hit), so its matching is
+        // not run. A file no pattern admits is never normalized.
+        let admitted: Vec<usize> = compiled
+            .iter()
+            .enumerate()
+            .filter(|(_, (pattern, _))| {
+                pattern.scope.is_unscoped() || pattern.scope.admits_file(context, &file.path)
+            })
+            .map(|(position, _)| position)
+            .collect();
+        if admitted.is_empty() {
+            continue;
+        }
+        let normalized =
+            source::normalized(workspace, file, owners, &mut normalization).map_err(|error| {
+                let rules = admitted
+                    .iter()
+                    .map(|&position| compiled[position].0.id.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                stopped_at(error, &file.path, Stop::Shared(&rules), || {
+                    unfinished(&files[index..], census, &patterns)
+                })
+            })?;
+        let file_weight = tokens::weight(&normalized.nodes);
+        for position in admitted {
+            let (pattern, form) = &compiled[position];
+            let allowance = &mut allowances[position];
+            allowance.grow(
+                tokens::weight(&form.nodes)
+                    .saturating_mul(file_weight)
+                    .saturating_mul(2),
+            );
+            let granted = allowance.granted;
+            let hits = tokens::find(&pattern.id, form, &normalized, &mut allowance.limits)
+                .map_err(|error| {
+                    stopped_at(error, &file.path, Stop::Rule(granted), || {
+                        unfinished(&files[index..], census, &patterns)
+                    })
+                })?;
+            for (byte, line) in hits {
+                retain(found, pattern, &file.path, byte, line, None, limits)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// The matching steps granted to one tokens pattern. Each admitted file adds its
+/// share before that file is matched, so the grant follows the admitted tree.
+struct Allowance {
+    granted: u64,
+    limits: MatchLimits,
+}
+
+impl Allowance {
+    fn new(states: usize) -> Self {
+        Self {
+            granted: 0,
+            limits: MatchLimits { steps: 0, states },
+        }
+    }
+
+    fn grow(&mut self, steps: u64) {
+        self.granted = self.granted.saturating_add(steps);
+        self.limits.steps = self.limits.steps.saturating_add(steps);
+    }
 }
 
 /// One written ordinary or raw string literal of a source file.
@@ -236,14 +292,23 @@ fn retain<'p, 'w>(
     Ok(())
 }
 
+/// Who spent the steps of a refused tokens match.
+#[derive(Clone, Copy)]
+enum Stop<'a> {
+    /// Normalization of a file, charged to the shared `tokens` scope; the refusal
+    /// names the patterns that admitted the file.
+    Shared(&'a str),
+    /// Matching by one pattern, which the refusal names with its allowance.
+    Rule(u64),
+}
+
 /// Names the file where a step-limit refusal stopped matching and every admitted
-/// file that it left unfinished, in workspace order. Normalization charges the
-/// shared `tokens` scope, which is no ledger rule; `rules` then names the patterns
-/// that admitted the file instead. Other errors pass through unchanged.
+/// file that it left unfinished, in workspace order. Other errors pass through
+/// unchanged.
 fn stopped_at(
     error: Error,
     file: &RelPath,
-    rules: Option<&str>,
+    stop: Stop<'_>,
     unfinished: impl FnOnce() -> String,
 ) -> Error {
     match error {
@@ -252,11 +317,20 @@ fn stopped_at(
             line,
             reason,
         } if scope.starts_with("rule:") && reason.contains("step limit exhausted") => {
+            let (scope, reason) = match stop {
+                Stop::Shared(rules) if scope == "rule:tokens" => (format!("rule:{rules}"), reason),
+                Stop::Shared(_) => (scope, reason),
+                Stop::Rule(granted) => (
+                    scope,
+                    format!(
+                        "matching allowance of {granted} steps exhausted; the allowance is \
+                         2 x the admitted tree's weight x the pattern's weight, so narrow the \
+                         pattern's scope or the file roots"
+                    ),
+                ),
+            };
             Error::Source {
-                file: match rules {
-                    Some(rules) if scope == "rule:tokens" => format!("rule:{rules}"),
-                    _ => scope,
-                },
+                file: scope,
                 line,
                 reason: format!(
                     "{reason}; matching stopped at {file}; unfinished admitted files: {}",
