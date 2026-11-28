@@ -455,3 +455,18 @@ fn a_row_that_does_not_verify_refuses_the_reseal_and_names_the_predicate() {
     assert!(error.contains("bogusField"), "{error}");
     assert!(error.contains("LedgerJob #job"), "{error}");
 }
+
+#[test]
+#[expect(
+    clippy::unwrap_used,
+    reason = "a failed fixture operation is a test failure at the point of use"
+)]
+fn a_job_with_a_repeated_enforced_flag_refuses_the_reseal_and_names_its_row() {
+    // INVARIANT: a refused row is named by its subject, so a repeated flag on a job
+    // cannot be reported without the row that holds it.
+    let sealed = text(ledger(&["vectors/add.json"], &[]));
+    let repeated = format!("{sealed}<#job> <{}enforced> false .\n", vocab::REPORT);
+    let error = Ledger::reseal_turtle(&repeated).unwrap_err().to_string();
+    assert!(error.contains("enforced"), "{error}");
+    assert!(error.contains("on row #job"), "{error}");
+}

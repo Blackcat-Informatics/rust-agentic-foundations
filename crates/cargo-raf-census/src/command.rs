@@ -817,9 +817,24 @@ fn replace_ledger(ledger: &Path, sealed: &str) -> Result<(), Error> {
         .and_then(|()| file.sync_all());
     staged.map_err(|source| io_error(&temp, source))?;
     std::fs::rename(&temp, ledger).map_err(|source| io_error(&temp, source))?;
+    // The rename has already replaced the ledger. A failed directory sync leaves
+    // only the durability of that replacement unconfirmed, and the error says so.
     std::fs::File::open(directory)
         .and_then(|handle| handle.sync_all())
-        .map_err(|source| io_error(directory, source))
+        .map_err(|source| {
+            io_error(
+                directory,
+                std::io::Error::new(
+                    source.kind(),
+                    format!(
+                        "the ledger at {} was replaced, but syncing its directory failed: \
+                         {source}; the replacement may not survive a crash, so run the \
+                         command again to confirm it",
+                        ledger.display()
+                    ),
+                ),
+            )
+        })
 }
 
 fn baseline(

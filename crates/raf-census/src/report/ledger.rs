@@ -491,17 +491,19 @@ fn read_distinct_members(
         let row = node_at(graph, &id, "MemberMultiplicity")?;
         fields(&row, &id, "MemberMultiplicity")?;
         let symbol = required_text(&row, "symbol")?;
-        let count = shape::count(&row, "copies")?;
-        let member = counts
-            .get_mut(&symbol)
-            .ok_or_else(|| E::Value(format!("multiplicity names absent member {symbol:?}")))?;
-        if *member != 1 || count < 2 {
-            return Err(E::Value(format!(
-                "distinct multiplicity {symbol:?} requires one count greater than one"
-            ))
-            .into());
-        }
-        *member = count;
+        at_row(&row, || {
+            let count = shape::count(&row, "copies")?;
+            let member = counts
+                .get_mut(&symbol)
+                .ok_or_else(|| E::Value(format!("multiplicity names absent member {symbol:?}")))?;
+            if *member != 1 || count < 2 {
+                return Err(E::Value(format!(
+                    "distinct multiplicity {symbol:?} requires one count greater than one"
+                )));
+            }
+            *member = count;
+            Ok(())
+        })?;
     }
     DebtGroup::with_counts(kind, counts)
 }
@@ -554,10 +556,14 @@ fn read_job(graph: &Graph, id: &str, reached: &mut BTreeSet<String>) -> Result<L
         // known, so input/job order cannot conceal an ownership conflict.
         node_at(graph, id, "Extension")?;
     }
-    let enforced = shape::boolean_value(shape::one(&node, "enforced")?).ok_or_else(|| {
-        E::Value(format!(
-            "job {job_id:?}: enforced requires a canonical boolean"
-        ))
+    let enforced = at_row(&node, || {
+        shape::one(&node, "enforced").and_then(|value| {
+            shape::boolean_value(value).ok_or_else(|| {
+                E::Value(format!(
+                    "job {job_id:?}: enforced requires a canonical boolean"
+                ))
+            })
+        })
     })?;
     let job = Job::new(job_id, required_text(&node, "homeSymbol")?)
         .entry_points(strings(&node, "entryPoint")?)

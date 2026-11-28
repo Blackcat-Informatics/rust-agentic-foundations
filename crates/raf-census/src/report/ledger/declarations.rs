@@ -5,7 +5,8 @@
 
 use super::PatternScope;
 use super::{
-    E, Error, LedgerJob, NamePattern, ecma, fields, node_at, required_text, scope, strings, targets,
+    E, Error, LedgerJob, NamePattern, at_row, ecma, fields, node_at, required_text, scope, strings,
+    targets,
 };
 use raf_rdf::{Graph, Node};
 use std::collections::BTreeSet;
@@ -92,7 +93,7 @@ pub(super) fn provider(
 fn nonempty(node: &Node<'_>, key: &str) -> Result<Vec<String>, E> {
     let values = strings(node, key)?;
     if values.is_empty() {
-        return Err(E::Missing(format!("provider {key}")));
+        return at_row(node, || Err(E::Missing(format!("provider {key}"))));
     }
     Ok(values)
 }
