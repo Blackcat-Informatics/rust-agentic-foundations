@@ -103,7 +103,7 @@ inputs:
     digest: 3863d52464d8a048031a09a1ad8d8964af5139a92c1f8f647238791853e42085
   - kind: symbol
     name: raf_census::gate::evaluate
-    digest: 6095b8b627ccd1016707fee7d5f48640c95c4184c00b6474b2e7cc8b1f7e5deb
+    digest: 68b54844f1231aa925787576b2b0f09560b4f5a7ec44443d25ff82e45423a943
   - kind: symbol
     name: raf_census::gate::owners
     digest: afab4d07707311617a9d1558d570b62b09f277a849205ad057b6fffc7b4d9f1a
