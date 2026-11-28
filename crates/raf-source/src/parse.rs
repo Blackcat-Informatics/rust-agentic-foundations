@@ -69,6 +69,7 @@ pub(crate) fn storage(file: &RelPath, source: purrdf_lex::allocation::StorageErr
 }
 
 /// Borrowed candidate spelling; materialization belongs to the admitted executor.
+#[cfg(target_os = "linux")]
 #[derive(Clone, Copy)]
 pub(crate) enum Candidate<'a> {
     Existing(&'a RelPath),
@@ -103,6 +104,7 @@ pub(crate) struct ExtractionGrant {
 /// A coordinator-only parse executor, with no shared Tree or meter.
 pub(crate) trait Parser {
     /// Whether another speculative candidate can be inspected now.
+    #[cfg(target_os = "linux")]
     fn has_capacity(&self) -> bool;
     fn resize_frontier(
         &self,
@@ -110,6 +112,7 @@ pub(crate) trait Parser {
         next: usize,
     ) -> Result<(), purrdf_lex::allocation::StorageError>;
     /// False leaves this candidate for a future frontier advance.
+    #[cfg(target_os = "linux")]
     fn speculate(
         &self,
         tree: &dyn crate::Tree,

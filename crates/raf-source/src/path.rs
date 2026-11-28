@@ -5,9 +5,11 @@
 
 use std::error::Error;
 use std::fmt;
+#[cfg(target_os = "linux")]
 use std::fmt::Write as _;
 use std::sync::Arc;
 
+#[cfg(target_os = "linux")]
 use purrdf_lex::allocation::{Admission, Memory, StorageError};
 
 /// A source authority within one load; this handle is not durable source proof.
@@ -216,6 +218,7 @@ impl RelPath {
         })
     }
 
+    #[cfg(target_os = "linux")]
     /// Materialize a candidate under its original admission account.
     /// Invalid spelling remains the canonical caller's diagnostic responsibility.
     #[expect(
@@ -257,10 +260,12 @@ impl RelPath {
         })
     }
 
+    #[cfg(target_os = "linux")]
     pub(crate) fn owned_layout(&self) -> Result<usize, StorageError> {
         Self::shared_layout(self.as_str().len())
     }
 
+    #[cfg(target_os = "linux")]
     fn shared_layout(bytes: usize) -> Result<usize, StorageError> {
         bytes
             .checked_add(2 * size_of::<usize>())

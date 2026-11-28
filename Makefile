@@ -34,7 +34,7 @@ FUZZ_MAX_LEN ?= 400000
 # The memory limits of every run, in MiB: the resident set, and one allocation.
 FUZZ_RSS_LIMIT_MB ?= 2048
 FUZZ_MALLOC_LIMIT_MB ?= 512
-.PHONY: help precommit fmt clippy clippy-all clippy-fuzz clippy-production registry-archives census workplan benches test test-release doc deny reuse msrv fuzz fuzz-check fuzz-run licenses issue-refs docs-sync check merge-gate hooks
+.PHONY: help precommit cross-check fmt clippy clippy-all clippy-fuzz clippy-production registry-archives census workplan benches test test-release doc deny reuse msrv fuzz fuzz-check fuzz-run licenses issue-refs docs-sync check merge-gate hooks
 
 help: ## List the targets.
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  %-12s %s\n", $$1, $$2}'
@@ -87,6 +87,9 @@ benches: ## Build the workspace benchmarks.
 
 test-release: ## Run the raf-source tests in release mode.
 	cargo test -p raf-source --release --locked
+
+cross-check: ## Compile raf-source for an Apple target, which has no parallel parser.
+	cargo check --locked -p raf-source --target x86_64-apple-darwin
 
 doc: ## Build the docs, warnings denied.
 	RUSTDOCFLAGS=-Dwarnings cargo doc --workspace --no-deps --locked
@@ -143,6 +146,7 @@ check: ## Run the static, compiler, policy and audit gates.
 	$(MAKE) census
 	$(MAKE) workplan
 	$(MAKE) test-release
+	$(MAKE) cross-check
 	$(MAKE) doc
 	$(MAKE) deny
 	$(MAKE) reuse

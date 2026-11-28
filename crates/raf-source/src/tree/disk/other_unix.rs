@@ -386,8 +386,19 @@ impl Handle {
         if !same(&before, &after) || before.st_mode != after.st_mode || target != repeated {
             return Err(super::capture::changed(shown));
         }
+        // Apple targets report the device number as `i32`; the identity is `u64`.
+        // A negative device number is refused rather than reinterpreted.
+        let device = u64::try_from(after.st_dev).map_err(|_| {
+            TreeError::from_io(
+                shown,
+                std::io::Error::other(format!(
+                    "device number {} is outside the range of a file identity",
+                    after.st_dev
+                )),
+            )
+        })?;
         Ok((
-            FileId::from_device(after.st_dev, after.st_ino),
+            FileId::from_device(device, after.st_ino),
             PathBuf::from(OsStr::from_bytes(target.to_bytes())),
         ))
     }
