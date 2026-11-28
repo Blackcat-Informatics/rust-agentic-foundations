@@ -577,16 +577,20 @@ A ledger whose rows were added, corrected or removed is re-sealed with
 `cargo raf-census reseal`. It reads the workspace `helpers-ledger.ttl`, reads the
 edited rows back through the ledger reader, and writes the canonical Turtle text
 whose snapshot BASE names the digest of that content, to stdout or to `--out`.
-It refuses a row that does not verify. The input
-file is never modified unless `--in-place` is given. The refusal names the failing
-row and predicate. A shell redirect onto the ledger truncates it before it is read,
-so it is not the way to replace it. `--out` writes a new file and refuses an existing
-one. `--in-place` writes the sealed text to a sibling file, syncs it and renames it
-over the ledger in one step, so a failure leaves the original intact. The command
-names the ledger it read on stderr, because a directory without its own manifest
-uses the ledger of the enclosing Cargo workspace. The command is stated in
+The input file is never modified unless `--in-place` is given. Every refused row
+names its predicate and its row, and the command names the ledger it read on stderr
+before it reads it, because a directory without its own manifest uses the ledger of
+the enclosing Cargo workspace. The command is stated in
 [the CLI capability](census-cli.md).
-<!-- raf:tested-by raf_census::test_crate::ledger_evidence::resealing_an_unedited_ledger_returns_its_own_canonical_text,raf_census::test_crate::ledger_evidence::a_corrected_row_is_stale_until_resealed_and_then_reads_back,raf_census::test_crate::ledger_evidence::an_added_row_is_sealed_into_the_ledger,raf_census::test_crate::ledger_evidence::a_removed_row_is_sealed_out_of_the_ledger,raf_census::test_crate::ledger_evidence::a_row_that_does_not_verify_refuses_the_reseal_and_names_the_predicate -->
+
+`--out` writes a new file and refuses an existing one. A shell redirect onto the
+ledger truncates it before it is read, so it is not the way to replace it.
+`--in-place` writes the sealed text to a sibling file with the ledger's permissions,
+syncs it, renames it over the ledger and syncs the directory. A failure leaves the
+original intact and names the sibling file. A leftover sibling file refuses the
+command until a person removes it. A ledger that is a symbolic link is refused, so the
+link is never replaced by a file.
+<!-- raf:tested-by raf_census::test_crate::ledger_evidence::resealing_an_unedited_ledger_returns_its_own_canonical_text,raf_census::test_crate::ledger_evidence::a_corrected_row_is_stale_until_resealed_and_then_reads_back,raf_census::test_crate::ledger_evidence::an_added_row_is_sealed_into_the_ledger,raf_census::test_crate::ledger_evidence::a_removed_row_is_sealed_out_of_the_ledger,raf_census::test_crate::ledger_evidence::a_row_that_does_not_verify_refuses_the_reseal_and_names_the_predicate,cargo_raf_census::test_crate::delivery::reseal::in_place_replaces_an_edited_ledger_with_one_the_ledger_reader_accepts,cargo_raf_census::test_crate::delivery::reseal::in_place_refuses_an_emptied_required_field_and_leaves_the_ledger_byte_identical,cargo_raf_census::test_crate::delivery::reseal::in_place_refuses_a_leftover_temporary_file_and_names_its_remedy,cargo_raf_census::test_crate::delivery::reseal::in_place_keeps_the_ledger_permissions,cargo_raf_census::test_crate::delivery::reseal::in_place_refuses_a_symbolic_link_and_leaves_its_target_unchanged -->
 
 
 Use `GateReport::query` on the live evaluation or `Index::query` on a decoded

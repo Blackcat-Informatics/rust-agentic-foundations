@@ -729,6 +729,11 @@ fn reseal(
     output: &mut dyn Write,
     diagnostics: &mut dyn Write,
 ) -> Result<u8, crate::error::Error> {
+    let source = root.join(LEDGER_FILE);
+    writeln!(diagnostics, "reseal: read {}", source.display()).map_err(|source| Error::Io {
+        file: "<stderr>".into(),
+        source,
+    })?;
     let tree = DiskTree::new(root).map_err(|source| Error::Tree {
         file: root.display().to_string(),
         source,
@@ -747,11 +752,6 @@ fn reseal(
         file: LEDGER_FILE.into(),
         source: Box::new(source),
     })?;
-    let source = root.join(LEDGER_FILE);
-    writeln!(diagnostics, "reseal: read {}", source.display()).map_err(|source| Error::Io {
-        file: "<stderr>".into(),
-        source,
-    })?;
     if args.in_place {
         replace_ledger(&source, &sealed)?;
     } else {
@@ -760,27 +760,66 @@ fn reseal(
     Ok(0)
 }
 
-/// Replace the ledger file with the sealed text. The text is written and synced
-/// to a sibling file, then renamed over the ledger in one step. A failed write or
-/// rename leaves the sibling file, and the error names it.
+/// Replace the ledger file with the sealed text.
+///
+/// The text goes to a sibling file with the ledger's permissions, which is synced
+/// and then renamed over the ledger; the directory is synced after the rename. A
+/// ledger that is a symbolic link is refused, so the link is never replaced by a
+/// file. A failed step leaves the original ledger intact, and an error names the
+/// sibling file it left behind.
 fn replace_ledger(ledger: &Path, sealed: &str) -> Result<(), Error> {
+    let io_error = |file: &Path, source: std::io::Error| Error::Io {
+        file: file.display().to_string(),
+        source,
+    };
+    let current = std::fs::symlink_metadata(ledger).map_err(|source| io_error(ledger, source))?;
+    if current.file_type().is_symlink() {
+        return Err(io_error(
+            ledger,
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "the ledger is a symbolic link; --in-place replaces a regular file, \
+                 so point the link at a regular ledger, or write the text with --out",
+            ),
+        ));
+    }
+    let directory = ledger.parent().ok_or_else(|| {
+        io_error(
+            ledger,
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "the ledger path has no directory to sync",
+            ),
+        )
+    })?;
     let temp = ledger.with_extension("ttl.reseal-tmp");
     let mut file = std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
         .open(&temp)
-        .map_err(|source| Error::Io {
-            file: temp.display().to_string(),
-            source,
+        .map_err(|source| {
+            let source = if source.kind() == std::io::ErrorKind::AlreadyExists {
+                std::io::Error::new(
+                    source.kind(),
+                    format!(
+                        "{source}; if no other reseal is running, remove this file and run \
+                         the command again"
+                    ),
+                )
+            } else {
+                source
+            };
+            io_error(&temp, source)
         })?;
-    let replaced = file
-        .write_all(sealed.as_bytes())
-        .and_then(|()| file.sync_all())
-        .and_then(|()| std::fs::rename(&temp, ledger));
-    replaced.map_err(|source| Error::Io {
-        file: temp.display().to_string(),
-        source,
-    })
+    let staged = file
+        .set_permissions(current.permissions())
+        .and_then(|()| file.write_all(sealed.as_bytes()))
+        .and_then(|()| file.sync_all());
+    staged.map_err(|source| io_error(&temp, source))?;
+    std::fs::rename(&temp, ledger).map_err(|source| io_error(&temp, source))?;
+    std::fs::File::open(directory)
+        .and_then(|handle| handle.sync_all())
+        .map_err(|source| io_error(directory, source))
 }
 
 fn baseline(

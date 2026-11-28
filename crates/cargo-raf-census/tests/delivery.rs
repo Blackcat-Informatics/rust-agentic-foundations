@@ -6,6 +6,9 @@
 #[path = "delivery/production_lints.rs"]
 mod production_lints;
 
+#[path = "delivery/reseal.rs"]
+mod reseal;
+
 use raf_fixtures::{files, git_repo, git_repo::assert_census_refused, layout};
 
 use raf_census::{

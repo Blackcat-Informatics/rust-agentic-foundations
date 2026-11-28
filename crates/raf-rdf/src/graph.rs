@@ -411,6 +411,18 @@ impl<'a> Value<'a> {
 }
 
 impl<'a> Node<'a> {
+    /// The local name of this node's subject, the name `Graph::nodes` reports for it.
+    ///
+    /// The name is empty for the graph's root subject. It borrows from the graph,
+    /// so a caller can name a row in a refusal without a separate lookup.
+    #[must_use]
+    pub fn name(self) -> &'a str {
+        let TermRef::Iri(iri) = self.graph.dataset.resolve(self.id) else {
+            unreachable!("INVARIANT: a node subject is an IRI, as Graph::nodes validates")
+        };
+        self.graph.local(iri)
+    }
+
     /// Outgoing objects borrowed from every native RDF 1.2 statement layer.
     /// Predicate and datatype IRIs are not separate objects of this iterator.
     pub fn objects(self) -> impl Iterator<Item = Value<'a>> + use<'a> {

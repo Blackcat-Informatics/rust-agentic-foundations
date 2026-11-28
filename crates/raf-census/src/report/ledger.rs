@@ -693,49 +693,72 @@ pub(crate) fn reference_family(value: &str) -> Option<&str> {
         .filter(|prefix| prefix.len() > 1 && prefix.ends_with('-') && !prefix.contains('*'))
 }
 
+/// Run a value check on `node` and name its row in any refusal it returns, so that
+/// every refusal of a row says which row it is. The root is named `root`.
+fn at_row<T>(node: &Node<'_>, check: impl FnOnce() -> Result<T, E>) -> Result<T, E> {
+    check().map_err(|error| {
+        let name = node.name();
+        let row = if name.is_empty() { "root" } else { name };
+        match error {
+            E::Missing(message) => E::Missing(format!("{message} on row {row}")),
+            E::Repeated(message) => E::Repeated(format!("{message} on row {row}")),
+            E::Value(message) => E::Value(format!("{message} on row {row}")),
+            other => other,
+        }
+    })
+}
+
 fn required_text(node: &Node<'_>, key: &str) -> Result<String, E> {
-    let value = shape::string(node, key)?;
-    if value.trim().is_empty() {
-        return Err(E::Value(format!("ledger {key}: nonempty string required")));
-    }
-    Ok(value)
+    at_row(node, || {
+        let value = shape::string(node, key)?;
+        if value.trim().is_empty() {
+            return Err(E::Value(format!("ledger {key}: nonempty string required")));
+        }
+        Ok(value)
+    })
 }
 
 fn strings(node: &Node<'_>, key: &str) -> Result<Vec<String>, E> {
-    let mut values = node
-        .values(&shape::property(key))
-        .map(|value| {
-            let (text, datatype) = value
-                .literal()
-                .ok_or_else(|| E::Value(format!("ledger {key}: string required")))?;
-            if datatype != raf_rdf::vocab::STRING || text.trim().is_empty() {
-                return Err(E::Value(format!("ledger {key}: nonempty string required")));
-            }
-            Ok(text.to_owned())
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    values.sort();
-    Ok(values)
+    at_row(node, || {
+        let mut values = node
+            .values(&shape::property(key))
+            .map(|value| {
+                let (text, datatype) = value
+                    .literal()
+                    .ok_or_else(|| E::Value(format!("ledger {key}: string required")))?;
+                if datatype != raf_rdf::vocab::STRING || text.trim().is_empty() {
+                    return Err(E::Value(format!("ledger {key}: nonempty string required")));
+                }
+                Ok(text.to_owned())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        values.sort();
+        Ok(values)
+    })
 }
 
 fn targets(node: &Node<'_>, key: &str) -> Result<Vec<String>, E> {
-    node.values(&shape::property(key))
-        .map(|value| {
-            value
-                .iri()
-                .filter(|iri| iri.starts_with('#'))
-                .map(str::to_owned)
-                .ok_or_else(|| E::Value(format!("ledger {key}: owned node required")))
-        })
-        .collect()
+    at_row(node, || {
+        node.values(&shape::property(key))
+            .map(|value| {
+                value
+                    .iri()
+                    .filter(|iri| iri.starts_with('#'))
+                    .map(str::to_owned)
+                    .ok_or_else(|| E::Value(format!("ledger {key}: owned node required")))
+            })
+            .collect()
+    })
 }
 
 fn anchor(node: &Node<'_>) -> Result<String, E> {
-    shape::one(node, "anchor")?
-        .iri()
-        .filter(|iri| !iri.is_empty() && !iri.starts_with('#'))
-        .map(str::to_owned)
-        .ok_or_else(|| E::Value("ledger anchor: absolute documentation IRI required".into()))
+    at_row(node, || {
+        shape::one(node, "anchor")?
+            .iri()
+            .filter(|iri| !iri.is_empty() && !iri.starts_with('#'))
+            .map(str::to_owned)
+            .ok_or_else(|| E::Value("ledger anchor: absolute documentation IRI required".into()))
+    })
 }
 
 fn optional_count(node: &Node<'_>, key: &str) -> Result<Option<usize>, E> {
