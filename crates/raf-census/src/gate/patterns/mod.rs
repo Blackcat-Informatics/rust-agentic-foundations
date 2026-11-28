@@ -105,8 +105,8 @@ fn run<'p, 'w>(
 }
 
 /// Matches each compiled tokens pattern in the files its scope admits. Normalization
-/// is the shared `tokens` scope: it draws on one copy of the matching grant for the
-/// whole run. Each pattern has its own allowance, which grows by the work the
+/// is the shared `tokens` scope: each admitted file is normalized within a fresh copy of
+/// the matching grant. Each pattern has its own allowance, which grows by the work the
 /// admitted file can cost that pattern, so one rule never spends another's steps.
 fn match_tokens<'p, 'w>(
     compiled: &[(&'p LedgerPattern, Form)],
@@ -118,10 +118,6 @@ fn match_tokens<'p, 'w>(
 ) -> Result<(), Error> {
     let files: Vec<&SourceFile> = workspace.files().collect();
     let patterns: Vec<&LedgerPattern> = compiled.iter().map(|(pattern, _)| *pattern).collect();
-    let mut normalization = MatchLimits {
-        steps: limits.steps,
-        states: limits.states,
-    };
     let mut allowances: Vec<Allowance> = compiled
         .iter()
         .map(|_| Allowance::new(limits.states))
@@ -144,6 +140,10 @@ fn match_tokens<'p, 'w>(
         if admitted.is_empty() {
             continue;
         }
+        let mut normalization = MatchLimits {
+            steps: limits.steps,
+            states: limits.states,
+        };
         let normalized =
             source::normalized(workspace, file, owners, &mut normalization).map_err(|error| {
                 let rules = admitted

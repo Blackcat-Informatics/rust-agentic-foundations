@@ -6938,9 +6938,9 @@ fn a_declaration_reached_through_two_target_paths_is_one_physical_owner() {
 )]
 fn a_tokens_pattern_reports_every_hit_as_its_admitted_tree_grows() {
     use std::fmt::Write as _;
-    // Each admitted file adds its own share of the pattern's allowance, so a tree
-    // of many admitted files keeps every hit under the same grant that a single
-    // file needs. The hits name their own files and lines.
+    // Normalization and matching each draw per admitted file, so a tree of many
+    // admitted files keeps every hit under a grant far below the whole tree's cost.
+    // The hits name their own files and lines.
     let ledger = lexical_pattern_graph("tokens", "check!($_)")
         .finish()
         .unwrap()

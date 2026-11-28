@@ -294,10 +294,10 @@ impl Gate {
     }
 
     /// Set the native step/state grant for witnesses, names, non-token ledger patterns and
-    /// the normalization of tokens patterns.
+    /// the normalization of each file a tokens pattern admits.
     ///
-    /// Witness pairs, retained states, storage growth, pending pattern hits and the
-    /// normalization of tokens patterns draw on this grant. Each tokens pattern matches
+    /// Witness pairs, retained states, storage growth and pending pattern hits draw on
+    /// this grant. Each admitted file is normalized within a fresh copy of it, and each tokens pattern matches
     /// within its own allowance, as the capability document states. Source loading keeps
     /// its separate original limits; exhausted matching is an error.
     #[must_use]
