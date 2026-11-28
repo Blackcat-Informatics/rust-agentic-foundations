@@ -147,6 +147,11 @@ bindings:
     - raf_census::test_crate::ledger_evidence::an_added_row_is_sealed_into_the_ledger
     - raf_census::test_crate::ledger_evidence::a_removed_row_is_sealed_out_of_the_ledger
     - raf_census::test_crate::ledger_evidence::a_row_that_does_not_verify_refuses_the_reseal_and_names_the_predicate
+    - cargo_raf_census::test_crate::delivery::reseal::in_place_replaces_an_edited_ledger_with_one_the_ledger_reader_accepts
+    - cargo_raf_census::test_crate::delivery::reseal::in_place_refuses_an_emptied_required_field_and_leaves_the_ledger_byte_identical
+    - cargo_raf_census::test_crate::delivery::reseal::in_place_refuses_a_leftover_temporary_file_and_names_its_remedy
+    - cargo_raf_census::test_crate::delivery::reseal::in_place_keeps_the_ledger_permissions
+    - cargo_raf_census::test_crate::delivery::reseal::in_place_refuses_a_symbolic_link_and_leaves_its_target_unchanged
     - raf_census::census::tests::unexpanded_inventory_retains_only_selected_packages_and_stays_separate_from_units
     - raf_census::test_crate::migration_legacy::ambiguous_aliases_bad_layouts_and_wrong_report_inputs_refuse_without_partial_success
     - raf_census::error::tests::each_variant_renders_its_facts
@@ -1086,6 +1091,11 @@ and escapes controls beside a plain diagnostic neighbor.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
+| `cargo_raf_census::test_crate::delivery::reseal::in_place_keeps_the_ledger_permissions` | test | [Usage](#usage) |
+| `cargo_raf_census::test_crate::delivery::reseal::in_place_refuses_a_leftover_temporary_file_and_names_its_remedy` | test | [Usage](#usage) |
+| `cargo_raf_census::test_crate::delivery::reseal::in_place_refuses_a_symbolic_link_and_leaves_its_target_unchanged` | test | [Usage](#usage) |
+| `cargo_raf_census::test_crate::delivery::reseal::in_place_refuses_an_emptied_required_field_and_leaves_the_ledger_byte_identical` | test | [Usage](#usage) |
+| `cargo_raf_census::test_crate::delivery::reseal::in_place_replaces_an_edited_ledger_with_one_the_ledger_reader_accepts` | test | [Usage](#usage) |
 | `raf_census::census::tests::unexpanded_inventory_retains_only_selected_packages_and_stays_separate_from_units` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_census::error::tests::an_options_error_has_no_nested_source` | test | [Verification](#verification) |
 | `raf_census::error::tests::each_variant_renders_its_facts` | test | [Contract](#contract) |
