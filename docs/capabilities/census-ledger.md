@@ -187,7 +187,9 @@ the build dependency cannot authorize both contexts.
 
 The production file helpers-ledger.ttl is canonical RDF 1.2. Ledger::from_turtle
 and Ledger::from_ntriples validate equivalent representations through the shared
-native profile. Its Ledger root requires normalForm and reportForm; optional
+native profile. Ledger::reseal_turtle returns the canonical text of an edited
+ledger with its BASE re-derived, and reads that text back through from_turtle, so
+a row that does not verify refuses the whole ledger. Its Ledger root requires normalForm and reportForm; optional
 minTokens and maxFileBytes default to 20 and eight MiB. Repeated root, reference,
 job, distinct and pattern properties declare sets; the default root is the
 workspace. A reference value names one package or a package family: a

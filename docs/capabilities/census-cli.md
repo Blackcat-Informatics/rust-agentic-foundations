@@ -463,7 +463,9 @@ A repository binary supplies a Gate configuration callback to `cargo_raf_census:
 Both carriers preserve the stock report bytes when an accepted extension is the only ledger difference. A refused registration exits before the query writes a report to stdout or a file.
 <!-- raf:tested-by cargo_raf_census::test_crate::delivery::registered_queries_share_cli_bytes_and_refuse_before_output -->
 
-`baseline` discovers structure through Census with default options without adopting debt. `dump-ledger` reads the selected native ledger. Reports use canonical RDF with explicit format selection and bounded complete index serialization. `--out` exclusively creates a new .ttl or .nt data file after serialization; existing files, source extensions and Git administration destinations refuse. Stdout mode writes no repository data.
+`baseline` discovers structure through Census with default options without adopting debt. `dump-ledger` reads the selected native ledger. `reseal` reads the workspace ledger
+after its rows were edited and writes the canonical text whose snapshot BASE names
+its content; it refuses a row that does not verify and names the failing row and predicate, and with `--in-place` replaces the ledger through a synced sibling file and a rename, keeping its permissions and refusing a symbolic link; a directory sync that fails after the rename is reported as a replaced ledger whose durability is unconfirmed; a ledger changed after the read is refused, not replaced, and `--out` requires a `.ttl` destination. The comparison is not a lock. Reports use canonical RDF with explicit format selection and bounded complete index serialization. The report commands' `--out` exclusively creates a new .ttl or .nt data file after serialization; existing files, source extensions and Git administration destinations refuse. Stdout mode writes no repository data.
 <!-- raf:tested-by cargo_raf_census::test_crate::delivery::report_exports_refuse_source_existing_files_and_git_administration -->
 
 **Bounded reports.** `index` measures the complete carrier in canonical

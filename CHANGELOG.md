@@ -8,6 +8,10 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
 
 ## [Unreleased]
 
+### Added
+
+- `cargo raf-census reseal` re-seals a form 6 ledger after its rows were edited, to stdout, `--out` or `--in-place`.
+
 ### Fixed
 
 - `cargo raf-workplan assess` against an existing record keeps every line it does

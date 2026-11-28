@@ -538,8 +538,10 @@ Run `raf_rdf::example_crate::report` to serialize the same typed ground graph in
 Build native `TermValue` values and insert `Triple` assertions into `Builder`,
 which validates their profile roles. Call `finish` to obtain the immutable
 `Graph`, then `to_text(Format::Turtle)` or `to_text(Format::NTriples)`.
-`from_text` reads only that exact canonical profile. `snapshot` returns the shared
-content-addressed BASE. `dataset` borrows the authoritative native store;
+`from_text` reads only that exact canonical profile. `reseal_text` checks the same
+closed profile without comparing the stored BASE, and returns the canonical text
+whose BASE names the digest of the content; it refuses syntax and profile errors
+only. `snapshot` returns the shared content-addressed BASE. `dataset` borrows the authoritative native store;
 `get`, `nodes`, `Node::values` and `Value` support borrowed domain validation.
 `raf_workplan::report` projects actual typed findings and
 item/test coverage. The bound `report` example builds typed values and provenance.

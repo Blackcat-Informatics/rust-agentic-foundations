@@ -5,7 +5,8 @@
 
 use super::PatternScope;
 use super::{
-    E, Error, LedgerJob, NamePattern, ecma, fields, node_at, required_text, scope, strings, targets,
+    E, Error, LedgerJob, NamePattern, at_row, ecma, fields, node_at, required_text, scope, strings,
+    targets,
 };
 use raf_rdf::{Graph, Node};
 use std::collections::BTreeSet;
@@ -81,7 +82,7 @@ pub(super) fn provider(
         return Err(E::Repeated(format!("provider {id}")).into());
     }
     let node = node_at(graph, id, "PreferredProvider")?;
-    fields(&node, "PreferredProvider")?;
+    fields(&node, id, "PreferredProvider")?;
     Ok(Some(PreferredProvider {
         package: required_text(&node, "package")?,
         entry_points: nonempty(&node, "entryPoint")?,
@@ -92,7 +93,7 @@ pub(super) fn provider(
 fn nonempty(node: &Node<'_>, key: &str) -> Result<Vec<String>, E> {
     let values = strings(node, key)?;
     if values.is_empty() {
-        return Err(E::Missing(format!("provider {key}")));
+        return at_row(node, || Err(E::Missing(format!("provider {key}"))));
     }
     Ok(values)
 }
@@ -110,7 +111,7 @@ pub(super) fn patterns(
             return Err(E::Repeated(format!("pattern {node_id}")).into());
         }
         let node = node_at(graph, &node_id, "Pattern")?;
-        fields(&node, "Pattern")?;
+        fields(&node, &node_id, "Pattern")?;
         let id = required_text(&node, "patternId")?;
         crate::RuleId::new(&id).map_err(|error| E::Value(error.to_string()))?;
         if !ids.insert(id.clone())

@@ -112,7 +112,7 @@ inputs:
     digest: 50392c8ead787ae3220545d0772e1d47416f20d23dd6fe16ae2b40ff763069b1
   - kind: symbol
     name: raf_census::report::ledger
-    digest: 7bea3202013d7b88484131478a2b8f701d33716de1134dc8d92062a87f81dc82
+    digest: dd49564501c40c53c4155167038a026f18e32017dd063528de161cdb833c5c0e
 verdict: accepted
 by: agent
 ---

@@ -252,6 +252,28 @@ impl Ledger {
         Self::read(text, Format::Turtle)
     }
 
+    /// Re-seal an edited canonical Turtle ledger: render it with the BASE that
+    /// names the digest of its content, after checking that the result reads
+    /// back as a valid ledger. Rows are verified by that read-back, so a row that
+    /// does not verify refuses the whole ledger.
+    ///
+    /// # Errors
+    /// Refuses oversized input, native RDF errors, a different normal form,
+    /// unknown fields, invalid cardinalities, names or values, and any row that
+    /// does not verify.
+    pub fn reseal_turtle(text: &str) -> Result<String, Error> {
+        if text.len() > MAX_LEDGER_BYTES {
+            return Err(E::Value(format!(
+                "ledger is {} bytes; maximum is {MAX_LEDGER_BYTES}",
+                text.len()
+            ))
+            .into());
+        }
+        let sealed = Graph::reseal_text(text, Format::Turtle).map_err(E::Ground)?;
+        Self::from_turtle(&sealed)?;
+        Ok(sealed)
+    }
+
     /// Read the equivalent closed canonical N-Triples 1.2 ledger profile.
     ///
     /// # Errors
@@ -370,7 +392,7 @@ impl Ledger {
         let root = graph
             .get("")
             .ok_or_else(|| E::Missing("ledger root".into()))?;
-        fields(&root, "Ledger")?;
+        fields(&root, "", "Ledger")?;
         let mut options = CensusOptions::default();
         if let Some(value) = optional_count(&root, "minTokens")? {
             options = options.min_tokens(value)?;
@@ -417,7 +439,7 @@ impl Ledger {
         for id in targets(&root, "distinct")? {
             reached.insert(id.clone());
             let node = node_at(&graph, &id, "Distinct")?;
-            fields(&node, "Distinct")?;
+            fields(&node, &id, "Distinct")?;
             let kind = match required_text(&node, "kind")?.as_str() {
                 "body" => GroupKind::Body,
                 "shim" => GroupKind::Shim,
@@ -467,26 +489,28 @@ fn read_distinct_members(
             return Err(E::Repeated(format!("distinct multiplicity {id}")).into());
         }
         let row = node_at(graph, &id, "MemberMultiplicity")?;
-        fields(&row, "MemberMultiplicity")?;
+        fields(&row, &id, "MemberMultiplicity")?;
         let symbol = required_text(&row, "symbol")?;
-        let count = shape::count(&row, "copies")?;
-        let member = counts
-            .get_mut(&symbol)
-            .ok_or_else(|| E::Value(format!("multiplicity names absent member {symbol:?}")))?;
-        if *member != 1 || count < 2 {
-            return Err(E::Value(format!(
-                "distinct multiplicity {symbol:?} requires one count greater than one"
-            ))
-            .into());
-        }
-        *member = count;
+        at_row(&row, || {
+            let count = shape::count(&row, "copies")?;
+            let member = counts
+                .get_mut(&symbol)
+                .ok_or_else(|| E::Value(format!("multiplicity names absent member {symbol:?}")))?;
+            if *member != 1 || count < 2 {
+                return Err(E::Value(format!(
+                    "distinct multiplicity {symbol:?} requires one count greater than one"
+                )));
+            }
+            *member = count;
+            Ok(())
+        })?;
     }
     DebtGroup::with_counts(kind, counts)
 }
 
 fn read_job(graph: &Graph, id: &str, reached: &mut BTreeSet<String>) -> Result<LedgerJob, Error> {
     let node = node_at(graph, id, "LedgerJob")?;
-    fields(&node, "LedgerJob")?;
+    fields(&node, id, "LedgerJob")?;
     let job_id = required_text(&node, "jobId")?;
     let names = read_names(&node, &job_id)?;
     let preferred_provider = declarations::provider(graph, &node, reached)?;
@@ -513,7 +537,7 @@ fn read_job(graph: &Graph, id: &str, reached: &mut BTreeSet<String>) -> Result<L
             return Err(E::Repeated(format!("ledger variant {variant}")).into());
         }
         let row = node_at(graph, &variant, "Variant")?;
-        fields(&row, "Variant")?;
+        fields(&row, &variant, "Variant")?;
         variants.push(LedgerVariant {
             symbol: required_text(&row, "symbol")?,
             file: required_text(&row, "file")?,
@@ -532,10 +556,14 @@ fn read_job(graph: &Graph, id: &str, reached: &mut BTreeSet<String>) -> Result<L
         // known, so input/job order cannot conceal an ownership conflict.
         node_at(graph, id, "Extension")?;
     }
-    let enforced = shape::boolean_value(shape::one(&node, "enforced")?).ok_or_else(|| {
-        E::Value(format!(
-            "job {job_id:?}: enforced requires a canonical boolean"
-        ))
+    let enforced = at_row(&node, || {
+        shape::one(&node, "enforced").and_then(|value| {
+            shape::boolean_value(value).ok_or_else(|| {
+                E::Value(format!(
+                    "job {job_id:?}: enforced requires a canonical boolean"
+                ))
+            })
+        })
     })?;
     let job = Job::new(job_id, required_text(&node, "homeSymbol")?)
         .entry_points(strings(&node, "entryPoint")?)
@@ -635,12 +663,12 @@ fn owned<'a>(
         return Err(E::Repeated(format!("ledger node {id}")));
     }
     let node = node_at(graph, id, class)?;
-    fields(&node, class)?;
+    fields(&node, id, class)?;
     Ok(node)
 }
 
 /// Refuse a property of `node` outside the closed shape of its Ledger `class`.
-fn fields(node: &Node<'_>, class: &str) -> Result<(), E> {
+fn fields(node: &Node<'_>, id: &str, class: &str) -> Result<(), E> {
     let Some((_, allowed)) = super::vocab::LEDGER_FIELDS
         .iter()
         .find(|(name, _)| *name == class)
@@ -653,7 +681,8 @@ fn fields(node: &Node<'_>, class: &str) -> Result<(), E> {
         if property != raf_rdf::vocab::TYPE
             && !allowed.iter().any(|key| property == shape::property(key))
         {
-            return Err(E::UnknownPredicate(format!("ledger {property}")));
+            let row = if id.is_empty() { "root" } else { id };
+            return Err(E::UnknownPredicate(format!("{property} on {class} {row}")));
         }
     }
     Ok(())
@@ -670,49 +699,72 @@ pub(crate) fn reference_family(value: &str) -> Option<&str> {
         .filter(|prefix| prefix.len() > 1 && prefix.ends_with('-') && !prefix.contains('*'))
 }
 
+/// Run a value check on `node` and name its row in any refusal it returns, so that
+/// every refusal of a row says which row it is. The root is named `root`.
+fn at_row<T>(node: &Node<'_>, check: impl FnOnce() -> Result<T, E>) -> Result<T, E> {
+    check().map_err(|error| {
+        let name = node.name();
+        let row = if name.is_empty() { "root" } else { name };
+        match error {
+            E::Missing(message) => E::Missing(format!("{message} on row {row}")),
+            E::Repeated(message) => E::Repeated(format!("{message} on row {row}")),
+            E::Value(message) => E::Value(format!("{message} on row {row}")),
+            other => other,
+        }
+    })
+}
+
 fn required_text(node: &Node<'_>, key: &str) -> Result<String, E> {
-    let value = shape::string(node, key)?;
-    if value.trim().is_empty() {
-        return Err(E::Value(format!("ledger {key}: nonempty string required")));
-    }
-    Ok(value)
+    at_row(node, || {
+        let value = shape::string(node, key)?;
+        if value.trim().is_empty() {
+            return Err(E::Value(format!("ledger {key}: nonempty string required")));
+        }
+        Ok(value)
+    })
 }
 
 fn strings(node: &Node<'_>, key: &str) -> Result<Vec<String>, E> {
-    let mut values = node
-        .values(&shape::property(key))
-        .map(|value| {
-            let (text, datatype) = value
-                .literal()
-                .ok_or_else(|| E::Value(format!("ledger {key}: string required")))?;
-            if datatype != raf_rdf::vocab::STRING || text.trim().is_empty() {
-                return Err(E::Value(format!("ledger {key}: nonempty string required")));
-            }
-            Ok(text.to_owned())
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    values.sort();
-    Ok(values)
+    at_row(node, || {
+        let mut values = node
+            .values(&shape::property(key))
+            .map(|value| {
+                let (text, datatype) = value
+                    .literal()
+                    .ok_or_else(|| E::Value(format!("ledger {key}: string required")))?;
+                if datatype != raf_rdf::vocab::STRING || text.trim().is_empty() {
+                    return Err(E::Value(format!("ledger {key}: nonempty string required")));
+                }
+                Ok(text.to_owned())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        values.sort();
+        Ok(values)
+    })
 }
 
 fn targets(node: &Node<'_>, key: &str) -> Result<Vec<String>, E> {
-    node.values(&shape::property(key))
-        .map(|value| {
-            value
-                .iri()
-                .filter(|iri| iri.starts_with('#'))
-                .map(str::to_owned)
-                .ok_or_else(|| E::Value(format!("ledger {key}: owned node required")))
-        })
-        .collect()
+    at_row(node, || {
+        node.values(&shape::property(key))
+            .map(|value| {
+                value
+                    .iri()
+                    .filter(|iri| iri.starts_with('#'))
+                    .map(str::to_owned)
+                    .ok_or_else(|| E::Value(format!("ledger {key}: owned node required")))
+            })
+            .collect()
+    })
 }
 
 fn anchor(node: &Node<'_>) -> Result<String, E> {
-    shape::one(node, "anchor")?
-        .iri()
-        .filter(|iri| !iri.is_empty() && !iri.starts_with('#'))
-        .map(str::to_owned)
-        .ok_or_else(|| E::Value("ledger anchor: absolute documentation IRI required".into()))
+    at_row(node, || {
+        shape::one(node, "anchor")?
+            .iri()
+            .filter(|iri| !iri.is_empty() && !iri.starts_with('#'))
+            .map(str::to_owned)
+            .ok_or_else(|| E::Value("ledger anchor: absolute documentation IRI required".into()))
+    })
 }
 
 fn optional_count(node: &Node<'_>, key: &str) -> Result<Option<usize>, E> {
