@@ -293,11 +293,13 @@ impl Gate {
         self
     }
 
-    /// Set the shared native step/state grant for witnesses, names and ledger patterns.
+    /// Set the native step/state grant for witnesses, names, non-token ledger patterns and
+    /// the normalization of tokens patterns.
     ///
-    /// Witness pairs, retained states, storage growth, token comparisons and pending
-    /// pattern hits use this same grant. Source
-    /// loading keeps its separate original limits; exhausted matching is an error.
+    /// Witness pairs, retained states, storage growth, pending pattern hits and the
+    /// normalization of tokens patterns draw on this grant. Each tokens pattern matches
+    /// within its own allowance, as the capability document states. Source loading keeps
+    /// its separate original limits; exhausted matching is an error.
     #[must_use]
     pub const fn matching_limits(mut self, limits: MatchLimits) -> Self {
         self.matching_limits = limits;

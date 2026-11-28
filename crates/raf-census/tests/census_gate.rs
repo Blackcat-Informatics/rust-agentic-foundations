@@ -6933,11 +6933,11 @@ fn a_declaration_reached_through_two_target_paths_is_one_physical_owner() {
 
 #[test]
 #[expect(
-    clippy::panic,
     clippy::unwrap_used,
     reason = "a failed prerequisite or unexpected observation must fail this test at the point of use"
 )]
 fn a_tokens_pattern_reports_every_hit_as_its_admitted_tree_grows() {
+    use std::fmt::Write as _;
     // Each admitted file adds its own share of the pattern's allowance, so a tree
     // of many admitted files keeps every hit under the same grant that a single
     // file needs. The hits name their own files and lines.
@@ -6956,7 +6956,7 @@ fn a_tokens_pattern_reports_every_hit_as_its_admitted_tree_grows() {
     ];
     let mut modules = String::new();
     for index in 0..files {
-        modules.push_str(&format!("pub mod m{index};\n"));
+        writeln!(modules, "pub mod m{index};").unwrap();
         entries.push((
             format!("src/m{index}.rs"),
             format!("pub fn f{index}(){{check!({index});}}\n"),
@@ -6966,7 +6966,7 @@ fn a_tokens_pattern_reports_every_hit_as_its_admitted_tree_grows() {
     modules.push_str("pub fn home(){}\npub use home as alias;\n");
     entries.push(("src/lib.rs".to_owned(), modules));
     let tree: MemoryTree = entries.into_iter().collect();
-    // 2000 admitted files exhaust a 50000-step shared grant on the shared-budget design.
+    // 2000 admitted files match every hit under a 50000-step grant.
     let report = fixture_gate(".")
         .matching_limits(purrdf_jsonschema::ecma::MatchLimits {
             steps: 50_000,
@@ -6980,10 +6980,9 @@ fn a_tokens_pattern_reports_every_hit_as_its_admitted_tree_grows() {
         .map(|found| found.symbol.clone())
         .collect();
     symbols.sort();
-    let expected: Vec<String> = (0..files)
+    let mut expected: Vec<String> = (0..files)
         .map(|index| format!("demo::m{index}::f{index}"))
         .collect();
-    let mut expected = expected;
     expected.sort();
     assert_eq!(symbols, expected);
 }

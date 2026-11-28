@@ -54,7 +54,9 @@ pub(super) fn find(
 pub(super) fn weight(nodes: &[Node]) -> u64 {
     nodes.iter().fold(0, |total, node| {
         let own = match node {
-            Node::Leaf(leaf) => 1 + u64::try_from(leaf.text.len()).unwrap_or(u64::MAX),
+            Node::Leaf(leaf) => u64::try_from(leaf.text.len())
+                .unwrap_or(u64::MAX)
+                .saturating_add(1),
             Node::Group(group) => 1 + weight(&group.children),
         };
         total.saturating_add(own)
